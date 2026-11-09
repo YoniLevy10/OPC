@@ -25,56 +25,52 @@ function showCity(name: string, city: string | null): boolean {
 
 export function StoreBoard({ groups }: { groups: StoreGroupModel[] }) {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4">
       {groups.map((group) => (
-        <section key={group.code} aria-labelledby={`region-${group.code}`}>
-          <header className="mb-3 flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <h2 id={`region-${group.code}`} className="t-title text-ink">
-                {group.label}
-              </h2>
-              <span aria-hidden className="clay-rule" />
-            </div>
+        <section
+          key={group.code}
+          aria-labelledby={`region-${group.code}`}
+          className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-1)]"
+        >
+          <header className="flex items-end justify-between gap-3 border-b border-border px-4 py-3">
+            <h2 id={`region-${group.code}`} className="t-section text-ink">
+              {group.label}
+            </h2>
             <span className="t-meta t-num text-ink-3">{group.stores.length}</span>
           </header>
-          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
+          <ul>
             {group.stores.map((store) => (
+              <li key={store.id} className="border-b border-border last:border-b-0">
                 <Link
-                  key={store.id}
                   href={`/ops/stores/${encodeURIComponent(store.code)}`}
                   aria-label={`${store.name}, ${store.code}`}
                   className={cn(
-                    'flex min-h-[7.5rem] flex-col justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface px-3.5 py-3.5',
+                    'flex items-center justify-between gap-3 px-4 py-3',
                     store.inactive && 'opacity-60',
-                    store.openCount > 0 && 'border-[var(--tenant-line)] bg-[var(--tenant-soft)]',
+                    store.openCount > 0 ? 'bg-surface' : 'bg-surface-sunken',
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="line-clamp-2 block text-[1.05rem] font-semibold leading-snug text-ink">
-                      {store.name}
-                    </span>
-                    {showCity(store.name, store.city) ? (
-                      <span className="t-meta mt-0.5 block truncate text-ink-3">{store.city}</span>
-                    ) : null}
-                  </span>
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="t-num text-[0.95rem] font-semibold tracking-tight text-ink-2">
+                    <span className="t-body-strong block truncate text-ink">{store.name}</span>
+                    <span className="t-meta t-num block text-ink-3">
                       {store.code}
+                      {showCity(store.name, store.city) ? ` · ${store.city}` : ''}
                     </span>
-                    <span
-                      className={cn(
-                        't-caption max-w-[6.5rem] truncate rounded-full px-2 py-1',
-                        store.openCount > 0
-                          ? 'bg-surface text-[var(--tenant)]'
-                          : 'bg-[var(--surface-sunken)] text-ink-3',
-                      )}
-                    >
-                      {store.status}
-                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      't-caption shrink-0',
+                      store.openCount > 0
+                        ? 'font-semibold text-[var(--tenant)]'
+                        : 'text-ink-3',
+                    )}
+                  >
+                    {store.status}
                   </span>
                 </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       ))}
     </div>

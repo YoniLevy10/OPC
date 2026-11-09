@@ -252,7 +252,7 @@ export default async function TicketDetailPage({
 
   return (
     <OpsAppShell>
-      <div className="ari-home mx-auto flex min-w-0 max-w-2xl flex-col gap-3 overflow-x-clip pb-actions-hq md:gap-5 md:pb-0">
+      <div className="ari-home mx-auto flex min-w-0 w-full max-w-2xl flex-col gap-3 overflow-x-clip pb-actions-hq md:max-w-4xl md:gap-5 md:pb-0">
         <PageToolbar backHref="/ops/tickets" backLabel="חזרה" showRefresh />
 
         <OpsPageHero

@@ -34,7 +34,7 @@ export default async function DocumentsPage() {
 
   return (
     <OpsAppShell>
-      <div className="mx-auto flex max-w-3xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 lg:max-w-6xl">
         <OpsPageHero
           title="מסמכים ותוקף"
           status={

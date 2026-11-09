@@ -67,13 +67,20 @@ export default async function OpsDashboardPage({
   const ticketCost: Record<string, string> = {}
   const storeCost: Record<string, string> = {}
   const byStore = new Map<string, { sum: number; missing: number }>()
+  let recordedSum = 0
+  let recordedMissing = 0
   for (const ticket of openTickets) {
     const amount = recordedTicketAmount(spends, ticket.id)
     ticketCost[ticket.id] = formatRecordedAmount(amount)
     const storeId = ticket.store_id || ''
     const row = byStore.get(storeId) ?? { sum: 0, missing: 0 }
-    if (amount == null) row.missing += 1
-    else row.sum += amount
+    if (amount == null) {
+      row.missing += 1
+      recordedMissing += 1
+    } else {
+      row.sum += amount
+      recordedSum += amount
+    }
     byStore.set(storeId, row)
   }
   for (const [storeId, row] of byStore) {
@@ -107,6 +114,15 @@ export default async function OpsDashboardPage({
           }}
           ticketCost={ticketCost}
           storeCost={storeCost}
+          recordedSummary={
+            openTickets.length === 0
+              ? null
+              : recordedSum <= 0
+                ? p('אין עדיין מחיר')
+                : recordedMissing > 0
+                  ? `${formatRecordedAmount(recordedSum)} נרשמו, ${recordedMissing} בלי מחיר`
+                  : formatRecordedAmount(recordedSum)
+          }
           notice={notice}
         />
       </div>

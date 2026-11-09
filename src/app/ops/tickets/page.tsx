@@ -9,7 +9,6 @@ import {
   ErrorState,
 } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
-import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { QueueTabs } from './queue-tabs'
 import { TicketSearch } from './ticket-search'
 import { TicketFilters } from './ticket-filters'
@@ -244,39 +243,40 @@ export default async function TicketsPage({
 
   return (
     <OpsAppShell>
-      <div className="ari-home flex flex-col gap-5">
-        <OpsPageHero
-          largeTitle
-          title={translate(locale, 'tickets.title')}
-          status={statusLine}
-          actions={
-            canPurgeDemo && ticketResult.backend === 'supabase' ? (
-              <PurgeDemoButton />
-            ) : undefined
-          }
-        />
+      <div className="ari-home flex flex-col gap-3">
+        <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <h1 className="t-title text-ink">{translate(locale, 'tickets.title')}</h1>
+            <p className="t-meta mt-1 text-ink-2">{statusLine}</p>
+          </div>
+          {canPurgeDemo && ticketResult.backend === 'supabase' ? (
+            <PurgeDemoButton />
+          ) : null}
+        </header>
 
-        <QueueTabs active={tabActive} filters={queueFilters} />
+        <div className="sticky top-0 z-20 flex flex-col gap-3 bg-[var(--canvas)] py-2">
+          <QueueTabs active={tabActive} filters={queueFilters} />
 
-        <div className="flex min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+            <div className="min-w-0 flex-1">
+              <Suspense fallback={null}>
+                <TicketSearch initialQ={q ?? ''} />
+              </Suspense>
+            </div>
             <Suspense fallback={null}>
-              <TicketSearch initialQ={q ?? ''} />
+              <TicketFilters stores={storeOptions} />
             </Suspense>
           </div>
-          <Suspense fallback={null}>
-            <TicketFilters stores={storeOptions} />
-          </Suspense>
+          <p className="t-caption hidden text-ink-3 md:block">
+            <Tx text="מיון: מהחדש לישן" />
+            {canDispatchVisit && view !== 'resolved' ? (
+              <>
+                {' · '}
+                <Tx text="סננו חנות ואז סמנו תקלות לביקור משולב" />
+              </>
+            ) : null}
+          </p>
         </div>
-        <p className="t-caption hidden text-ink-3 md:block">
-          <Tx text="מיון: מהחדש לישן" />
-          {canDispatchVisit && view !== 'resolved' ? (
-            <>
-              {' · '}
-              <Tx text="סננו חנות ואז סמנו תקלות לביקור משולב" />
-            </>
-          ) : null}
-        </p>
 
         {listError ? (
           <ErrorState

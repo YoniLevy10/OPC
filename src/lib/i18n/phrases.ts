@@ -26,6 +26,10 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'ממתינות לאישור': { en: 'Awaiting approval', fr: 'En attente d’approbation' },
   'הכל שקט': { en: 'All quiet', fr: 'Tout est calme' },
   שקט: { en: 'Quiet', fr: 'Calme' },
+  'נרשם על התקלות הפתוחות': {
+    en: 'Recorded on the open faults',
+    fr: 'Inscrit sur les pannes ouvertes',
+  },
   'דורש טיפול': { en: 'Needs attention', fr: 'À traiter' },
   פתוחות: { en: 'Open', fr: 'Ouvertes' },
   'נסגרו היום': { en: 'Closed today', fr: 'Fermées aujourd’hui' },

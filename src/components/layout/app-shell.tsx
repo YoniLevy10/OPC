@@ -405,7 +405,7 @@ export function AppShell({
               type="button"
               aria-label={p('הסתר תפריט')}
               onClick={toggleNav}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-ink-2 transition-colors hover:bg-surface-sunken hover:text-ink"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-ink-2 transition-colors hover:bg-surface hover:text-ink"
             >
               <PanelRightClose className="h-4 w-4" aria-hidden />
             </button>

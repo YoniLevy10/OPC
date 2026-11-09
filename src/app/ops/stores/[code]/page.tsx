@@ -104,7 +104,7 @@ export default async function StoreDetailPage({
 
   return (
     <OpsAppShell>
-      <div className="mx-auto flex max-w-xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-5 lg:max-w-6xl">
         <PageToolbar
           backHref="/ops/stores"
           backLabel="חזרה לחנויות"
@@ -132,6 +132,7 @@ export default async function StoreDetailPage({
           }
         />
 
+        <div className="flex min-w-0 flex-col gap-5 lg:grid lg:grid-cols-2 lg:items-start">
         <PhoneFoldStack>
         <PhoneFold title="כתובת ואנשי קשר" summary={store.city ?? store.address ?? store.code}>
         <Panel elevated>
@@ -269,6 +270,7 @@ export default async function StoreDetailPage({
           </PhoneFold>
         ) : null}
         </PhoneFoldStack>
+        </div>
       </div>
     </OpsAppShell>
   )

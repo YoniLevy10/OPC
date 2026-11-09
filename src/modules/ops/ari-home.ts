@@ -37,6 +37,8 @@ export type AriHomeRow = {
   status: string
   openFor: string
   overdue: boolean
+  /** Waiting on approval — clay type, not a pill. */
+  awaiting: boolean
 }
 
 export type AriHomeCategory = {
@@ -184,6 +186,7 @@ export function buildAriHome(input: {
             status: plainStatus(ticket.status, locale),
             openFor: openFor.text,
             overdue: openFor.overdue,
+            awaiting: ticketIsUrgent(ticket) && ticket.status !== 'engaged',
           }
         }),
         advice: `${verb} · ${label}`,

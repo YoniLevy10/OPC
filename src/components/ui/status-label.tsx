@@ -5,26 +5,9 @@ import { plainStatus, plainUrgency } from '@/components/ops/plain-labels'
 import { useLocale } from '@/components/i18n/locale-provider'
 import { cn } from '@/lib/utils'
 
-function statusTreatment(status: string): string {
-  switch (status) {
-    case 'new':
-      return 'bg-[var(--signal-critical-soft)] text-[var(--signal-critical)]'
-    case 'waiting_parts':
-    case 'waiting_vendor':
-    case 'engaged':
-    case 'awaiting_info':
-    case 'assigned':
-    case 'triaged':
-    case 'in_progress':
-      return 'bg-[var(--signal-warning-soft)] text-[var(--signal-warning)]'
-    case 'resolved':
-    case 'closed':
-      return 'bg-[var(--signal-resolved-soft)] text-[var(--signal-resolved)]'
-    case 'cancelled':
-      return 'bg-muted text-muted-foreground'
-    default:
-      return 'bg-muted text-muted-foreground'
-  }
+function statusClass(awaiting: boolean): string {
+  if (awaiting) return 'font-semibold text-[var(--tenant)]'
+  return 'text-ink-2'
 }
 
 export function PriorityText({
@@ -63,22 +46,18 @@ export function PriorityText({
 
 export function StatusLabel({
   status,
+  awaiting = false,
   className,
 }: {
   status: TicketStatus | string
+  /** Waiting on a decision: clay type, no pill. Closed and routine stay ink-2. */
+  awaiting?: boolean
   className?: string
 }) {
   const { locale } = useLocale()
   const label = plainStatus(status, locale)
-  const tone = statusTreatment(status)
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium',
-        tone,
-        className,
-      )}
-    >
+    <span className={cn('t-caption', statusClass(awaiting), className)}>
       {label}
     </span>
   )

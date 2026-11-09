@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import { Store } from 'lucide-react'
 import { OpsAppShell } from '@/components/layout/ops-app-shell'
 import { EmptyState } from '@/components/ui/primitives'
-import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { Button } from '@/components/ui/button'
 import { StoreSearch } from './store-search'
 import { StoreCreateForm } from './store-create-form'
@@ -141,23 +140,23 @@ export default async function StoresPage({
   return (
     <OpsAppShell>
       <div className="ari-home flex flex-col gap-5">
-        <OpsPageHero
-          largeTitle
-          title="חנויות"
-          status={`${activeCount} ${p('סניפים פעילים')}${
-            openStores > 0 ? ` · ${openStores} ${p('עם תקלות פתוחות')}` : ''
-          }`}
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" size="sm" asChild>
-                <Link href="/api/stores/qr-batch?format=pdf" target="_blank" rel="noopener">
-                  הדפסת QR לכל הרשת
-                </Link>
-              </Button>
-              {canMutate ? <StoreCreateForm /> : null}
-            </div>
-          }
-        />
+        <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <h1 className="t-title text-ink">{p('חנויות')}</h1>
+            <p className="t-meta mt-1 text-ink-2">
+              {activeCount} {p('סניפים פעילים')}
+              {openStores > 0 ? ` · ${openStores} ${p('עם תקלות פתוחות')}` : ''}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" asChild>
+              <Link href="/api/stores/qr-batch?format=pdf" target="_blank" rel="noopener">
+                הדפסת QR לכל הרשת
+              </Link>
+            </Button>
+            {canMutate ? <StoreCreateForm /> : null}
+          </div>
+        </header>
 
         <div
           role="group"

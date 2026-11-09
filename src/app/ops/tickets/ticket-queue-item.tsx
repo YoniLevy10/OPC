@@ -107,7 +107,10 @@ export function TicketQueueItem({
             <span className="text-ink md:hidden"> · {verb}</span>
           </p>
           <div className="hidden items-center gap-2 md:flex">
-            <StatusLabel status={ticket.status} />
+            <StatusLabel
+              status={ticket.status}
+              awaiting={ticketIsUrgent(ticket) && ticket.status !== 'engaged'}
+            />
             {openFor.overdue ? (
               <span className="t-body-strong text-[var(--tenant)]">{p('דחוף')}</span>
             ) : null}

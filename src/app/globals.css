@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Phone layout through tablet and split windows. Sidebar and desktop rows start together at 1024px. */
+@theme {
+  --breakpoint-md: 64rem;
+}
+
 /* ============================================================
    MILO — Optical Center
    One warm family everywhere: plaster, espresso, clay.
@@ -269,11 +274,11 @@ html.dark .apple-glass {
     0 10px 28px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
-/* Sidebar uses the same surface as the page. */
+/* Sidebar sits one step below the canvas so the desk reads as the page. */
 .apple-sidebar,
 html.dark .apple-sidebar {
   color: var(--ink);
-  background: var(--surface);
+  background: var(--surface-sunken);
   border-color: var(--border);
   box-shadow: none;
 }
@@ -283,7 +288,7 @@ html.dark .apple-sidebar {
   box-shadow: none;
 }
 .apple-sidebar .sidebar-nav-link:hover {
-  background: var(--surface-sunken);
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -338,7 +343,7 @@ html.dark .apple-sidebar {
   font-weight: 700;
   letter-spacing: -0.035em;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .ops-page-hero-title {
     font-size: 2.125rem; /* 34px desktop band */
     line-height: 1.15;
@@ -369,7 +374,7 @@ html.dark .apple-sidebar {
   min-height: 0;
   letter-spacing: -0.02em;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .ops-page-hero-compact .ops-page-hero-title {
     font-size: 1.375rem;
     min-height: 0;
@@ -507,7 +512,7 @@ body {
   Phone reading size. Desktop stays dense.
   Body at 17px so a phone session does not strain the eyes.
 */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   :root {
     --bottomnav-h: 68px;
     --tap: 52px;
@@ -644,7 +649,7 @@ body {
   font-size: 16px;
   line-height: 1.4;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .field-text {
     font-size: 13.5px;
   }
@@ -693,7 +698,7 @@ textarea:focus-visible,
 
 /* Side insets only. Top and bottom already live on the header, the tab bar, and the thumb bar.
    Padding the body on those axes would stack on top of a 100dvh shell. */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   body {
     padding-left: var(--safe-l);
     padding-right: var(--safe-r);
@@ -719,7 +724,7 @@ textarea:focus-visible,
 .pb-nav {
   padding-bottom: calc(var(--bottomnav-h) + var(--bottomnav-gap) + var(--safe-b) + 16px + 56px);
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .pb-nav {
     padding-bottom: 32px;
   }
@@ -748,7 +753,7 @@ body:has([role='dialog']) .hq-ticket-dock {
   visibility: hidden;
   pointer-events: none;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .pb-actions-hq {
     padding-bottom: 0;
   }
@@ -770,7 +775,7 @@ body:has([role='dialog']) .hq-ticket-dock {
   overflow: hidden;
   max-width: 100%;
 }
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   /* overflow-y: auto otherwise forces overflow-x: auto, so a 2px-wide child pans the page. */
   #main-content {
     overflow-x: clip;
@@ -789,7 +794,7 @@ body:has([role='dialog']) .hq-ticket-dock {
     overflow-x: clip;
   }
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .ops-shell-mobile {
     height: auto;
     max-height: none;
@@ -805,7 +810,7 @@ body:has([role='dialog']) .hq-ticket-dock {
   padding-top: 0;
   padding-bottom: calc(var(--bottomnav-h) + var(--bottomnav-gap) + var(--safe-b));
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .ops-main-fill {
     overflow: visible;
     padding-top: 1.75rem;
@@ -1110,9 +1115,9 @@ body:has([role='dialog']) .hq-ticket-dock {
   min-height: 0;
   list-style: none;
 }
-@media (min-width: 720px) {
+@media (min-width: 1024px) {
   .doc-folder-pocket {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 .doc-page {
