@@ -217,7 +217,7 @@ export function BarcodeScannerModal({
 
   const body = (
     <div className="flex flex-col gap-4">
-      <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-border bg-ink">
+      <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-border bg-black">
         <video
           ref={videoRef}
           className="aspect-[4/3] w-full object-cover"

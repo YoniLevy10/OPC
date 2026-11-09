@@ -157,7 +157,7 @@ export function AgentBubble() {
             <button
               type="submit"
               disabled={pending || !draft.trim()}
-              className="rounded-full bg-ink px-3 py-2 text-sm text-white disabled:opacity-40"
+              className="rounded-full bg-ink px-3 py-2 text-sm text-[var(--canvas)] disabled:opacity-40"
             >
               {p('שלח')}
             </button>
@@ -169,7 +169,7 @@ export function AgentBubble() {
         aria-expanded={open}
         aria-label={open ? p('סגור את הסוכן') : p('פתח את הסוכן')}
         onClick={() => setOpen((value) => !value)}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-[var(--shadow-2)]"
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-ink text-[var(--canvas)] shadow-[var(--shadow-2)]"
       >
         <MessageSquare className="h-6 w-6" aria-hidden />
       </button>

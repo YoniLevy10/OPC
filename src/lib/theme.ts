@@ -8,6 +8,10 @@ export const AUTO_DARK_START_HOUR = 19
 export const AUTO_DARK_END_HOUR = 7
 export const THEME_TIMEZONE = 'Asia/Jerusalem'
 
+/** Status-bar chrome. Matches --canvas in each theme. */
+export const THEME_COLOR_LIGHT = '#f4f0ea'
+export const THEME_COLOR_DARK = '#171410'
+
 export function isValidThemePreference(value: unknown): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'auto'
 }
@@ -73,8 +77,8 @@ export function applyThemeClass(dark: boolean) {
   root.dataset.theme = dark ? 'dark' : 'light'
   root.style.colorScheme = dark ? 'dark' : 'light'
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.setAttribute('content', '#f4f0ea')
+  if (meta) meta.setAttribute('content', dark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT)
 }
 
 /** Inline boot script — keep in sync with resolveDark / storage key / hours / TZ. */
-export const THEME_BOOT_SCRIPT = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='auto')m='auto';var h=new Date().getHours();try{var p=new Intl.DateTimeFormat('en-GB',{timeZone:${JSON.stringify(THEME_TIMEZONE)},hour:'numeric',hourCycle:'h23'}).formatToParts(new Date());var hv=p.find(function(x){return x.type==='hour'});if(hv)h=Number(hv.value)||h}catch(e){}var dark=m==='dark'||(m==='auto'&&(h>=${AUTO_DARK_START_HOUR}||h<${AUTO_DARK_END_HOUR}));var r=document.documentElement;r.classList.toggle('dark',dark);r.dataset.theme=dark?'dark':'light';r.style.colorScheme=dark?'dark':'light'}catch(e){}})();`
+export const THEME_BOOT_SCRIPT = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='auto')m='auto';var h=new Date().getHours();try{var p=new Intl.DateTimeFormat('en-GB',{timeZone:${JSON.stringify(THEME_TIMEZONE)},hour:'numeric',hourCycle:'h23'}).formatToParts(new Date());var hv=p.find(function(x){return x.type==='hour'});if(hv)h=Number(hv.value)||h}catch(e){}var dark=m==='dark'||(m==='auto'&&(h>=${AUTO_DARK_START_HOUR}||h<${AUTO_DARK_END_HOUR}));var r=document.documentElement;r.classList.toggle('dark',dark);r.dataset.theme=dark?'dark':'light';r.style.colorScheme=dark?'dark':'light';var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.setAttribute('content',dark?${JSON.stringify(THEME_COLOR_DARK)}:${JSON.stringify(THEME_COLOR_LIGHT)})}catch(e){}})();`

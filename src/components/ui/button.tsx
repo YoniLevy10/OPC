@@ -24,9 +24,9 @@ const buttonVariants = cva(
           'border border-border bg-surface text-ink hover:border-border-strong hover:bg-surface-sunken/50',
         ghost: 'text-ink-2 hover:bg-surface-sunken hover:text-ink',
         critical:
-          'border border-[var(--signal-critical-line)] bg-[var(--signal-critical-soft)] text-[var(--signal-critical)] hover:bg-[color-mix(in_srgb,var(--signal-critical)_10%,white)]',
+          'border border-[var(--signal-critical-line)] bg-[var(--signal-critical-soft)] text-[var(--signal-critical)] hover:bg-[color-mix(in_srgb,var(--signal-critical)_10%,var(--surface))]',
         resolve:
-          'bg-[var(--signal-resolved)] text-white shadow-[var(--shadow-1)] hover:bg-[color-mix(in_srgb,var(--signal-resolved)_88%,black)]',
+          'bg-[var(--signal-resolved)] text-[var(--canvas)] shadow-[var(--shadow-1)] hover:bg-[color-mix(in_srgb,var(--signal-resolved)_88%,black)]',
       },
       size: {
         sm: 'h-8 px-2.5 max-md:h-auto max-md:min-h-[var(--tap)]',

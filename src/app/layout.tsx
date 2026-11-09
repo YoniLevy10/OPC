@@ -4,7 +4,7 @@ import { Heebo, Rubik } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { LocaleProvider } from '@/components/i18n/locale-provider'
-import { THEME_BOOT_SCRIPT } from '@/lib/theme'
+import { THEME_BOOT_SCRIPT, THEME_COLOR_LIGHT } from '@/lib/theme'
 import { getLocale } from '@/lib/i18n/server'
 import { localeDir, localeHtmlLang } from '@/lib/i18n/locale'
 import './globals.css'
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   /* Status-bar chrome; ThemeProvider updates meta theme-color at runtime. */
-  themeColor: '#f4f0ea',
+  themeColor: THEME_COLOR_LIGHT,
   width: 'device-width',
   initialScale: 1,
   /* Required for safe-area insets to resolve in standalone PWA mode. */

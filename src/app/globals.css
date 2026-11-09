@@ -91,86 +91,52 @@
   color-scheme: light;
 }
 
-/* Night keeps the same plaster / espresso / clay. No second palette. */
+/*
+  Night is the same family, inverted: espresso canvas, plaster type,
+  clay lifted so it still reads. No second hue.
+*/
 html.dark {
-  color-scheme: light;
-  --canvas: #f4f0ea;
-  --surface: #fffcf9;
-  --surface-sunken: #ebe4db;
-  --surface-raised: #fffcf9;
-  --border: #e4dbd1;
-  --border-strong: #d4c9bd;
-  --ink: #1f1c19;
-  --ink-2: #6b625a;
-  --ink-3: #5c554e;
-  --signal-critical: #8d4b38;
-  --signal-critical-soft: #f3ebe6;
-  --signal-critical-line: #e4cfc4;
-  --signal-warning: #8d4b38;
-  --signal-warning-soft: #f3ebe6;
-  --signal-warning-line: #e4cfc4;
-  --signal-progress: #1f1c19;
-  --signal-progress-soft: #ebe4db;
-  --signal-resolved: #1f1c19;
-  --signal-resolved-soft: #ebe4db;
-  --signal-idle: #6b625a;
-  --signal-idle-soft: #ebe4db;
-  --signal-accent: #8d4b38;
-  --tenant: #8d4b38;
-  --tenant-hover: #743c2c;
-  --tenant-soft: #f3ebe6;
-  --tenant-line: #e4cfc4;
-  --tenant-contrast: #fffcf9;
-  --shadow-1: 0 1px 2px rgba(31, 28, 25, 0.06);
-  --shadow-2: 0 2px 8px rgba(31, 28, 25, 0.06);
-  --shadow-hover: 0 8px 22px rgba(31, 28, 25, 0.08);
-  --shadow-pop: 0 16px 40px rgba(31, 28, 25, 0.12);
-  --shadow-sheet: 0 10px 16px rgba(31, 28, 25, 0.12);
-  --panel-dark: #fffcf9;
-  --panel-dark-fg: #1f1c19;
+  color-scheme: dark;
+  --canvas: #171410;
+  --surface: #221e1a;
+  --surface-sunken: #100e0c;
+  --surface-raised: #2c2723;
+  --border: #3c352f;
+  --border-strong: #554c44;
+  --ink: #f4f0ea;
+  --ink-2: #c9beb3;
+  --ink-3: #a39488;
+  --signal-critical: #e0a894;
+  --signal-critical-soft: #3a2822;
+  --signal-critical-line: #6d4a3c;
+  --signal-warning: #e0a894;
+  --signal-warning-soft: #3a2822;
+  --signal-warning-line: #6d4a3c;
+  --signal-progress: #f4f0ea;
+  --signal-progress-soft: #2a2622;
+  --signal-resolved: #f4f0ea;
+  --signal-resolved-soft: #2a2622;
+  --signal-idle: #a8988c;
+  --signal-idle-soft: #2a2622;
+  --signal-accent: #e0a894;
+  --tenant: #e0a894;
+  --tenant-hover: #ebc0b0;
+  --tenant-soft: #3a2822;
+  --tenant-line: #6d4a3c;
+  --tenant-contrast: #1a120e;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 8px 22px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.55);
+  --shadow-sheet: 0 10px 16px rgba(0, 0, 0, 0.5);
+  --panel-dark: #100e0c;
+  --panel-dark-fg: #f4f0ea;
   --background: var(--canvas);
   --foreground: var(--ink);
 }
 
-/*
-  Ari's screens: three colors from one warm family.
-  Plaster #f4f0ea · espresso #1f1c19 · clay #8d4b38.
-  No green, no teal, no second red. Clay is the only accent.
-*/
+/* Ari screens inherit :root / html.dark. Do not re-pin the light tokens here. */
 .ari-home {
-  color-scheme: light;
-  --canvas: #f4f0ea;
-  --surface: #fffcf9;
-  --surface-sunken: #ebe4db;
-  --surface-raised: #fffcf9;
-  --border: #e4dbd1;
-  --border-strong: #d4c9bd;
-  --ink: #1f1c19;
-  --ink-2: #6b625a;
-  --ink-3: #5c554e;
-  --signal-critical: #8d4b38;
-  --signal-critical-soft: #f3ebe6;
-  --signal-critical-line: #e4cfc4;
-  --signal-warning: #8d4b38;
-  --signal-warning-soft: #f3ebe6;
-  --signal-warning-line: #e4cfc4;
-  --signal-progress: #1f1c19;
-  --signal-progress-soft: #ebe4db;
-  --signal-resolved: #1f1c19;
-  --signal-resolved-soft: #ebe4db;
-  --signal-idle: #6b625a;
-  --signal-idle-soft: #ebe4db;
-  --signal-accent: #8d4b38;
-  --tenant: #8d4b38;
-  --tenant-hover: #743c2c;
-  --tenant-soft: #f3ebe6;
-  --tenant-line: #e4cfc4;
-  --tenant-contrast: #fffcf9;
-  --shadow-1: 0 1px 2px rgba(31, 28, 25, 0.06);
-  --shadow-2: 0 2px 8px rgba(31, 28, 25, 0.06);
-  --shadow-sheet: 0 10px 16px rgba(31, 28, 25, 0.12);
-  --background: var(--canvas);
-  --foreground: var(--ink);
   background: var(--canvas);
   color: var(--ink);
 }

@@ -104,7 +104,7 @@ export function TasksClient({ ownerId }: { ownerId: string }) {
                   className={cn(
                     'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
                     t.done
-                      ? 'border-[var(--signal-resolved)] bg-[var(--signal-resolved)] text-white'
+                      ? 'border-[var(--signal-resolved)] bg-[var(--signal-resolved)] text-[var(--canvas)]'
                       : 'border-border text-transparent hover:border-[var(--tenant)]',
                   )}
                 >

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { THEME_COLOR_LIGHT } from '@/lib/theme'
 
 /**
  * The technician PWA is a separate installable app with its own scope and
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#f4f0ea',
+  themeColor: THEME_COLOR_LIGHT,
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
