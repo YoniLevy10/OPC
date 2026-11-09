@@ -47,7 +47,9 @@ export function OpsPageHero({
     <header
       className={cn(
         'ops-page-hero relative',
-        mark ? 'overflow-visible' : 'overflow-hidden',
+        // Clip horizontal overhang from the air diamond so document scrollWidth
+        // does not grow (RTL inset-inline-end: -36px). Vertical clip stays soft.
+        mark ? 'overflow-x-clip' : 'overflow-hidden',
         // Mobile: edge-to-edge large title. Desktop: soft elevated band.
         'rounded-none border-0 bg-transparent px-0 py-1 shadow-none',
         compact

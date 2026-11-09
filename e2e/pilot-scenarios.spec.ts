@@ -9,20 +9,26 @@ test.describe('Pilot scenarios (memory backend)', () => {
     await expect(page.getByText(/הדיווח התקבל/i)).toBeVisible({ timeout: 15_000 })
   })
 
-  test('3 — HQ assigns technician', async ({ page, request }) => {
+  test('3 — HQ locks Midrag engagement (אשר עסקה)', async ({ page, request }) => {
     const { ticketId } = await createStore172Ticket(request)
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(`/ops/tickets/${ticketId}`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading').first()).toBeVisible()
-    const assignBtn = page.getByRole('button', { name: /שייך טכנאי/i }).first()
-    await expect(assignBtn).toBeVisible({ timeout: 15_000 })
-    await assignBtn.click()
-    const sheet = page.getByRole('dialog')
-    await expect(sheet.getByText(/שייך טכנאי/i)).toBeVisible()
-    await sheet.getByRole('button').filter({ hasText: /טכנאי|יוסי|מיכל/i }).first().click()
-    await expect(page.getByText(/הטכנאי שויך|משויך|טכנאי דמו/i).first()).toBeVisible({
-      timeout: 15_000,
-    })
+    // Ticket detail uses EngagementPanel (Midrag) — not the legacy "שייך טכנאי" sheet.
+    const markUrgent = page.getByRole('button', { name: 'סמן כדחוף' })
+    if ((await markUrgent.count()) > 0) {
+      await markUrgent.click()
+      await expect(page.getByRole('button', { name: 'אשר עסקה' })).toBeVisible({
+        timeout: 10_000,
+      })
+    }
+    await page.getByLabel('שם אחרי השיחה').fill('טכנאי דמו')
+    await page.getByLabel('טלפון').fill('0501234567')
+    await page.getByLabel('מחיר שסוכם').fill('450')
+    await page.getByRole('button', { name: 'אשר עסקה' }).click()
+    await expect(
+      page.getByText(/ארי יצא|המחיר נעול|מנהל החנות מתאם/i).first(),
+    ).toBeVisible({ timeout: 15_000 })
   })
 
   test('4 — tech resolves assigned job', async ({ page, request }) => {

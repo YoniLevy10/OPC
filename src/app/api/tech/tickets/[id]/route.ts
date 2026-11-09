@@ -20,26 +20,31 @@ import { notifyReporter } from '@/modules/notifications/lifecycle-notify'
 
 export const dynamic = 'force-dynamic'
 
+const mediaUrl = z
+  .string()
+  .max(320_000)
+  .optional()
+  .refine(
+    (v) =>
+      !v ||
+      v === '' ||
+      /^https?:\/\//i.test(v) ||
+      /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(v) ||
+      /^data:video\/(mp4|webm);base64,/i.test(v),
+    {
+      message:
+        'media URL must be http(s) or compressed data:image / data:video URL',
+    },
+  )
+
 const BodySchema = z.object({
   status: z.enum(TICKET_STATUSES).optional(),
   note: z.string().max(4000).optional(),
   resolution_note: z.string().max(4000).optional(),
-  photoUrl: z
-    .string()
-    .max(320_000)
-    .optional()
-    .refine(
-      (v) =>
-        !v ||
-        v === '' ||
-        /^https?:\/\//i.test(v) ||
-        /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(v) ||
-        /^data:video\/(mp4|webm);base64,/i.test(v),
-      {
-        message:
-          'photoUrl must be http(s) or compressed data:image / data:video URL',
-      },
-    ),
+  photoUrl: mediaUrl,
+  /** B02 proof pair — preferred over a single photoUrl when resolving. */
+  beforePhotoUrl: mediaUrl,
+  afterPhotoUrl: mediaUrl,
   claim: z.boolean().optional(),
 })
 
@@ -101,10 +106,25 @@ export async function PATCH(
     }
 
     // Ignore any client-supplied techId — session is source of truth
-    const { status, note, resolution_note, photoUrl, claim } = parsed.data
+    const {
+      status,
+      note,
+      resolution_note,
+      photoUrl,
+      beforePhotoUrl,
+      afterPhotoUrl,
+      claim,
+    } = parsed.data
     const resolvedNote = resolution_note?.trim() || note?.trim() || undefined
 
-    if (!status && !claim && !resolvedNote && !photoUrl) {
+    if (
+      !status &&
+      !claim &&
+      !resolvedNote &&
+      !photoUrl &&
+      !beforePhotoUrl &&
+      !afterPhotoUrl
+    ) {
       return NextResponse.json(
         { error: 'יש לספק סטטוס, הערה, תמונה או claim' },
         { status: 400 },
@@ -126,6 +146,8 @@ export async function PATCH(
       resolution_note: resolvedNote,
       claim,
       photoUrl,
+      beforePhotoUrl,
+      afterPhotoUrl,
     })
 
     if (status && isLifecycleEvent(status)) {

@@ -99,6 +99,48 @@ function detailToTech(detail: TicketDetail): TechTicketDetail {
   }
 }
 
+async function attachTechProofMedia(opts: {
+  ticketId: string
+  techId: string
+  url: string
+  proofRole?: 'before' | 'after' | null
+  note?: string | null
+}): Promise<void> {
+  const photoUrl = opts.url.trim()
+  if (!photoUrl) return
+  const { appendEvent } = await import('@/modules/tickets/service')
+  const kind =
+    /\.(mp4|webm)(\?|$)/i.test(photoUrl) || photoUrl.startsWith('data:video/')
+      ? 'video'
+      : opts.proofRole === 'before' || opts.proofRole === 'after'
+        ? opts.proofRole
+        : 'image'
+  await appendEvent(opts.ticketId, 'tech_photo', opts.techId, {
+    photo_url: photoUrl,
+    kind,
+    proof_role: opts.proofRole ?? null,
+  })
+  if (!(await supabaseReady())) {
+    const { memAddMessage } = await import('@/lib/data/memory-store')
+    memAddMessage(opts.ticketId, {
+      channel: 'tech',
+      direction: 'inbound',
+      body: opts.proofRole ?? opts.note ?? null,
+      media_url: photoUrl,
+      proof_role: opts.proofRole ?? null,
+    })
+  } else {
+    const { createSystemClient } = await import('@/lib/supabase/system')
+    const supabase = createSystemClient('tech_attachment_insert')
+    await supabase.from('ticket_attachments').insert({
+      ticket_id: opts.ticketId,
+      url: photoUrl,
+      kind,
+      proof_role: opts.proofRole ?? null,
+    })
+  }
+}
+
 export async function patchTechTicket(opts: {
   ticketId: string
   techId: string
@@ -107,6 +149,8 @@ export async function patchTechTicket(opts: {
   note?: string
   claim?: boolean
   photoUrl?: string
+  beforePhotoUrl?: string
+  afterPhotoUrl?: string
 }): Promise<TechTicketDetail> {
   const note = (opts.resolution_note ?? opts.note)?.trim()
   const current = await getById(opts.ticketId)
@@ -123,38 +167,41 @@ export async function patchTechTicket(opts: {
     throw new Error('אין הרשאה לעדכן תקלה של טכנאי אחר')
   }
 
+  const beforeUrl = opts.beforePhotoUrl?.trim()
+  const afterUrl = opts.afterPhotoUrl?.trim()
   const photoUrl = opts.photoUrl?.trim()
   let attachedProof = false
-  if (photoUrl) {
-    const { appendEvent } = await import('@/modules/tickets/service')
-    const kind =
-      /\.(mp4|webm)(\?|$)/i.test(photoUrl) ||
-      photoUrl.startsWith('data:video/')
-        ? 'video'
-        : 'image'
-    await appendEvent(opts.ticketId, 'tech_photo', opts.techId, {
-      photo_url: photoUrl,
-      kind,
+
+  if (beforeUrl) {
+    await attachTechProofMedia({
+      ticketId: opts.ticketId,
+      techId: opts.techId,
+      url: beforeUrl,
+      proofRole: 'before',
+      note,
     })
-    if (!(await supabaseReady())) {
-      const { memAddMessage } = await import('@/lib/data/memory-store')
-      memAddMessage(opts.ticketId, {
-        channel: 'tech',
-        direction: 'inbound',
-        body: note ?? null,
-        media_url: photoUrl,
-      })
-      attachedProof = true
-    } else {
-      const { createSystemClient } = await import('@/lib/supabase/system')
-      const supabase = createSystemClient('tech_attachment_insert')
-      await supabase.from('ticket_attachments').insert({
-        ticket_id: opts.ticketId,
-        url: photoUrl,
-        kind,
-      })
-      attachedProof = true
-    }
+  }
+  if (afterUrl) {
+    await attachTechProofMedia({
+      ticketId: opts.ticketId,
+      techId: opts.techId,
+      url: afterUrl,
+      proofRole: 'after',
+      note,
+    })
+  }
+  if (beforeUrl && afterUrl) {
+    attachedProof = true
+  } else if (photoUrl) {
+    await attachTechProofMedia({
+      ticketId: opts.ticketId,
+      techId: opts.techId,
+      url: photoUrl,
+      note,
+    })
+    // Legacy single photo — still mark attached so older clients can resolve;
+    // B02 UI path uploads a before/after pair via /attachments instead.
+    attachedProof = true
   }
 
   if (opts.status && opts.status !== current.status) {
