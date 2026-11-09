@@ -22,6 +22,8 @@ import {
   mergeEvidence,
 } from '@/modules/tickets/attachments'
 import { EngagementPanel } from './engagement-panel'
+import { PreferredVendorsPanel } from './preferred-vendors-panel'
+import { TicketRfqDraftPanel } from './ticket-rfq-draft-panel'
 import { Tx } from '@/components/i18n/tx'
 import { Timeline } from '@/components/ui/timeline'
 import { buildActivityDesc } from '@/modules/tickets/activity'
@@ -54,6 +56,7 @@ import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
 import { ticketDecision } from '@/modules/decisions/queue'
 import { lockedEngagementFor } from '@/modules/engagements/service'
 import { loadMidragResults } from '@/modules/vendors/midrag/live-results'
+import { suggestVendorsForTicket } from '@/modules/vendors/service'
 import { recommendBundles, type BundleFault } from '@/modules/whatsapp/agent/bundle'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 
@@ -131,6 +134,12 @@ export default async function TicketDetailPage({
   const prevention = suggestPrevention(hits)
   const urgent = ticketIsUrgent(ticket)
   const locked = await lockedEngagementFor(ticket.id).catch(() => null)
+  const preferredVendors = await suggestVendorsForTicket({
+    category: ticket.category,
+    regionId: ticket.region_id,
+  }).catch(() => ({ matches: [] as Awaited<
+    ReturnType<typeof suggestVendorsForTicket>
+  >['matches'] }))
   const midrag =
     urgent && ticket.status !== 'engaged'
       ? await loadMidragResults({
@@ -368,6 +377,37 @@ export default async function TicketDetailPage({
             </TicketFold>
           ) : null}
         </TicketFoldStack>
+
+        <PreferredVendorsPanel
+          ticketId={ticket.id}
+          category={ticket.category}
+          regionId={ticket.region_id ?? 'center'}
+          city={ticket.stores?.city ?? null}
+          initialMatches={preferredVendors.matches.slice(0, 4).map((row) => ({
+            id: row.id,
+            name: row.name,
+            specialties: row.specialties,
+            preferred: row.preferred,
+            coverage_regions: row.coverage_regions ?? undefined,
+            contact_phone: row.contact_phone ?? null,
+            notes: row.notes ?? null,
+            score: row.score,
+            reason: row.reason,
+            dispatchable: row.dispatchable,
+          }))}
+        />
+
+        <TicketRfqDraftPanel
+          ticketId={ticket.id}
+          ticketLabel={
+            ticket.display_number ||
+            (ticket.number != null ? `OC-${ticket.number}` : ticket.id.slice(0, 8))
+          }
+          storeId={ticket.store_id}
+          storeCode={ticket.stores?.code ?? ''}
+          storeName={ticket.stores?.name ?? storeName}
+          trade={ticket.category}
+        />
 
         <div id="ticket-actions">
           <EngagementPanel
