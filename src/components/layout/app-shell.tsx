@@ -72,6 +72,12 @@ const PRIMARY: NavItem[] = [
   },
   { href: '/ops/tickets', label: 'תקלות', icon: Inbox, match: '/ops/tickets' },
   {
+    href: '/ops/inbox',
+    label: 'WhatsApp',
+    icon: MessageSquare,
+    match: '/ops/inbox',
+  },
+  {
     href: '/ops/approvals',
     label: 'אישורים',
     icon: ClipboardCheck,
@@ -102,12 +108,6 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
         match: '/ops/alerts',
       },
       { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
-      {
-        href: '/ops/inbox',
-        label: 'WhatsApp',
-        icon: MessageSquare,
-        match: '/ops/inbox',
-      },
       {
         href: '/ops/professionals',
         label: 'אנשי מקצוע',
