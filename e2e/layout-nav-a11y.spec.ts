@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { createStore172Ticket, DEMO_TECH_ID, patchTicket } from './helpers/api'
+import { gotoStable } from './helpers/goto'
 
 const VIEWPORTS = [
   { name: 'iphoneSE', width: 375, height: 667 },
@@ -9,11 +10,6 @@ const VIEWPORTS = [
   { name: 'ipad', width: 768, height: 1024 },
   { name: 'desktop', width: 1440, height: 900 },
 ] as const
-
-async function gotoStable(page: import('@playwright/test').Page, path: string) {
-  await page.goto(path, { waitUntil: 'domcontentloaded' })
-  await page.waitForLoadState('networkidle').catch(() => undefined)
-}
 
 test.describe('Navigation & layout', () => {
   test('desktop sidebar routes', async ({ page }) => {
@@ -38,13 +34,14 @@ test.describe('Navigation & layout', () => {
   test('mobile bottom nav + More', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await gotoStable(page, '/ops/dashboard')
-    const bottomNav = page.locator('nav.fixed')
+    const bottomNav = page.getByRole('navigation', { name: 'ניווט תחתון' })
     await expect(bottomNav.getByText('דשבורד')).toBeVisible()
     await expect(bottomNav.getByText('תקלות')).toBeVisible()
     await expect(bottomNav.getByText('אישורים')).toBeVisible()
-    await expect(bottomNav.getByText('משימות')).toBeVisible()
+    // PRIMARY is dashboard / tickets / approvals — tasks live under More.
     await bottomNav.getByRole('button', { name: 'עוד' }).click()
     const more = page.getByRole('dialog')
+    await expect(more.getByRole('link', { name: 'משימות' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'חנויות' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'אנשי מקצוע' })).toBeVisible()
     await expect(
@@ -57,7 +54,10 @@ test.describe('Navigation & layout', () => {
     const { ticketId } = await createStore172Ticket(request)
     await gotoStable(page, `/ops/tickets/${ticketId}`)
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await expect(page.getByText(/מזגן|תקלה|OC-/).first()).toBeVisible()
+    // Compact hero hides OC- eyebrow (display:none) — assert visible status copy.
+    await expect(
+      page.getByRole('main').getByText(/מזגן|תקלה/).first(),
+    ).toBeVisible()
   })
 
   test('skip link focuses main content', async ({ page }) => {
@@ -141,7 +141,8 @@ test.describe('PWA manifests', () => {
     const hq = await request.get('/manifest.webmanifest')
     expect(hq.ok()).toBeTruthy()
     const hqJson = await hq.json()
-    expect(hqJson.name).toMatch(/MILO/)
+    // Brand short name after OPC rename (sidebar mark may still say MILO).
+    expect(hqJson.name).toMatch(/OPC|MILO|Optical/i)
     expect(String(hqJson.start_url)).toMatch(/^\/ops\/dashboard/)
     expect(hqJson.id).toBe('/ops/dashboard')
 

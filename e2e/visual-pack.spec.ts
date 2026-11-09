@@ -25,7 +25,9 @@ async function gotoStable(
   opts?: { desktop?: boolean },
 ) {
   await page.goto(path, { waitUntil: 'domcontentloaded' })
-  await page.waitForLoadState('networkidle').catch(() => undefined)
+  await page
+    .waitForLoadState('networkidle', { timeout: 5_000 })
+    .catch(() => undefined)
 
   if (opts?.desktop) {
     // Wait until CSS `md` layout is actually active (Linux scrollbars can
