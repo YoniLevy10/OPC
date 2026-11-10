@@ -9,6 +9,7 @@ import {
   ErrorState,
 } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
+import { CreateTicketDialog } from '@/components/ops/create-ticket-dialog'
 import { QueueTabs } from './queue-tabs'
 import { TicketSearch } from './ticket-search'
 import { TicketFilters } from './ticket-filters'
@@ -249,6 +250,11 @@ export default async function TicketsPage({
             <h1 className="t-title text-ink">{translate(locale, 'tickets.title')}</h1>
             <p className="t-meta mt-1 text-ink-2">{statusLine}</p>
           </div>
+          {canDispatchVisit ? (
+            <Suspense fallback={null}>
+              <CreateTicketDialog stores={storeOptions} trigger="header" />
+            </Suspense>
+          ) : null}
           {canPurgeDemo && ticketResult.backend === 'supabase' ? (
             <PurgeDemoButton />
           ) : null}

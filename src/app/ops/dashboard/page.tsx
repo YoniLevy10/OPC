@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import { OpsAppShell } from '@/components/layout/ops-app-shell'
 import { OpsPageHero } from '@/components/ops/ops-page-hero'
+import { CreateTicketDialog } from '@/components/ops/create-ticket-dialog'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { scopeTicketsForActor } from '@/lib/auth/ticket-scope'
@@ -17,6 +19,7 @@ import { AriHomeBoard } from './ari-home'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
+import { listStores } from '@/modules/stores/service'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,8 +36,11 @@ export default async function OpsDashboardPage({
   const locale = await getLocale()
   const p = (text: string) => phrase(locale, text)
   const noticeCode = (await searchParams).notice
+  const canCreateTicket = actor?.memberships.some(
+    (membership) => membership.role === 'global_admin' || membership.role === 'global_maintenance',
+  ) ?? false
 
-  const [openResult, doneResult] = await Promise.all([
+  const [openResult, doneResult, storeResult] = await Promise.all([
     listTickets({
       limit: 150,
       statuses: [...OPEN_TICKET_STATUSES],
@@ -43,6 +49,9 @@ export default async function OpsDashboardPage({
       limit: 80,
       statuses: ['resolved', 'closed'],
     }).catch(() => ({ tickets: [], backend: 'memory' as const })),
+    canCreateTicket
+      ? listStores().catch(() => ({ stores: [] }))
+      : Promise.resolve({ stores: [] }),
   ])
 
   const fetched = [
@@ -101,7 +110,16 @@ export default async function OpsDashboardPage({
     <OpsAppShell>
       <DashboardSoftRefresh />
       <div className="ari-home flex flex-col gap-4">
-        <OpsPageHero compact mark title={ariGreeting()} />
+        <OpsPageHero
+          compact
+          mark
+          title={ariGreeting()}
+          actions={canCreateTicket ? (
+            <Suspense fallback={null}>
+              <CreateTicketDialog stores={storeResult.stores} trigger="header" />
+            </Suspense>
+          ) : undefined}
+        />
         <AriHomeBoard
           model={home}
           stats={{
