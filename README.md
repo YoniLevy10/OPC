@@ -13,7 +13,7 @@
 - זיהוי חנות: **QR + NFC + קוד מספרי** (למשל `172`)
 - מספר WhatsApp **לכל מדינה** (לא לכל חנות)
 - שפה: **עברית**
-- צוות תחזוקה פנימי של הרשת
+- טיפול באמצעות צוות הרשת ובעלי מקצוע חיצוניים, באישור ארי
 - מיתוג ציבורי: OPC
 
 ## Stack
@@ -70,6 +70,8 @@ MAINTAINOS_FORCE_MEMORY=1
 
 ## מסמכים
 
+- [`docs/OPC_SPEC_V2_1.md`](docs/OPC_SPEC_V2_1.md) — אפיון OPC המחייב, גרסה 2.1: אחריות, תהליכים ותנאי מוכנות
+- [`docs/OPC_GAP_ANALYSIS_V2_1.md`](docs/OPC_GAP_ANALYSIS_V2_1.md) — 89 דרישות מול MaxStudy והמימוש, סטטוס ראיות, פערים ותוכנית השלמה
 - [`docs/OPC_ARI_ALIGNMENT.md`](docs/OPC_ARI_ALIGNMENT.md) — יעד 13 היכולות מול ארי, מיפוי מול הקוד, תהליך אחיד, סדר עבודה ובדיקות קבלה (10.11.2026)
 - [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) — בידול, ליבה אחידה, Digital Twin, פילטר פיצ׳רים
 - [`docs/MILO_REBRAND.md`](docs/MILO_REBRAND.md) — מיתוג פנימי וספר אנשי מקצוע
