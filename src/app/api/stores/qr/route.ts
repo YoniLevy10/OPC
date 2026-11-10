@@ -7,6 +7,10 @@ import {
 import { resolveWhatsAppBusinessPhone } from '@/modules/stores/business-phone'
 import { assetWhatsAppPrefill } from '@/modules/assets/service'
 import { captureError } from '@/lib/monitoring'
+import { requireActor, authErrorResponse } from '@/lib/auth/request-actor'
+import { AuthError } from '@/lib/auth/types'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
+import { canonicalStoreCode } from '@/modules/stores/israel-stores'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -18,12 +22,17 @@ export const runtime = 'nodejs'
  */
 export async function GET(request: NextRequest) {
   try {
+    const actor = await requireActor(request)
     const code = (request.nextUrl.searchParams.get('code') ?? '').trim()
     const asset = (request.nextUrl.searchParams.get('asset') ?? '').trim()
     const format = (request.nextUrl.searchParams.get('format') ?? 'png').toLowerCase()
     const asDownload = request.nextUrl.searchParams.get('download') === '1'
     if (!/^\d{1,6}$/.test(code)) {
       return NextResponse.json({ error: 'קוד חנות לא תקין' }, { status: 400 })
+    }
+    const { stores } = await visibleStores(actor)
+    if (!stores.some((store) => store.code === code || store.code === canonicalStoreCode(code))) {
+      throw new AuthError('אין גישה לחנות המבוקשת', 403)
     }
 
     const businessPhone = await resolveWhatsAppBusinessPhone()
@@ -59,7 +68,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'image/svg+xml; charset=utf-8',
-          'Cache-Control': 'public, max-age=300',
+          'Cache-Control': 'private, no-store',
           'Content-Disposition': `${disposition}; filename="${fileBase}.svg"`,
           'X-WhatsApp-Deep-Link': url,
         },
@@ -76,12 +85,13 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'private, no-store',
         'Content-Disposition': `${disposition}; filename="${fileBase}.png"`,
         'X-WhatsApp-Deep-Link': url,
       },
     })
   } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err)
     captureError(err, { route: 'GET /api/stores/qr' })
     return NextResponse.json({ error: 'יצירת QR נכשלה' }, { status: 500 })
   }

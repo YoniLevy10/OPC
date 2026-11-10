@@ -10,6 +10,7 @@ import {
   listUsers,
   requireUsersAdmin,
 } from '@/modules/users/service'
+import { authorizeUserCreation, visibleUsers } from '@/modules/users/authorization'
 
 const createSchema = z.object({
   full_name: z.string().min(1).max(120),
@@ -24,16 +25,15 @@ const createSchema = z.object({
   region_id: z.string().nullable().optional(),
   store_id: z.string().nullable().optional(),
   organization_id: z.string().uuid().optional(),
-  id: z.string().uuid().optional(),
   password: z.string().min(6).max(72).optional(),
   phone: z.string().max(32).nullable().optional(),
-})
+}).strict()
 
 export async function GET(request: Request) {
   try {
     const actor = await requireActor(request)
     requireUsersAdmin(actor)
-    const users = await listUsers()
+    const users = visibleUsers(actor, await listUsers())
     return NextResponse.json({ users })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)
@@ -61,7 +61,8 @@ export async function POST(request: Request) {
         { status: 400 },
       )
     }
-    const user = await createUser(parsed.data)
+    const input = await authorizeUserCreation(actor, parsed.data, await listUsers())
+    const user = await createUser(input)
     return NextResponse.json({ user }, { status: 201 })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)

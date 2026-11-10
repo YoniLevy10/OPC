@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /**
- * One-off OPC release step. Opt in ONLY through one preview build override:
+ * One-off OPC release step. Opt in through one preview build override:
  *   node scripts/release-v21-reminder-journal.mjs --apply && npm run build
+ * Or a production schema-only carrier whose ONLY build command is:
+ *   node scripts/release-v21-reminder-journal.mjs --production-schema-only
+ * That mode always exits 1, including verified success, so it cannot publish.
  * Uses existing build credentials; never retrieves/prints them. No HTTP endpoint,
  * cron invocation, historical migration replay, or default project selection.
  */
@@ -25,10 +28,20 @@ function requireCondition(condition, code) {
   if (!condition) throw new ReleaseError(code)
 }
 
-export function connectionOptions(env, args) {
-  requireCondition(args.length === 1 && args[0] === '--apply', 'explicit_apply_required')
+export function releaseMode(env, args) {
+  requireCondition(args.length === 1 && ['--apply','--production-schema-only'].includes(args[0]), 'explicit_apply_required')
+  if (args[0] === '--production-schema-only') {
+    requireCondition(env.VERCEL === '1' && env.VERCEL_ENV === 'production', 'production_build_required')
+    requireCondition(env.VERCEL_TARGET_ENV === 'production', 'production_target_required')
+    return 'production_schema_only'
+  }
   requireCondition(env.VERCEL === '1' && env.VERCEL_ENV === 'preview', 'preview_build_required')
   requireCondition(!env.VERCEL_TARGET_ENV || env.VERCEL_TARGET_ENV === 'preview', 'preview_target_required')
+  return 'preview'
+}
+
+export function connectionOptions(env, args) {
+  releaseMode(env, args)
   requireCondition(env.NEXT_PUBLIC_SUPABASE_URL === `https://${REF}.supabase.co`, 'opc_project_url_required')
   requireCondition(!env.SUPABASE_PROJECT_REF || env.SUPABASE_PROJECT_REF === REF, 'project_ref_mismatch')
   requireCondition(!env.SUPABASE_DB_HOST || env.SUPABASE_DB_HOST === HOST, 'pooler_host_mismatch')
@@ -201,12 +214,31 @@ export function safeFailure(error) {
   return error instanceof ReleaseError ? error.code :
     typeof error?.code === 'string' && /^[0-9A-Z]{5}$/.test(error.code) ? `postgres_${error.code}` : 'release_step_failed'
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try {
-    const result = await migrateReminderJournal()
-    console.log(JSON.stringify({ step: 'opc_v21_reminder_journal', ...result }))
-  } catch (error) {
-    console.error(JSON.stringify({ step: 'opc_v21_reminder_journal', error: safeFailure(error) }))
-    process.exitCode = 1
+
+export function releaseCliDecision(mode, result) {
+  requireCondition(['preview','production_schema_only'].includes(mode), 'unknown_release_mode')
+  return {
+    exitCode: mode === 'production_schema_only' ? 1 : 0,
+    output: {
+      step: 'opc_v21_reminder_journal', ...result,
+      ...(mode === 'production_schema_only' ? {status:'schema_verified_deployment_intentionally_stopped'} : {}),
+    },
   }
+}
+
+export async function runReleaseCli({env=process.env,args=process.argv.slice(2),migrate=migrateReminderJournal}={}) {
+  try {
+    const mode=releaseMode(env,args)
+    return releaseCliDecision(mode,await migrate({env,args}))
+  } catch (error) {
+    return {exitCode:1,output:{step:'opc_v21_reminder_journal',error:safeFailure(error)}}
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const decision=await runReleaseCli()
+  // Set before logging: a verified production carrier must NEVER exit zero.
+  process.exitCode=decision.exitCode
+  const write=decision.output.error ? console.error : console.log
+  write(JSON.stringify(decision.output))
 }

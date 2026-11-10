@@ -20,7 +20,7 @@ export default async function InboxPage() {
         <OpsPageHero
           className="hidden shrink-0 md:block"
           title="WhatsApp"
-          status="תיבת דואר נכנסת · השתלטות אנושית"
+          status="שיחות עם החנויות · בחרו שיחה כדי לקרוא ולהשיב"
         />
         <Suspense
           fallback={

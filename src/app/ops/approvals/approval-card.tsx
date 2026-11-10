@@ -85,7 +85,7 @@ export function ApprovalCard({
           />
         ) : (
           <Button asChild variant="primary" size="sm" className="max-md:w-full">
-            <Link href={`/ops/approvals?open=${ticket.id}`}>לאשר</Link>
+            <Link href={`/ops/approvals?open=${ticket.id}`}>לתוכנית הטיפול</Link>
           </Button>
         )}
       </div>

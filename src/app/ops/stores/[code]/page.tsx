@@ -34,6 +34,7 @@ import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
 import { ticketDecision } from '@/modules/decisions/queue'
 import { isVisitPlannableStatus } from '@/modules/visits/plan'
+import { canAccessStore } from '@/lib/auth/store-asset-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,18 +64,13 @@ export default async function StoreDetailPage({
   const code = decodeURIComponent(raw).trim()
 
   const { store } = await getStoreByCode(code)
-  if (!store) notFound()
+  if (!store || (actor && !canAccessStore(actor, store))) notFound()
 
   const businessPhone = await resolveWhatsAppBusinessPhone()
   const deepLink = businessPhone
     ? storeWhatsAppDeepLink(store.code, businessPhone)
     : null
-  const canEdit =
-    Boolean(
-      actor?.memberships.some(
-        (m) => m.role === 'global_admin' || m.role === 'country_manager',
-      ),
-    ) || shouldAllowDemoEntry()
+  const canEdit = actor ? canAccessStore(actor, store, 'store_write') : shouldAllowDemoEntry()
   const canDispatch = Boolean(
     actor?.memberships.some((m) =>
       ['global_admin', 'global_maintenance'].includes(m.role),

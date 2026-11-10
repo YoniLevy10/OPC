@@ -7,6 +7,7 @@ import {
 import { AuthError } from '@/lib/auth/types'
 import { deleteAsset, updateAsset } from '@/modules/assets/service'
 import { captureError } from '@/lib/monitoring'
+import { requireAssetWrite } from '@/lib/auth/store-asset-scope'
 
 const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -20,12 +21,13 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireActor(request)
+    const actor = await requireActor(request)
     const { id } = await ctx.params
     const parsed = patchSchema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })
     }
+    await requireAssetWrite(actor, id)
     const asset = await updateAsset(id, parsed.data)
     return NextResponse.json({ asset })
   } catch (err) {
@@ -43,8 +45,9 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireActor(_request)
+    const actor = await requireActor(_request)
     const { id } = await ctx.params
+    await requireAssetWrite(actor, id)
     await deleteAsset(id)
     return NextResponse.json({ ok: true })
   } catch (err) {

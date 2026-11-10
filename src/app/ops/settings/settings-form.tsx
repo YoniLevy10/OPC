@@ -61,19 +61,33 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  function changeSection(key: string) {
+    setSection(key as SectionId)
+    setNotice(null)
+    setError(null)
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      <label className="grid gap-1.5 md:hidden">
+        <span className="t-caption text-ink-2">קטגוריית הגדרות</span>
+        <select
+          value={section}
+          onChange={(event) => changeSection(event.target.value)}
+          className="min-h-12 w-full rounded-[var(--radius-md)] border border-border bg-surface px-3 text-base text-ink"
+        >
+          {SECTIONS.map((item) => <option key={item.id} value={item.id}>{p(item.label)}</option>)}
+        </select>
+      </label>
+      <div className="hidden md:block">
       <SegmentedButtons
         fill
         className="w-full max-md:overflow-x-auto"
         activeKey={section}
-        onChange={(key) => {
-          setSection(key as SectionId)
-          setNotice(null)
-          setError(null)
-        }}
+        onChange={changeSection}
         segments={SECTIONS.map((s) => ({ key: s.id, label: s.label }))}
       />
+      </div>
 
       <form onSubmit={saveSection} className="space-y-4">
         {error ? <ErrorState title="שגיאה" description={error} /> : null}

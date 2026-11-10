@@ -142,13 +142,14 @@ export default async function ApprovalsPage({
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 lg:max-w-4xl">
         <OpsPageHero
-          title="מחכות לאישור"
+          title="טיפול ובקשות תקציב"
           status={
             awaiting.length === 0
-              ? 'אין תקלות שמחכות לאישור'
-              : `${awaiting.length} מחכות לאישור`
+              ? 'אין תקלות דחופות שממתינות לתוכנית טיפול'
+              : `${awaiting.length} תקלות ממתינות לתוכנית טיפול`
           }
         />
+        <p className="t-body text-ink-2">בתוכנית הטיפול בוחרים איש מקצוע ומאשרים את המחיר שסוכם. בקשות תקציב קיימות מופיעות בנפרד בהמשך העמוד.</p>
         <PhoneFoldStack>
         {awaiting.length === 0 ? (
           <p className="t-body text-ink-2">אין תקלות דחופות שמחכות לארי.</p>
@@ -195,6 +196,7 @@ export default async function ApprovalsPage({
         )}
         {waiting.length > 0 ? (
           <div className="flex flex-col gap-3">
+            <h2 className="t-section text-ink">בקשות תקציב קיימות</h2>
             {waitingOrdered.map((spend, index) => {
               const brief = approvalBrief(
                 spend,

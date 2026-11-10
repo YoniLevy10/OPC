@@ -149,13 +149,13 @@ export async function GET() {
 
   let schemaAi = false
   let schemaMessages = false
+  let reminderJournal = false
   let countryDemo = true
   let countryPhoneId = ''
   let storePhones = 0
   let recentInboundCount = 0
   let recentOutboundCount = 0
   let activeHumanPauses = 0
-  let lastInboundSummary = ''
   if (ready) {
     try {
       const supabase = createSystemClient('pilot_health')
@@ -170,6 +170,12 @@ export async function GET() {
         .select('id')
         .limit(1)
       schemaMessages = !msgErr
+
+      const { error: journalError } = await supabase
+        .from('document_reminder_deliveries')
+        .select('delivery_key', { head: true })
+        .limit(0)
+      reminderJournal = !journalError
 
       const { data: countries } = await supabase
         .from('countries')
@@ -202,21 +208,6 @@ export async function GET() {
         .gte('created_at', sinceIso)
       recentOutboundCount = outboundCount ?? 0
 
-      const { data: lastIn } = await supabase
-        .from('whatsapp_messages')
-        .select('wa_id, body, created_at')
-        .eq('direction', 'inbound')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (lastIn?.wa_id) {
-        const wa = String(lastIn.wa_id)
-        const masked =
-          wa.length > 6 ? `${wa.slice(0, 4)}…${wa.slice(-3)}` : wa
-        const body = (lastIn.body as string | null)?.slice(0, 40) || '(ללא טקסט)'
-        lastInboundSummary = `${masked}: ${body}`
-      }
-
       const nowIso = new Date().toISOString()
       const { count: pauseCount } = await supabase
         .from('intake_sessions')
@@ -234,35 +225,10 @@ export async function GET() {
     process.env.NEXT_PUBLIC_WA_PHONE_NUMBER_ID ||
     ''
   ).trim()
-  let phoneIdAligned =
+  const phoneIdAligned =
     !envPhoneId || !countryPhoneId || countryDemo
       ? true
       : envPhoneId === countryPhoneId
-
-  // Auto-heal stale / demo countries.whatsapp_phone_number_id after Meta reconnect.
-  if (ready && envPhoneId && countryPhoneId !== envPhoneId) {
-    try {
-      const supabase = createSystemClient('pilot_health_heal_phone')
-      const { error: healErr } = await supabase
-        .from('countries')
-        .update({ whatsapp_phone_number_id: envPhoneId })
-        .eq('code', 'IL')
-      if (!healErr) {
-        countryPhoneId = envPhoneId
-        countryDemo = false
-        phoneIdAligned = true
-        checks.push({
-          id: 'country_phone_auto_healed',
-          ok: true,
-          level: 'info',
-          message: `עודכן countries.whatsapp_phone_number_id ל־env (${envPhoneId.slice(0, 6)}…)`,
-          owner: 'meta',
-        })
-      }
-    } catch {
-      /* ignore */
-    }
-  }
 
   checks.push({
     id: 'schema_ai_intake',
@@ -272,6 +238,16 @@ export async function GET() {
       schemaAi && schemaMessages
         ? 'מיגרציית AI Intake מיושמת (ai_summary + whatsapp_messages)'
         : 'חסרה מיגרציה 20260827230000_whatsapp_ai_intake — הריצו SQL ב־Supabase',
+    owner: 'build',
+  })
+
+  checks.push({
+    id: 'schema_document_reminder_journal',
+    ok: ready && reminderJournal,
+    level: 'must',
+    message: ready && reminderJournal
+      ? 'יומן תזכורות המסמכים זמין'
+      : 'יומן תזכורות המסמכים אינו זמין — נדרשת החלת המיגרציה 20261110120110',
     owner: 'build',
   })
 
@@ -405,7 +381,7 @@ export async function GET() {
     level: 'info',
     message: ready
       ? recentInboundCount > 0
-        ? `${recentInboundCount} נכנסות / ${recentOutboundCount} יוצאות ב־30 דק׳${lastInboundSummary ? ` · אחרונה: ${lastInboundSummary}` : ''}`
+        ? `${recentInboundCount} נכנסות / ${recentOutboundCount} יוצאות ב־30 דק׳`
         : 'אין הודעות נכנסות ב־30 הדקות האחרונות — אם שלחתם לבוט ולא הופיע כאן, בדקו ב־Meta שה־webhook מצביע ל־Callback URL וה־messages subscribed'
       : 'לא ניתן לבדוק inbound בלי Supabase',
     owner: 'meta',
@@ -446,7 +422,7 @@ export async function GET() {
     readyForPilot: mustOk,
     buildSideReady: buildMustOk,
     metaSideReady: metaMustOk,
-    webhookUrl: 'https://optical-center-rose.vercel.app/api/whatsapp/webhook',
+    webhookUrl: 'https://opc-jerusalem.vercel.app/api/whatsapp/webhook',
     backend: ready ? 'supabase' : 'memory',
     checks,
     nextSteps: must.filter((c) => !c.ok).map((c) => ({

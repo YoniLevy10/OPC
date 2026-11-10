@@ -34,21 +34,22 @@ export function ReportsExportActions({
   }
 
   return (
-    <div className={className ?? 'flex flex-wrap items-center gap-2 max-md:flex-col max-md:items-stretch'}>
+    <div className={className ?? 'flex flex-wrap items-center gap-2'}>
       <Button
         type="button"
         variant="secondary"
         size="sm"
-        className="max-md:w-full"
+        className="max-md:flex-1"
+        aria-label={`ייצוא CSV${count > 0 ? ` (${count})` : ''}`}
         onClick={() => download('csv')}
       >
-        ייצוא CSV{count > 0 ? ` (${count})` : ''}
+        CSV
       </Button>
       <Button
         type="button"
         variant="secondary"
         size="sm"
-        className="max-md:w-full"
+        className="max-md:flex-1"
         onClick={() => download('xlsx')}
       >
         Excel
@@ -57,7 +58,7 @@ export function ReportsExportActions({
         type="button"
         variant="secondary"
         size="sm"
-        className="max-md:w-full"
+        className="max-md:flex-1"
         onClick={() => download('pdf')}
       >
         PDF

@@ -5,13 +5,14 @@ import { UsersAdmin } from './users-admin'
 import { fetchStores } from '@/modules/stores/data'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UsersPage() {
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
-  const { stores } = await fetchStores()
+  const { stores } = actor ? await visibleStores(actor, true) : await fetchStores()
 
   return (
     <OpsAppShell>

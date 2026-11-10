@@ -9,7 +9,6 @@ import { OperationalRow, Dot } from '@/components/ui/operational-row'
 import { StatusLabel } from '@/components/ui/signal'
 import { cn } from '@/lib/utils'
 import { plainOpenForHe } from '@/components/ops/plain-labels'
-import { ticketDecision } from '@/modules/decisions/queue'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import type { QueueTicket } from '@/modules/tickets/queue'
 import { useVisitSelection } from './visit-selection-context'
@@ -37,8 +36,7 @@ export function TicketQueueItem({
   const open = OPEN_TICKET_STATUSES.includes(ticket.status as TicketStatus)
   const openFor = plainOpenForHe(ticket.created_at, ticket, new Date(), locale)
   const selected = visitSelection?.selected.has(ticket.id) ?? false
-  const decision = ticketDecision(ticket, new Date(), locale)
-  const verb = decision?.action.split('·')[0]?.trim() || p('לטפל')
+  const actionLabel = selectable ? p('תכנון טיפול') : p('פרטי התקלה')
 
   if (!open) {
     return (
@@ -102,9 +100,10 @@ export function TicketQueueItem({
             )}
           >
             {openFor.text}
-            <span className="text-ink-3"> · </span>
-            <span className="text-ink-2">{verb}</span>
-            <span className="text-ink md:hidden"> · {verb}</span>
+            <span className="md:hidden">
+              <span className="text-ink-3"> · </span>
+              <StatusLabel status={ticket.status} />
+            </span>
           </p>
           <div className="hidden items-center gap-2 md:flex">
             <StatusLabel
@@ -118,13 +117,13 @@ export function TicketQueueItem({
         </Link>
       </div>
       <div className="flex justify-end px-4 pb-3 pt-2">
-        {ticketIsUrgent(ticket) && ticket.status !== 'engaged' ? (
+        {selectable && ticketIsUrgent(ticket) ? (
           <Button asChild variant="primary" size="sm" className="max-md:w-full">
-            <Link href={`/ops/tickets/${ticket.id}`}>{verb}</Link>
+            <Link href={`/ops/tickets/${ticket.id}`}>{actionLabel}</Link>
           </Button>
         ) : (
           <Link href={`/ops/tickets/${ticket.id}`} className="t-meta text-ink">
-            {verb}
+            {actionLabel}
           </Link>
         )}
       </div>

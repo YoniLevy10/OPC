@@ -7,7 +7,6 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 import {
@@ -109,11 +108,23 @@ function isDesktopMq(): boolean {
 }
 
 function initialsFrom(label: string): string {
-  const parts = label.trim().split(/\\s+/).filter(Boolean)
+  const parts = label.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0]!.slice(0, 2)
   return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`
 }
+
+function intakeStateLabel(state: string): string {
+  switch (state) {
+    case 'awaiting_store': return 'ממתין לזיהוי חנות'
+    case 'awaiting_description': return 'ממתין לתיאור התקלה'
+    case 'awaiting_clarification': return 'ממתין להשלמת פרטים'
+    case 'done': return 'הדיווח נקלט'
+    default: return 'שיחה פעילה'
+  }
+}
+
+const WHATSAPP_NOT_SENT = 'ההודעה לא נשלחה ונשארה בטיוטה. חיבור ה־WhatsApp אינו זמין או שהמערכת במצב בדיקה. בדקו את החיבור בהגדרות או פנו למנהל המערכת.'
 
 function formatBubbleTime(iso: string): string {
   const d = new Date(iso)
@@ -180,9 +191,6 @@ export function InboxClient() {
   const [mobileShowThread, setMobileShowThread] = useState(Boolean(waFromUrl))
   const [reply, setReply] = useState('')
 
-  const threadEndRef = useRef<HTMLDivElement | null>(null)
-  const composerRef = useRef<HTMLTextAreaElement | null>(null)
-
   const loadSessions = useCallback(async () => {
     setError(null)
     try {
@@ -228,8 +236,10 @@ export function InboxClient() {
   }, [selected, loadThread])
 
   useLayoutEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, selected])
+    const end = [...document.querySelectorAll<HTMLElement>('[data-inbox-thread-end]')]
+      .find((node) => node.getClientRects().length > 0)
+    end?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages, selected, mobileShowThread])
 
   function openConversation(waId: string) {
     setSelected(waId)
@@ -300,20 +310,22 @@ export function InboxClient() {
         throw new Error(json.send.error || 'שליחת WhatsApp נכשלה')
       }
       if (json.send?.dryRun) {
-        throw new Error(
-          'ההודעה לא נשלחה ללקוח (מצב הדמיה / חסרים פרטי Meta). בדקו WHATSAPP_ACCESS_TOKEN ו־WHATSAPP_PHONE_NUMBER_ID.',
-        )
+        throw new Error(WHATSAPP_NOT_SENT)
       }
       setReply('')
       setNotice(
         `הודעה נשלחה · נפתח חלון שיחה פרטית ל־${HUMAN_PAUSE_WINDOW_MINUTES} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.`,
       )
       await Promise.all([loadThread(selected), loadSessions()])
-      composerRef.current?.focus()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שליחה נכשלה')
     } finally {
       setBusy(false)
+      requestAnimationFrame(() => {
+        const composer = [...document.querySelectorAll<HTMLTextAreaElement>('[data-inbox-composer]')]
+          .find((node) => node.getClientRects().length > 0)
+        composer?.focus()
+      })
     }
   }
 
@@ -339,6 +351,7 @@ export function InboxClient() {
       if (json.send && json.send.ok === false) {
         throw new Error(json.send.error || 'שליחת תבנית נכשלה')
       }
+      if (json.send?.dryRun) throw new Error('התבנית לא נשלחה. חיבור ה־WhatsApp אינו זמין או שהמערכת במצב בדיקה. בדקו את החיבור בהגדרות או פנו למנהל המערכת.')
       setNotice(
         'תבנית נשלחה — הלקוח יכול להשיב ולפתוח מחדש את חלון 24 השעות.',
       )
@@ -459,9 +472,7 @@ export function InboxClient() {
                       <span className="t-caption text-ink-3">
                         {s.human_takeover || s.inbox_status === 'waiting'
                           ? 'שיחה פרטית'
-                          : s.state === 'done'
-                            ? 'טופל'
-                            : s.state}
+                          : intakeStateLabel(s.state)}
                       </span>
                     </span>
                   </span>
@@ -552,12 +563,12 @@ export function InboxClient() {
         </div>
       ) : (
         <>
-          <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-3 py-2.5 text-ink">
+          <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-surface px-3 py-2.5 text-ink">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="-ms-1 shrink-0 text-ink lg:hidden"
+              className="-ms-1 min-h-11 min-w-11 shrink-0 px-0 text-ink lg:hidden"
               onClick={backToList}
               aria-label="חזרה לרשימה"
             >
@@ -570,21 +581,21 @@ export function InboxClient() {
               {initialsFrom(sessionTitle(active))}
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[15px] font-semibold leading-tight">
+              <h2 className="line-clamp-2 text-[15px] font-semibold leading-tight">
                 {sessionTitle(active)}
               </h2>
               <p dir="ltr" className="truncate text-[12px] opacity-85">
                 {context?.wa_display || active.wa_id}
               </p>
             </div>
-            <div className="flex shrink-0 gap-1.5">
+            <div className="flex w-full shrink-0 items-center justify-end gap-1.5 border-t border-border pt-2 lg:ms-auto lg:w-auto lg:border-0 lg:pt-0">
               <Button
                 type="button"
                 size="sm"
                 disabled={busy}
                 variant="ghost"
                 aria-label="מחק שיחה מתיבת Ops"
-                className="h-8 border-0 px-2 text-ink-2 hover:bg-surface-sunken hover:text-ink"
+                className="min-h-11 min-w-11 border-0 px-2 text-ink-2 hover:bg-surface-sunken hover:text-ink"
                 onClick={() => void clearChat()}
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
@@ -721,7 +732,7 @@ export function InboxClient() {
                     </div>
                   ),
                 )}
-                <div ref={threadEndRef} />
+                <div data-inbox-thread-end />
               </div>
             )}
           </div>
@@ -744,12 +755,9 @@ export function InboxClient() {
             </div>
           ) : (
             <div className="wa-composer-bar flex shrink-0 items-end gap-2 px-2 py-2 sm:px-3">
-              <label className="sr-only" htmlFor="inbox-reply">
-                הודעה ללקוח
-              </label>
               <Textarea
-                ref={composerRef}
-                id="inbox-reply"
+                data-inbox-composer
+                aria-label="הודעה ללקוח"
                 rows={1}
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}

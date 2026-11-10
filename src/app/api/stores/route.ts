@@ -7,10 +7,9 @@ import {
 import { AuthError } from '@/lib/auth/types'
 import {
   createStore,
-  listStores,
   requireStoresMutate,
 } from '@/modules/stores/service'
-import { MEM_COUNTRY_ID, MEM_ORG_ID } from '@/lib/data/memory-store'
+import { storeCreationScope, visibleStores } from '@/lib/auth/store-asset-scope'
 import { captureError } from '@/lib/monitoring'
 
 const createSchema = z.object({
@@ -25,10 +24,10 @@ const createSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    await requireActor(request)
+    const actor = await requireActor(request)
     const url = new URL(request.url)
     const includeInactive = url.searchParams.get('includeInactive') === '1'
-    const { stores, backend } = await listStores({ includeInactive })
+    const { stores, backend } = await visibleStores(actor, includeInactive)
     return NextResponse.json({ stores, backend })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)
@@ -51,21 +50,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Memory / IL pilot defaults when omitted
-    const countryMembership = actor.memberships.find(
-      (m) => m.role === 'country_manager' && m.country_id,
-    )
+    const scope = await storeCreationScope(actor, parsed.data)
     const store = await createStore({
       ...parsed.data,
-      country_id:
-        parsed.data.country_id ??
-        countryMembership?.country_id ??
-        MEM_COUNTRY_ID,
-      organization_id:
-        parsed.data.organization_id ??
-        actor.memberships[0]?.organization_id ??
-        MEM_ORG_ID,
-      region_id: parsed.data.region_id ?? 'ta',
+      ...scope,
     })
     return NextResponse.json({ store }, { status: 201 })
   } catch (err) {

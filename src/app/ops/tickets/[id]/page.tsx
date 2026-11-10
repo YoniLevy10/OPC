@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { OpsAppShell } from '@/components/layout/ops-app-shell'
 import { PageToolbar } from '@/components/layout/page-toolbar'
@@ -7,7 +6,6 @@ import {
   KeyValue,
 } from '@/components/ui/primitives'
 import { OpsPageHero } from '@/components/ops/ops-page-hero'
-import { Button } from '@/components/ui/button'
 import { StatusLabel } from '@/components/ui/signal'
 import { EvidenceGrid } from '@/components/ui/evidence'
 import {
@@ -51,7 +49,6 @@ import {
 import { PhoneFold as TicketFold, PhoneFoldStack as TicketFoldStack } from '@/components/layout/phone-fold'
 import { formatQualityHoldHe, isQualityHoldActive } from '@/modules/tickets/quality-hold'
 import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
-import { ticketDecision } from '@/modules/decisions/queue'
 import { getEngagementHandoffs, lockedEngagementFor } from '@/modules/engagements/service'
 import { buildVisitPlan, isVisitPlannableStatus, type VisitPlanTicket } from '@/modules/visits/plan'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
@@ -84,13 +81,6 @@ export default async function TicketDetailPage({
   const locale = await getLocale()
   const p = (text: string) => phrase(locale, text)
   const openFor = plainOpenForHe(ticket.created_at, ticket, new Date(), locale)
-  const decision = ticketDecision(ticket, new Date(), locale)
-  const openTicket = !['resolved', 'closed', 'cancelled'].includes(ticket.status)
-  const verb = decision
-    ? decision.action.split('·')[0]?.trim()
-    : openTicket
-      ? p('לטפל')
-      : null
   const storeName = ticket.stores?.name?.trim() || p('חנות')
   const storeCode = ticket.stores?.code?.trim()
   const whatsBroken = ticket.description || ticket.title || p('ללא תיאור')
@@ -272,13 +262,16 @@ export default async function TicketDetailPage({
           }
         />
 
-        {verb === 'לאשר' ? (
-          <div className="flex items-center justify-end px-1">
-            <Button asChild variant="primary" size="sm">
-              <Link href="#ticket-actions">לאשר</Link>
-            </Button>
-          </div>
-        ) : null}
+        <div id="ticket-actions">
+          <EngagementPanel
+            ticket={planTicket}
+            urgent={urgent}
+            status={ticket.status}
+            locked={locked}
+            companions={companions}
+            canApprove={canApprove}
+          />
+        </div>
 
         <Panel elevated className="max-md:p-3">
           <dl className="grid grid-cols-2 gap-2 md:block md:divide-y md:divide-border max-md:[&>*:last-child:nth-child(odd)]:col-span-2">
@@ -354,16 +347,7 @@ export default async function TicketDetailPage({
           ) : null}
         </TicketFoldStack>
 
-        <div id="ticket-actions">
-          <EngagementPanel
-            ticket={planTicket}
-            urgent={urgent}
-            status={ticket.status}
-            locked={locked}
-            companions={companions}
-            canApprove={canApprove}
-          />
-        </div>
+
       </div>
     </OpsAppShell>
   )

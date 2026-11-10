@@ -592,24 +592,7 @@ export function AppShell({
         </ul>
       </nav>
 
-      <SideDrawer open={menuOpen} onOpenChange={setMenuOpen} title={t('nav.menu')}>
-        <div className="mb-3 flex items-center justify-between px-3">
-          <span className="t-caption text-ink-3">{t('nav.language')}</span>
-          <LocaleSwitcher />
-        </div>
-        <DeskBell label={t('nav.control')} items={notices.bundles} />
-        <ul className="mb-4 flex flex-col gap-0.5">
-          {PRIMARY.map((item) => (
-            <li key={item.href}>
-              <DrawerNavLink
-                item={item}
-                pathname={pathname}
-                notices={notices}
-                onNavigate={closeMenu}
-              />
-            </li>
-          ))}
-        </ul>
+      <SideDrawer open={menuOpen} onOpenChange={setMenuOpen} title={t('nav.moreTools')}>
         {toolGroups.map((group) => (
           <div key={group.label} className="mb-4">
             <p className="t-caption mb-1.5 px-3 text-ink-3">
@@ -630,10 +613,18 @@ export function AppShell({
           </div>
         ))}
         <div className="mt-2 border-t border-border px-1 pt-3">
+          <div className="mb-3 flex items-center justify-between gap-3 px-3">
+            <span className="t-caption text-ink-3">{t('nav.language')}</span>
+            <LocaleSwitcher />
+          </div>
+          <div className="mb-3 flex items-center justify-between gap-3 px-3">
+            <span className="t-caption text-ink-3">{t('nav.theme')}</span>
+            <ThemeToggle compact />
+          </div>
           <LogoutButton size="touch" variant="secondary" className="w-full" />
         </div>
       </SideDrawer>
-      {pathname.startsWith('/ops') && !pathname.startsWith('/ops/pilot') ? <AgentBubble /> : null}
+      {pathname.startsWith('/ops') && !pathname.startsWith('/ops/pilot') && !fillMain ? <AgentBubble /> : null}
     </div>
   )
 }

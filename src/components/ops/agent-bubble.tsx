@@ -104,7 +104,7 @@ export function AgentBubble() {
                 type="button"
                 aria-label={p('סגור')}
                 onClick={() => setOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-sunken"
+                className="flex h-12 w-12 items-center justify-center rounded-full text-ink-2 hover:bg-surface-sunken"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
@@ -134,7 +134,7 @@ export function AgentBubble() {
                 type="button"
                 disabled={pending}
                 onClick={() => send(starter)}
-                className="shrink-0 whitespace-nowrap rounded-full border border-border px-3 py-1 text-xs text-ink-2"
+                className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-border px-3 py-1 text-xs text-ink-2"
               >
                 {starter}
               </button>
@@ -152,12 +152,12 @@ export function AgentBubble() {
               onChange={(event) => setDraft(event.target.value)}
               placeholder={p('שאלה לארי')}
               aria-label={p('שאלה לסוכן')}
-              className="min-w-0 flex-1 rounded-full border border-border bg-surface px-3 py-2 text-sm text-ink outline-none"
+              className="min-h-11 min-w-0 flex-1 rounded-full border border-border bg-surface px-3 py-2 text-sm text-ink outline-none"
             />
             <button
               type="submit"
               disabled={pending || !draft.trim()}
-              className="rounded-full bg-ink px-3 py-2 text-sm text-[var(--canvas)] disabled:opacity-40"
+              className="min-h-11 rounded-full bg-ink px-3 py-2 text-sm text-[var(--canvas)] disabled:opacity-40"
             >
               {p('שלח')}
             </button>

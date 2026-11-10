@@ -1,12 +1,24 @@
 import { NextResponse } from 'next/server'
 import QRCode from 'qrcode'
-import { fetchStores } from '@/modules/stores/data'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
+import { requireActor, authErrorResponse } from '@/lib/auth/request-actor'
+import { AuthError, type Actor } from '@/lib/auth/types'
 import { storeWhatsAppDeepLink } from '@/modules/stores/whatsapp-link'
 import { resolveWhatsAppBusinessPhone } from '@/modules/stores/business-phone'
 import { buildStoresQrPdf } from '@/modules/stores/qr-pdf'
 import { captureError } from '@/lib/monitoring'
 
 export async function GET(request: Request) {
+  try {
+    return await renderQrBatch(request, await requireActor(request))
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error)
+    captureError(error, { route: 'GET /api/stores/qr-batch' })
+    return NextResponse.json({ error: 'יצירת QR נכשלה' }, { status: 500 })
+  }
+}
+
+async function renderQrBatch(request: Request, actor: Actor) {
   const url = new URL(request.url)
   const format = url.searchParams.get('format') ?? 'html'
 
@@ -23,7 +35,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const { stores } = await fetchStores()
+  const { stores } = await visibleStores(actor, false)
   const active = stores.filter((s) => s.is_active !== false)
 
   if (format === 'pdf') {
@@ -71,7 +83,7 @@ export async function GET(request: Request) {
         name: c.store.name,
         waLink: c.waLink,
       })),
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   const html = `<!DOCTYPE html>
@@ -111,6 +123,6 @@ export async function GET(request: Request) {
 
   return new NextResponse(html, {
     status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' },
   })
 }

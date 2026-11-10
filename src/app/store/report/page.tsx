@@ -7,6 +7,7 @@ import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { Panel } from '@/components/ui/primitives'
 import { StoreReportForm } from './store-report-form'
 import { StoreWaPrimaryNotice } from '../wa-primary-notice'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +15,9 @@ export default async function StoreReportPage() {
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
 
-  const { stores } = await fetchStores()
+  const { stores } = actor ? await visibleStores(actor, false) : await fetchStores()
   const storeId = actor ? primaryStoreId(actor) : null
-  const locked = storeId
+  const locked = actor
     ? stores.find((s) => s.id === storeId)
     : stores.find((s) => s.code === canonicalStoreCode('172')) ?? stores[0]
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { connectionOptions, migrateReminderJournal, safeFailure } from './release-v21-reminder-journal.mjs'
+import { connectionOptions, migrateReminderJournal, releaseCliDecision, runReleaseCli, safeFailure } from './release-v21-reminder-journal.mjs'
 
 const releaseEnv = {
   VERCEL: '1', VERCEL_ENV: 'preview',
@@ -215,4 +215,56 @@ test('idle pg error events are handled without printing raw errors or committing
   })
   assert.equal(database.statements.includes('COMMIT'),false)
   assert.deepEqual(database.statements.slice(-2),['ROLLBACK','END'])
+})
+
+const productionEnv={...releaseEnv,VERCEL_ENV:'production',VERCEL_TARGET_ENV:'production'}
+
+test('production schema-only mode requires both production environment and target', async () => {
+  const options=connectionOptions(productionEnv,['--production-schema-only'])
+  assert.equal(options.ssl.rejectUnauthorized,true)
+  assert.equal(options.user,'postgres.pfsxuylbnpbcgjehuaqo')
+  for (const env of [
+    {...productionEnv,VERCEL:'0'}, {...productionEnv,VERCEL_ENV:'preview'},
+    {...productionEnv,VERCEL_TARGET_ENV:undefined}, {...productionEnv,VERCEL_TARGET_ENV:'preview'},
+    {...productionEnv,NEXT_PUBLIC_SUPABASE_URL:'https://different.supabase.co'},
+    {...productionEnv,SUPABASE_DB_PASSWORD:''}, {...productionEnv,NODE_TLS_REJECT_UNAUTHORIZED:'0'},
+  ]) {
+    const database=fakeDatabase()
+    await assert.rejects(run(database,{env,args:['--production-schema-only']}))
+    assert.equal(database.statements.length,0)
+  }
+  assert.throws(() => connectionOptions(productionEnv,['--apply']),/preview_build_required/)
+  assert.throws(() => connectionOptions(releaseEnv,['--production-schema-only']),/production_build_required/)
+})
+
+test('production schema-only mode retains the same transactional verified migration', async () => {
+  const database=fakeDatabase()
+  assert.deepEqual(await run(database,{env:productionEnv,args:['--production-schema-only']}),{
+    journal:'created_and_verified',history:'recorded',
+  })
+  assert.deepEqual(database.statements.slice(-3),["NOTIFY pgrst, 'reload schema'",'COMMIT','END'])
+})
+
+test('every verified production carrier result deliberately fails the CLI build', async () => {
+  for (const journal of ['created_and_verified','verified_existing']) {
+    for (const history of ['recorded','already_recorded','unavailable']) {
+      const result={journal,history}
+      const decision=releaseCliDecision('production_schema_only',result)
+      assert.equal(decision.exitCode,1)
+      assert.equal(decision.output.status,'schema_verified_deployment_intentionally_stopped')
+      assert.deepEqual(await runReleaseCli({env:productionEnv,args:['--production-schema-only'],migrate:async () => result}),decision)
+    }
+  }
+  assert.equal(releaseCliDecision('preview',{journal:'verified_existing',history:'recorded'}).exitCode,0)
+  assert.throws(() => releaseCliDecision('unknown',{}),/unknown_release_mode/)
+})
+
+test('production carrier failures also fail the build and sanitize output', async () => {
+  let called=false
+  const missingTarget=await runReleaseCli({env:{...productionEnv,VERCEL_TARGET_ENV:undefined},args:['--production-schema-only'],migrate:async () => {called=true}})
+  assert.equal(missingTarget.exitCode,1)
+  assert.equal(missingTarget.output.error,'production_target_required')
+  assert.equal(called,false)
+  const failed=await runReleaseCli({env:productionEnv,args:['--production-schema-only'],migrate:async () => {throw new Error('SECRET DATABASE PASSWORD')}})
+  assert.deepEqual(failed,{exitCode:1,output:{step:'opc_v21_reminder_journal',error:'release_step_failed'}})
 })

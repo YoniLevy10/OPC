@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { OpsAppShell } from '@/components/layout/ops-app-shell'
-import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { CreateTicketDialog } from '@/components/ops/create-ticket-dialog'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
@@ -124,16 +123,16 @@ export default async function OpsDashboardPage({
     <OpsAppShell>
       <DashboardSoftRefresh />
       <div className="ari-home flex flex-col gap-4">
-        <OpsPageHero
-          compact
-          mark
-          title={ariGreeting()}
-          actions={canCreateTicket ? (
+        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <h1 className="t-title text-ink">{ariGreeting()}</h1>
+          {canCreateTicket ? (
+            <div className="max-md:[&>button]:w-full">
             <Suspense fallback={null}>
               <CreateTicketDialog stores={visibleStores} trigger="header" />
             </Suspense>
-          ) : undefined}
-        />
+            </div>
+          ) : null}
+        </header>
         <HomeDecisions model={homeDecisions} />
         <AriHomeBoard
           model={home}
