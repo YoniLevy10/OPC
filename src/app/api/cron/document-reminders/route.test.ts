@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StoreDocument } from '@/modules/documents/rules'
 
-const mocks = vi.hoisted(() => ({ documents: vi.fn(), recipients: vi.fn(), hydrate: vi.fn(), notify: vi.fn() }))
+const mocks = vi.hoisted(() => ({ documents: vi.fn(), recipients: vi.fn(), hydrate: vi.fn(), notify: vi.fn(), notifyAri: vi.fn(), probe: vi.fn(), select: vi.fn(), from: vi.fn() }))
 vi.mock('@/lib/data/ops-ledger', () => ({ listDocuments: mocks.documents, deskNotifyPhones: mocks.recipients }))
 vi.mock('@/lib/data/ops-db', () => ({ hydrateOpsLedger: mocks.hydrate }))
-vi.mock('@/modules/notify/ari', () => ({ notifyPhone: mocks.notify }))
+vi.mock('@/modules/notify/ari', () => ({ notifyPhone: mocks.notify, notifyAri: mocks.notifyAri }))
 vi.mock('@/lib/logging', () => ({ logEvent: vi.fn() }))
-vi.mock('@/lib/supabase/system', () => ({ createSystemClient: () => { throw new Error('reminder schema unavailable') } }))
+vi.mock('@/lib/supabase/system', () => ({ createSystemClient: () => ({ from: mocks.from }) }))
 
 import { resetReminderDeliveriesForTests } from '@/modules/documents/reminder-deliveries'
 import { GET } from './route'
@@ -34,6 +34,10 @@ describe('document reminder cron', () => {
     mocks.recipients.mockReturnValue(['0501234567'])
     mocks.hydrate.mockResolvedValue({ ok: true, backend: 'supabase' })
     mocks.notify.mockResolvedValue({ status: 'sent', messageId: 'wa-1', error: null })
+    mocks.notifyAri.mockResolvedValue({ ok: true, outcomes: [{ to: '0501234567', status: 'sent', messageId: 'summary-1', error: null }] })
+    mocks.select.mockImplementation(() => ({ limit: mocks.probe }))
+    mocks.from.mockImplementation(() => ({ select: mocks.select }))
+    mocks.probe.mockRejectedValue(new Error('reminder schema unavailable'))
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -128,5 +132,110 @@ describe('document reminder cron', () => {
     expect(response.status).toBe(503)
     expect(await response.json()).toMatchObject({ ok: false, failed: 1, sent: 0 })
     expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mocks.notifyAri).not.toHaveBeenCalled()
+  })
+
+  function runLive() {
+    delete process.env.MAINTAINOS_FORCE_MEMORY
+    process.env.CRON_SECRET = 'test-secret'
+    return GET(new Request('http://localhost/api/cron/document-reminders', { headers: { authorization: 'Bearer test-secret' } }))
+  }
+
+  it.each(['42P01', 'PGRST205'])('preserves the daily aggregate only after a read-only missing-table response (%s)', async (code) => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code, message: 'missing table' } })
+    const response = await runLive()
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ ok: true, mode: 'legacy_daily_summary', phaseDeduplication: false, sent: 1, twoMonths: 1 })
+    expect(mocks.select).toHaveBeenCalledWith('delivery_key', { head: true })
+    expect(mocks.probe).toHaveBeenCalledWith(0)
+    expect(mocks.notifyAri).toHaveBeenCalledWith('מסמכים / כיולים — חודשיים לפני (1)', { mode: 'legacy_daily_summary', phaseDeduplication: false })
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('preserves the old daily recurrence rather than pretending phases were durably deduplicated', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code: '42P01', message: 'missing table' } })
+    await runLive()
+    vi.setSystemTime(new Date('2026-11-11T12:00:00Z'))
+    expect(await (await runLive()).json()).toMatchObject({ mode: 'legacy_daily_summary', phaseDeduplication: false, alreadySent: 0, sent: 1 })
+    expect(mocks.notifyAri).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['42501', 'PGRST202', '08006'])('does not use the legacy path for another database failure (%s)', async (code) => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code, message: 'database failed' } })
+    expect((await runLive()).status).toBe(503)
+    expect(mocks.notifyAri).not.toHaveBeenCalled()
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('never downgrades after an available-journal claim failure', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: null })
+    // The mock deliberately has no insert method: the claim fails after a
+    // successful live read-only probe, which must not cause a legacy send.
+    const response = await runLive()
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ ok: false, mode: 'phase_deduplicated', failed: 1 })
+    expect(mocks.notifyAri).not.toHaveBeenCalled()
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('never sends a legacy fallback after provider acceptance followed by a journal write failure', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: null })
+    const failedWrite = {
+      eq: () => failedWrite,
+      select: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'journal write unavailable' } }) }),
+    }
+    mocks.from.mockImplementation(() => ({
+      select: mocks.select,
+      insert: () => ({ select: () => ({ maybeSingle: async () => ({ data: { delivery_key: 'claimed' }, error: null }) }) }),
+      update: () => failedWrite,
+    }))
+    const response = await runLive()
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ ok: false, mode: 'phase_deduplicated', failed: 1, sent: 0 })
+    expect(mocks.notify).toHaveBeenCalledOnce()
+    expect(mocks.notifyAri).not.toHaveBeenCalled()
+  })
+
+  it('does not report a legacy summary accepted without provider message IDs', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code: '42P01' } })
+    mocks.notifyAri.mockResolvedValue({ ok: true, outcomes: [{ status: 'sent', messageId: ' ', error: null }] })
+    const response = await runLive()
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ ok: false, mode: 'legacy_daily_summary', sent: 0, failed: 1 })
+  })
+
+  it('keeps legacy dry runs distinct from provider acceptance', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code: '42P01' } })
+    mocks.notifyAri.mockResolvedValue({ ok: false, outcomes: [{ status: 'dry_run', messageId: null, error: null }] })
+    expect(await (await runLive()).json()).toMatchObject({ ok: false, mode: 'legacy_daily_summary', sent: 0, dryRun: 1, failed: 0 })
+  })
+
+  it('reports a failed legacy send without attempting phase notifications', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code: 'PGRST205' } })
+    mocks.notifyAri.mockResolvedValue({ ok: false, outcomes: [{ status: 'failed', messageId: null, error: 'Meta unavailable' }] })
+    expect((await runLive()).status).toBe(503)
+    expect(mocks.notifyAri).toHaveBeenCalledOnce()
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('requires a nonempty recipient result for a legacy summary', async () => {
+    mocks.probe.mockResolvedValue({ data: null, error: { code: '42P01' } })
+    mocks.notifyAri.mockResolvedValue({ ok: false, outcomes: [] })
+    expect(await (await runLive()).json()).toMatchObject({ ok: false, sent: 0, failed: 1 })
+  })
+
+  it('aborts before the probe or fallback if live hydration failed', async () => {
+    mocks.hydrate.mockResolvedValue({ ok: false, error: 'documents unavailable' })
+    mocks.probe.mockResolvedValue({ data: null, error: { code: '42P01' } })
+    expect((await runLive()).status).toBe(503)
+    expect(mocks.probe).not.toHaveBeenCalled()
+    expect(mocks.notifyAri).not.toHaveBeenCalled()
+  })
+
+  it('does not send an empty legacy summary and still identifies the compatibility mode', async () => {
+    mocks.documents.mockReturnValue([])
+    mocks.probe.mockResolvedValue({ data: null, error: { code: '42P01' } })
+    expect(await (await runLive()).json()).toMatchObject({ ok: true, mode: 'legacy_daily_summary', phaseDeduplication: false, sent: 0 })
+    expect(mocks.notifyAri).not.toHaveBeenCalled()
   })
 })

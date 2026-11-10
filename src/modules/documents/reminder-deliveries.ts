@@ -50,6 +50,16 @@ export function resetReminderDeliveriesForTests(): void {
   memory.clear()
 }
 
+/** Compatibility is allowed only after a live, read-only missing-table result. */
+export async function documentReminderJournalMode(): Promise<'phase_deduplicated' | 'legacy_daily_summary'> {
+  if (process.env.MAINTAINOS_FORCE_MEMORY === '1') return 'phase_deduplicated'
+  const client = createSystemClient('document_reminder_probe')
+  const { error } = await client.from(TABLE).select('delivery_key', { head: true }).limit(0)
+  if (!error) return 'phase_deduplicated'
+  if (error.code === '42P01' || error.code === 'PGRST205') return 'legacy_daily_summary'
+  throw new Error(error.message || 'document_reminder_journal_probe_failed')
+}
+
 /** Unique insert + token compare-and-swap keeps concurrent cron runs from both sending. */
 export async function claimDocumentReminder(identity: ReminderIdentity, now = new Date()): Promise<ClaimResult> {
   const key = reminderDeliveryKey(identity)
