@@ -7,6 +7,16 @@ const releaseEnv = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://pfsxuylbnpbcgjehuaqo.supabase.co',
   SUPABASE_DB_PASSWORD: 'test-only-password-with-@:/ characters',
 }
+
+test('recognizes the same pinned OPC origin with or without its root slash', () => {
+  assert.equal(connectionOptions({ ...releaseEnv, NEXT_PUBLIC_SUPABASE_URL: `${releaseEnv.NEXT_PUBLIC_SUPABASE_URL}/` }, ['--apply']).host,
+    'aws-1-eu-west-1.pooler.supabase.com')
+  for (const value of [
+    'https://another-project.supabase.co/', `${releaseEnv.NEXT_PUBLIC_SUPABASE_URL}/rest/v1`,
+    `${releaseEnv.NEXT_PUBLIC_SUPABASE_URL}?token=private`, `${releaseEnv.NEXT_PUBLIC_SUPABASE_URL}#fragment`,
+    'https://user:password@pfsxuylbnpbcgjehuaqo.supabase.co/', 'http://pfsxuylbnpbcgjehuaqo.supabase.co/',
+  ]) assert.throws(() => connectionOptions({ ...releaseEnv, NEXT_PUBLIC_SUPABASE_URL: value }, ['--apply']), /opc_project_url_required/)
+})
 const expectedColumns = [
   ['delivery_key','text',true], ['document_client_id','text',true],
   ['document_version','integer',true], ['due_at','timestamp with time zone',false],
@@ -77,7 +87,7 @@ test('only explicit preview builds targeting OPC can obtain a connection', async
     {...releaseEnv,VERCEL:undefined}, {...releaseEnv,VERCEL_ENV:'production'},
     {...releaseEnv,VERCEL_TARGET_ENV:'production'}, {...releaseEnv,NEXT_PUBLIC_SUPABASE_URL:undefined},
     {...releaseEnv,NEXT_PUBLIC_SUPABASE_URL:'https://other.supabase.co'},
-    {...releaseEnv,NEXT_PUBLIC_SUPABASE_URL:releaseEnv.NEXT_PUBLIC_SUPABASE_URL+'/'},
+    {...releaseEnv,NEXT_PUBLIC_SUPABASE_URL:releaseEnv.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1'},
     {...releaseEnv,SUPABASE_PROJECT_REF:'other'}, {...releaseEnv,SUPABASE_DB_HOST:'attacker.invalid'},
     {...releaseEnv,SUPABASE_DB_PASSWORD:''}, {...releaseEnv,NODE_TLS_REJECT_UNAUTHORIZED:'0'},
   ]) {

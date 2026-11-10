@@ -117,10 +117,30 @@ function dynamicMasks(page: Page): Locator[] {
 
 async function shot(page: Page, name: string, fixture: VisualFixture) {
   await tagDynamicText(page, fixture)
+  // A timestamp underneath fixed navigation is not visible content to mask.
+  // Painting its box would otherwise obscure the navigation in the evidence.
+  await page.locator('[data-visual-mask-foreground]').evaluateAll((elements) => {
+    elements.forEach((element) => element.removeAttribute('data-visual-mask-foreground'))
+  })
+  for (const candidate of dynamicMasks(page)) {
+    await candidate.evaluateAll((elements) => {
+      for (const element of elements) {
+        const bounds = element.getBoundingClientRect()
+        const x = bounds.x + bounds.width / 2
+        const y = bounds.y + bounds.height / 2
+        if (!bounds.width || !bounds.height || x < 0 || x >= innerWidth || y < 0 || y >= innerHeight) continue
+        const hit = document.elementFromPoint(x, y)
+        if (hit && (element.contains(hit) || (hit !== document.body && hit.contains(element)))) {
+          element.setAttribute('data-visual-mask-foreground', 'true')
+        }
+      }
+    })
+  }
+  const masks = [page.locator('[data-visual-mask-foreground]')]
   const reviewPath = test.info().outputPath(`review-${name}`)
-  await page.screenshot({ path: reviewPath, mask: dynamicMasks(page), animations: 'disabled' })
+  await page.screenshot({ path: reviewPath, mask: masks, animations: 'disabled' })
   await test.info().attach(name, { path: reviewPath, contentType: 'image/png' })
-  await expect.soft(page).toHaveScreenshot(name, { maxDiffPixelRatio: MAX_DIFF, mask: dynamicMasks(page), animations: 'disabled', timeout: 5_000 })
+  await expect.soft(page).toHaveScreenshot(name, { maxDiffPixelRatio: MAX_DIFF, mask: masks, animations: 'disabled', timeout: 5_000 })
 }
 
 test.use({ colorScheme: 'light', locale: 'he-IL', timezoneId: 'Asia/Jerusalem', reducedMotion: 'reduce' })

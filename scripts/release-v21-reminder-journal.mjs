@@ -42,7 +42,11 @@ export function releaseMode(env, args) {
 
 export function connectionOptions(env, args) {
   releaseMode(env, args)
-  requireCondition(env.NEXT_PUBLIC_SUPABASE_URL === `https://${REF}.supabase.co`, 'opc_project_url_required')
+  let projectUrl
+  try { projectUrl = new URL(env.NEXT_PUBLIC_SUPABASE_URL) } catch { /* Fail closed below. */ }
+  requireCondition(projectUrl?.origin === `https://${REF}.supabase.co` &&
+    projectUrl.pathname === '/' && !projectUrl.username && !projectUrl.password &&
+    !projectUrl.search && !projectUrl.hash, 'opc_project_url_required')
   requireCondition(!env.SUPABASE_PROJECT_REF || env.SUPABASE_PROJECT_REF === REF, 'project_ref_mismatch')
   requireCondition(!env.SUPABASE_DB_HOST || env.SUPABASE_DB_HOST === HOST, 'pooler_host_mismatch')
   requireCondition(typeof env.SUPABASE_DB_PASSWORD === 'string' && env.SUPABASE_DB_PASSWORD.trim().length > 0, 'database_password_unavailable')

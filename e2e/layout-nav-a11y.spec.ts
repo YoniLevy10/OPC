@@ -90,9 +90,9 @@ test.describe('Navigation & layout', () => {
     await expect(approvals.locator('.nav-alert')).toBeVisible()
     await expect(more.getByRole('link', { name: /^מסמכים/ })).toBeVisible()
     await expect(more.getByRole('link', { name: 'דוחות', exact: true })).toBeVisible()
-    await expect(
-      more.getByRole('link', { name: 'WhatsApp', exact: true }),
-    ).toBeVisible()
+    await expect(more.getByRole('link', { name: 'WhatsApp', exact: true })).toHaveCount(0)
+    await expect(more.getByRole('link', { name: 'דשבורד', exact: true })).toHaveCount(0)
+    await expect(more.getByRole('link', { name: 'תקלות', exact: true })).toHaveCount(0)
     await expect(more.getByRole('link', { name: 'הגדרות' })).toBeVisible()
     await approvals.click()
     await expect(page).toHaveURL(/\/ops\/approvals/)
