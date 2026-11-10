@@ -8,7 +8,12 @@ import {
 } from '@/lib/data/memory-store'
 import { updateStatus } from '@/modules/tickets/service'
 import { confirmStoreFix, rejectStoreFix } from './store-confirm'
-import { lockEngagement, resetEngagementsForTests } from '@/modules/engagements/service'
+import {
+  closedEngagementCosts,
+  lockEngagement,
+  lockedEngagementFor,
+  resetEngagementsForTests,
+} from '@/modules/engagements/service'
 import { israelStoresAsRows } from '@/modules/stores/israel-stores'
 
 function attachPair(ticketId: string) {
@@ -35,7 +40,7 @@ describe('store confirm close', () => {
     resetEngagementsForTests()
   })
 
-  it('stamps confirm but holds final close during quality window', async () => {
+  it('closes immediately on store feedback even during the quality window', async () => {
     const store = israelStoresAsRows().find((s) => s.code === '6006')!
     const created = memCreate({
       store,
@@ -53,10 +58,11 @@ describe('store confirm close', () => {
       ticketId: created.id,
       actorLabel: 'מנהל חנות',
     })
-    expect(result.status).toBe('resolved')
-    expect(result.pending_final_close).toBe(true)
+    expect(result.status).toBe('closed')
+    expect(result.pending_final_close).toBe(false)
     expect(result.store_confirmed_at).toBeTruthy()
-    expect(memGet(created.id)?.status).toBe('resolved')
+    expect(memGet(created.id)?.status).toBe('closed')
+    expect(memGet(created.id)?.quality_hold_until).toBeTruthy()
   })
 
   it('closes after quality hold has ended', async () => {
@@ -106,15 +112,8 @@ describe('store confirm close', () => {
       priority: 'high',
       category: 'hvac',
     })
-    const side = memCreate({
-      store,
-      description: 'ניקיון',
-      priority: 'low',
-      category: 'cleaning',
-    })
     await lockEngagement({
       ticketId: created.id,
-      bundledTicketIds: [side.id],
       professionalName: 'פבל',
       professionalPhone: '0501234567',
       approvedAmount: 450,
@@ -128,7 +127,67 @@ describe('store confirm close', () => {
     expect(result.status).toBe('closed')
     expect(result.pending_final_close).toBe(false)
     expect(memGet(created.id)?.status).toBe('closed')
-    expect(memGet(side.id)?.status).toBe('closed')
+    expect((await lockedEngagementFor(created.id))?.closedAt).toBe(result.store_confirmed_at)
+    expect(await closedEngagementCosts()).toHaveLength(1)
+  })
+
+  it.each([
+    { storeCode: '6006', first: 'lead' },
+    { storeCode: '6006', first: 'side' },
+    { storeCode: '6004', first: 'lead' },
+    { storeCode: '6004', first: 'side' },
+  ])('confirms only the named ticket in a bundle ($storeCode, $first first)', async ({ storeCode, first }) => {
+    const stores = israelStoresAsRows()
+    const lead = memCreate({
+      store: stores.find((store) => store.code === '6006')!,
+      description: 'מזגן לא מקרר',
+      priority: 'high',
+      category: 'hvac',
+    })
+    const side = memCreate({
+      store: stores.find((store) => store.code === storeCode)!,
+      description: 'ניקוי מסנן מזגן',
+      priority: 'low',
+      category: 'hvac',
+    })
+    const visit = await lockEngagement({
+      ticketId: lead.id,
+      bundledTicketIds: [side.id],
+      professionalName: 'פבל',
+      professionalPhone: '0501234567',
+      approvedAmount: 450,
+      approvedBy: 'ארי',
+    })
+    const confirmed = first === 'lead' ? lead : side
+    const remaining = first === 'lead' ? side : lead
+
+    const result = await confirmStoreFix({ ticketId: confirmed.id, actorLabel: 'מנהל ראשון' })
+    expect(result.id).toBe(confirmed.id)
+    expect(result.status).toBe('closed')
+    expect(memGet(confirmed.id)?.store_confirmed_by).toBe('מנהל ראשון')
+    expect(memGet(remaining.id)?.status).toBe('engaged')
+    expect(memGet(remaining.id)?.store_confirmed_at).toBeFalsy()
+    expect(memGet(remaining.id)?.events.some((event) => event.event_type === 'store_confirmed')).toBe(false)
+    expect((await lockedEngagementFor(lead.id))?.closedAt).toBeNull()
+    expect(await closedEngagementCosts()).toEqual([])
+
+    // Repeating the first feedback must not confirm any other ticket.
+    await confirmStoreFix({ ticketId: confirmed.id, actorLabel: 'מנהל ראשון' })
+    expect(memGet(remaining.id)?.status).toBe('engaged')
+    expect((await lockedEngagementFor(lead.id))?.closedAt).toBeNull()
+
+    const final = await confirmStoreFix({ ticketId: remaining.id, actorLabel: 'מנהל שני' })
+    expect(final.id).toBe(remaining.id)
+    expect(memGet(remaining.id)?.status).toBe('closed')
+    expect(memGet(remaining.id)?.store_confirmed_by).toBe('מנהל שני')
+    expect(memGet(confirmed.id)?.store_confirmed_by).toBe('מנהל ראשון')
+    expect((await lockedEngagementFor(lead.id))?.closedAt).toBe(final.store_confirmed_at)
+    expect(await closedEngagementCosts()).toEqual([{
+      storeCode: visit.storeCode,
+      storeName: visit.storeName,
+      approvedAmount: 450,
+      closedAt: final.store_confirmed_at,
+    }])
   })
 
   it('returns an approved visit to Ari when the store says it is not fixed', async () => {

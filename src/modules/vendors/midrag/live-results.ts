@@ -1,8 +1,4 @@
-import {
-  buildMidragSearchUrl,
-  midragCityMatchForCity,
-  midragServiceMatchForCategory,
-} from '@/modules/vendors/external-search'
+import { buildMidragSearchUrl } from '@/modules/vendors/external-search'
 
 export type MidragPro = {
   id: number
@@ -19,14 +15,9 @@ export type MidragPro = {
 export type MidragLiveResult = {
   pros: MidragPro[]
   searchUrl: string
-  /** True when the page could not be read. The UI falls back to the link. */
+  /** True when an authorized integration fails; link-only mode is not a failure. */
   fallback: boolean
 }
-
-const TTL_MS = 15 * 60 * 1000
-const MIN_GAP_MS = 1500
-const cache = new Map<string, { at: number; pros: MidragPro[] }>()
-let lastFetchAt = 0
 
 function decodeAttr(value: string): string {
   return value
@@ -92,41 +83,14 @@ export function parseMidragResultsHtml(html: string): MidragPro[] {
   return pros
 }
 
+/**
+ * The approved flow opens Midrag itself. No authorized catalog integration has
+ * been verified, so page rendering must not scrape cards or imply live stock.
+ * The fixture parser above remains isolated for a future verified integration.
+ */
 export async function loadMidragResults(input: {
   category: string
   city?: string | null
 }): Promise<MidragLiveResult> {
-  const searchUrl = buildMidragSearchUrl(input)
-  const service = midragServiceMatchForCategory(input.category)
-  const city = midragCityMatchForCity(input.city)
-  if (!service || !city || !searchUrl.includes('/Search/Results')) {
-    return { pros: [], searchUrl, fallback: true }
-  }
-  const key = `${service.serviceId}:${city.cityId}`
-  const hit = cache.get(key)
-  if (hit && Date.now() - hit.at < TTL_MS) {
-    return { pros: hit.pros, searchUrl, fallback: hit.pros.length === 0 }
-  }
-  if (Date.now() - lastFetchAt < MIN_GAP_MS) {
-    return { pros: hit?.pros ?? [], searchUrl, fallback: !hit?.pros.length }
-  }
-  lastFetchAt = Date.now()
-  try {
-    const response = await fetch(searchUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (compatible; MaintainOS/1.0; +https://optical-center.co.il)',
-        'Accept-Language': 'he',
-      },
-      signal: AbortSignal.timeout(8000),
-      cache: 'no-store',
-    })
-    if (!response.ok) return { pros: [], searchUrl, fallback: true }
-    const html = await response.text()
-    const pros = parseMidragResultsHtml(html)
-    cache.set(key, { at: Date.now(), pros })
-    return { pros, searchUrl, fallback: pros.length === 0 }
-  } catch {
-    return { pros: hit?.pros ?? [], searchUrl, fallback: true }
-  }
+  return { pros: [], searchUrl: buildMidragSearchUrl(input), fallback: false }
 }

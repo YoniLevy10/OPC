@@ -913,11 +913,14 @@ export type UpdateStatusOptions = {
    */
   proofAlreadyAttached?: boolean
   /**
-   * B03 — allow closing before quality hold ends (Ari / global_maintenance).
-   * Requires overrideReason.
+   * Legacy request field. V2.1 closes immediately after store feedback;
+   * this flag cannot replace that feedback or delay a confirmed closure.
    */
   qualityHoldOverride?: boolean
 }
+
+export const STORE_CONFIRMATION_REQUIRED_HE =
+  'לא ניתן לסגור תקלה ללא אישור התיקון ממנהל החנות'
 
 export async function updateStatus(
   id: string,
@@ -934,12 +937,7 @@ export async function updateStatus(
     RESOLVE_PROOF_REQUIRED_HE,
     ticketHasResolveProof,
   } = await import('@/modules/tickets/proof-gate')
-  const {
-    isQualityHoldActive,
-    qualityHoldUntilFrom,
-    QUALITY_HOLD_BLOCK_CLOSE_HE,
-    QUALITY_HOLD_OVERRIDE_REASON_REQUIRED_HE,
-  } = await import('@/modules/tickets/quality-hold')
+  const { qualityHoldUntilFrom } = await import('@/modules/tickets/quality-hold')
 
   async function enforceResolveProof(): Promise<'proof' | 'override'> {
     if (nextStatus !== 'resolved') return 'proof'
@@ -961,17 +959,24 @@ export async function updateStatus(
     throw new Error(RESOLVE_PROOF_REQUIRED_HE)
   }
 
-  function enforceQualityHoldClose(
-    holdUntil: string | null | undefined,
-  ): 'ok' | 'override' {
-    if (nextStatus !== 'closed') return 'ok'
-    if (!isQualityHoldActive(holdUntil)) return 'ok'
-    if (opts?.qualityHoldOverride && actorCanOverrideResolve(opts?.actorRoles)) {
-      const reason = opts?.overrideReason?.trim()
-      if (!reason) throw new Error(QUALITY_HOLD_OVERRIDE_REASON_REQUIRED_HE)
-      return 'override'
+  async function enforceStoreConfirmationClose(): Promise<void> {
+    if (nextStatus !== 'closed') return
+    if (await supabaseReady()) {
+      // Keep this read independent of optional quality-hold columns: older
+      // schemas may lack those columns, but cannot bypass store feedback.
+      const supabase = createSystemClient('tickets_service')
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('store_confirmed_at')
+        .eq('id', id)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      if (!data?.store_confirmed_at) throw new Error(STORE_CONFIRMATION_REQUIRED_HE)
+      return
     }
-    throw new Error(QUALITY_HOLD_BLOCK_CLOSE_HE)
+    if (!memGet(id)?.store_confirmed_at) {
+      throw new Error(STORE_CONFIRMATION_REQUIRED_HE)
+    }
   }
 
   if (await supabaseReady()) {
@@ -979,10 +984,8 @@ export async function updateStatus(
     if (!current) throw new Error('תקלה לא נמצאה')
     const from = current.status as TicketStatus
     assertTransition(from, nextStatus)
+    await enforceStoreConfirmationClose()
     const proofMode = await enforceResolveProof()
-    const holdMode = enforceQualityHoldClose(
-      (current as TicketRecord).quality_hold_until,
-    )
     const supabase = createSystemClient('tickets_service')
     const nowIso = new Date().toISOString()
     const patch: Record<string, unknown> = { status: nextStatus }
@@ -991,16 +994,28 @@ export async function updateStatus(
       patch.quality_hold_started_at = nowIso
       patch.quality_hold_until = qualityHoldUntilFrom(nowIso).toISOString()
     }
+    if (
+      nextStatus === 'resolved' ||
+      (nextStatus === 'in_progress' && from === 'resolved') ||
+      (nextStatus === 'new' && from === 'engaged')
+    ) {
+      patch.store_confirmed_at = null
+      patch.store_confirmed_by = null
+    }
     if (nextStatus === 'closed') patch.closed_at = nowIso
     if (nextStatus === 'in_progress' && from === 'resolved') {
       patch.resolved_at = null
       patch.quality_hold_until = null
       patch.quality_hold_started_at = null
     }
-    const { data, error } = await supabase
+    let update = supabase
       .from('tickets')
       .update(patch)
       .eq('id', id)
+    if (nextStatus === 'closed') {
+      update = update.not('store_confirmed_at', 'is', null)
+    }
+    const { data, error } = await update
       .select('*')
       .single()
     if (error) {
@@ -1012,13 +1027,25 @@ export async function updateStatus(
         const lean: Record<string, unknown> = { status: nextStatus }
         if (nextStatus === 'resolved') lean.resolved_at = nowIso
         if (nextStatus === 'closed') lean.closed_at = nowIso
+        if (
+          nextStatus === 'resolved' ||
+          (nextStatus === 'in_progress' && from === 'resolved') ||
+          (nextStatus === 'new' && from === 'engaged')
+        ) {
+          lean.store_confirmed_at = null
+          lean.store_confirmed_by = null
+        }
         if (nextStatus === 'in_progress' && from === 'resolved') {
           lean.resolved_at = null
         }
-        const retry = await supabase
+        let retryUpdate = supabase
           .from('tickets')
           .update(lean)
           .eq('id', id)
+        if (nextStatus === 'closed') {
+          retryUpdate = retryUpdate.not('store_confirmed_at', 'is', null)
+        }
+        const retry = await retryUpdate
           .select('*')
           .single()
         if (retry.error) throw new Error(retry.error.message)
@@ -1041,31 +1068,25 @@ export async function updateStatus(
         to: nextStatus,
       })
     }
-    if (holdMode === 'override' && nextStatus === 'closed') {
-      await appendEvent(id, 'quality_hold_override', actorId ?? null, {
-        reason: opts?.overrideReason?.trim(),
-        from,
-        to: nextStatus,
-      })
-    }
     return data as TicketRecord
   }
 
   const current = memGet(id)
   if (!current) throw new Error('תקלה לא נמצאה')
   assertTransition(current.status as TicketStatus, nextStatus)
+  await enforceStoreConfirmationClose()
   const proofMode = await enforceResolveProof()
-  const holdMode = enforceQualityHoldClose(current.quality_hold_until)
+  if (
+    nextStatus === 'resolved' ||
+    (nextStatus === 'in_progress' && current.status === 'resolved') ||
+    (nextStatus === 'new' && current.status === 'engaged')
+  ) {
+    current.store_confirmed_at = null
+    current.store_confirmed_by = null
+  }
   const updated = memToRecord(memUpdateStatus(id, nextStatus, null, actorId))
   if (proofMode === 'override' && nextStatus === 'resolved') {
     await appendEvent(id, 'resolve_override', actorId ?? null, {
-      reason: opts?.overrideReason?.trim(),
-      from: current.status,
-      to: nextStatus,
-    })
-  }
-  if (holdMode === 'override' && nextStatus === 'closed') {
-    await appendEvent(id, 'quality_hold_override', actorId ?? null, {
       reason: opts?.overrideReason?.trim(),
       from: current.status,
       to: nextStatus,

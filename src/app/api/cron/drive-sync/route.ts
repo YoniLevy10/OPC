@@ -24,7 +24,14 @@ export async function GET(request: Request) {
   if (!cronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
-  await hydrateOpsLedger()
+  try {
+    const loaded = await hydrateOpsLedger()
+    if (!loaded.ok || (loaded.backend !== 'supabase' && process.env.MAINTAINOS_FORCE_MEMORY !== '1')) {
+      throw new Error('ledger_unavailable')
+    }
+  } catch {
+    return NextResponse.json({ ok: false, error: 'ledger_unavailable' }, { status: 503 })
+  }
   const folder = getDriveSync().rootFolderId || process.env.GOOGLE_DRIVE_FOLDER_ID?.trim()
   if (!folder) {
     return NextResponse.json({

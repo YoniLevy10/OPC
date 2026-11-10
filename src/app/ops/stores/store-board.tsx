@@ -25,7 +25,7 @@ function showCity(name: string, city: string | null): boolean {
 
 export function StoreBoard({ groups }: { groups: StoreGroupModel[] }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid items-start gap-4 xl:grid-cols-2">
       {groups.map((group) => (
         <section
           key={group.code}

@@ -5,7 +5,8 @@ import {
   requireActor,
 } from '@/lib/auth/request-actor'
 import { AuthError } from '@/lib/auth/types'
-import { deleteUser, patchUser, requireUsersAdmin } from '@/modules/users/service'
+import { deleteUser, listUsers, patchUser, requireUsersAdmin } from '@/modules/users/service'
+import { authorizeUserDeletion, authorizeUserPatch, visibleUsers } from '@/modules/users/authorization'
 
 const patchSchema = z.object({
   full_name: z.string().min(1).max(120).optional(),
@@ -23,7 +24,7 @@ const patchSchema = z.object({
   region_id: z.string().nullable().optional(),
   store_id: z.string().nullable().optional(),
   phone: z.string().max(32).nullable().optional(),
-})
+}).strict()
 
 export async function PATCH(
   request: Request,
@@ -44,8 +45,9 @@ export async function PATCH(
         { status: 400 },
       )
     }
-    const user = await patchUser(id, parsed.data)
-    return NextResponse.json({ user })
+    const input = await authorizeUserPatch(actor, id, parsed.data, await listUsers())
+    const user = await patchUser(id, input)
+    return NextResponse.json({ user: visibleUsers(actor, [user])[0] })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)
     const message = err instanceof Error ? err.message : 'שגיאה בעדכון משתמש'
@@ -64,6 +66,7 @@ export async function DELETE(
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return NextResponse.json({ error: 'מזהה לא תקין' }, { status: 400 })
     }
+    authorizeUserDeletion(actor, id, await listUsers())
     await deleteUser(id, actor.id)
     return NextResponse.json({ ok: true })
   } catch (err) {

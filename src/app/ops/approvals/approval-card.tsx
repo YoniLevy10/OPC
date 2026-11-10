@@ -3,12 +3,12 @@ import { EvidenceGrid } from '@/components/ui/evidence'
 import { Button } from '@/components/ui/button'
 import { OpenCardScroll } from './open-card-scroll'
 import type { TicketEvidence } from '@/modules/tickets/attachments'
-import { EngagementPanel, type CompanionChoice } from '@/app/ops/tickets/[id]/engagement-panel'
+import { EngagementPanel } from '@/app/ops/tickets/[id]/engagement-panel'
+import type { VisitPlanTicket } from '@/modules/visits/plan'
 import type { Engagement } from '@/modules/engagements/service'
-import type { MidragPro } from '@/modules/vendors/midrag/live-results'
 
 export function ApprovalCard({
-  ticketId,
+  ticket,
   store,
   category,
   fault,
@@ -19,12 +19,10 @@ export function ApprovalCard({
   urgent,
   status,
   locked,
-  pros,
-  searchUrl,
-  fallback,
   companions,
+  canApprove,
 }: {
-  ticketId: string
+  ticket: VisitPlanTicket
   store: string
   category: string
   fault: string
@@ -35,10 +33,8 @@ export function ApprovalCard({
   urgent: boolean
   status: string
   locked: Engagement | null
-  pros: MidragPro[]
-  searchUrl: string
-  fallback: boolean
-  companions: CompanionChoice[]
+  companions: VisitPlanTicket[]
+  canApprove: boolean
 }) {
   const shown = open ? photos : photos.slice(0, 1)
   return (
@@ -80,18 +76,16 @@ export function ApprovalCard({
         ) : null}
         {open ? (
           <EngagementPanel
-            ticketId={ticketId}
+            ticket={ticket}
             urgent={urgent}
             status={status}
             locked={locked}
-            pros={pros}
-            searchUrl={searchUrl}
-            fallback={fallback}
             companions={companions}
+            canApprove={canApprove}
           />
         ) : (
           <Button asChild variant="primary" size="sm" className="max-md:w-full">
-            <Link href={`/ops/approvals?open=${ticketId}`}>לאשר</Link>
+            <Link href={`/ops/approvals?open=${ticket.id}`}>לתוכנית הטיפול</Link>
           </Button>
         )}
       </div>

@@ -7,6 +7,7 @@ import {
 import { AuthError } from '@/lib/auth/types'
 import { requireStoresMutate, updateStore } from '@/modules/stores/service'
 import { captureError } from '@/lib/monitoring'
+import { requireStoreAccess, validateStoreHierarchy } from '@/lib/auth/store-asset-scope'
 
 const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -38,7 +39,12 @@ export async function PATCH(
     if (Object.keys(parsed.data).length === 0) {
       return NextResponse.json({ error: 'אין שדות לעדכון' }, { status: 400 })
     }
-    const store = await updateStore(id, parsed.data)
+    const existing = await requireStoreAccess(actor, id, 'store_write')
+    const patch = { ...parsed.data }
+    if (patch.region_id !== undefined) {
+      patch.region_id = await validateStoreHierarchy(existing.organization_id!, existing.country_id!, patch.region_id)
+    }
+    const store = await updateStore(id, patch)
     return NextResponse.json({ store })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)

@@ -114,34 +114,6 @@ function hebrewAuthError(message: string): string {
   return message
 }
 
-function isDuplicateAuthError(message: string): boolean {
-  const m = message.toLowerCase()
-  return (
-    m.includes('already') ||
-    m.includes('registered') ||
-    m.includes('exists') ||
-    m.includes('duplicate')
-  )
-}
-
-async function findAuthUserIdByEmail(
-  admin: ReturnType<typeof createAdminClient>,
-  email: string,
-): Promise<string | null> {
-  // Paginate a bit — pilot orgs are small; avoid silent miss on page 1 only.
-  for (let page = 1; page <= 5; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({
-      page,
-      perPage: 200,
-    })
-    if (error) throw new Error(hebrewAuthError(error.message))
-    const hit = data.users.find((u) => u.email?.toLowerCase() === email)
-    if (hit) return hit.id
-    if (data.users.length < 200) break
-  }
-  return null
-}
-
 export async function createUser(input: CreateUserInput): Promise<UserRow> {
   if (!isAssignableRole(input.role)) {
     throw new Error('תפקיד לא נתמך — בחרו מנהל מערכת, תפעול, חנות או טכנאי')
@@ -186,15 +158,16 @@ export async function createUser(input: CreateUserInput): Promise<UserRow> {
 
   const supabase = createSystemClient('users_create')
 
-  // Prefer an existing profile with this email so we don't orphan Auth users.
-  const { data: existingByEmail } = await supabase
+  // Creation never changes a pre-existing profile or its login credentials.
+  const { data: existingByEmail, error: lookupError } = await supabase
     .from('profiles')
     .select('id')
     .eq('email', email)
     .limit(1)
     .maybeSingle()
+  if (lookupError) throw new Error(hebrewAuthError(lookupError.message))
   if (existingByEmail?.id) {
-    id = existingByEmail.id
+    throw new Error('המייל כבר רשום במערכת; יצירה אינה משנה חשבון קיים')
   }
 
   // Prefer Auth user id so Google/password sessions match the profile row.
@@ -217,25 +190,10 @@ export async function createUser(input: CreateUserInput): Promise<UserRow> {
     })
 
     if (authErr || !created.user) {
-      const raw = authErr?.message || 'יצירת חשבון התחברות נכשלה'
-      if (!isDuplicateAuthError(raw)) {
-        throw new Error(hebrewAuthError(raw))
-      }
-      // Email already in Auth — reuse that user and refresh password/profile.
-      const existingId = await findAuthUserIdByEmail(admin, email)
-      if (!existingId) {
-        throw new Error('המייל כבר רשום במערכת')
-      }
-      id = existingId
-      const { error: updErr } = await admin.auth.admin.updateUserById(id, {
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: input.full_name },
-      })
-      if (updErr) throw new Error(hebrewAuthError(updErr.message))
-    } else {
-      id = created.user.id
+      // Creating a membership must never reset another existing Auth account.
+      throw new Error(hebrewAuthError(authErr?.message || 'יצירת חשבון התחברות נכשלה'))
     }
+    id = created.user.id
   }
 
   const { error: pErr } = await supabase.from('profiles').upsert(

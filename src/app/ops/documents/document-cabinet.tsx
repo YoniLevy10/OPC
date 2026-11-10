@@ -15,7 +15,7 @@ import {
 } from '@/modules/documents/rules'
 import { renewDocumentAction, setDocumentExpiryAction, setDocumentRemindersAction, setDocumentTitleAction } from '../work-actions'
 import { PhoneFold } from '@/components/layout/phone-fold'
-import { Pencil } from 'lucide-react'
+import { ChevronDown, FileText, Pencil } from 'lucide-react'
 
 const FILE_STATUS = {
   ingested: 'נקלט',
@@ -52,38 +52,39 @@ export function DocumentCabinet({
       placeholder="חיפוש סניף או מסמך"
       one="תיקייה אחת"
       many="תיקיות"
-      className="doc-cabinet"
+      className="grid gap-2"
     >
       {folders.map((folder) => {
-        const dated = folder.docs.filter((doc) => doc.extractedExpiry && !doc.renewed)
+        const current = folder.docs.filter((doc) => !doc.renewed)
+        const overdue = current.filter((doc) => isDocumentOverdue(doc)).length
+        const dueSoon = current.filter((doc) => isDocumentDueSoon(doc) && !isDocumentOverdue(doc)).length
+        const dated = current.filter((doc) => doc.extractedExpiry)
         const next = dated
           .map((doc) => doc.extractedExpiry as string)
           .sort()[0]
         return (
           <details
             key={folder.key}
-            className="doc-folder"
+            className="group overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface"
             data-find-group
             data-find-key={folder.key}
             data-find={`סניף ${folder.name} ${folder.code} ${folder.docs.map((doc) => paperTitle(doc, fileFor(doc, byId))).join(' ')}`}
           >
-            <summary>
-              <span className="doc-folder-tab">סניף {folder.name}</span>
-              <span className="doc-peek" aria-hidden>
-                {folder.docs.slice(0, 3).map((doc) => (
-                  <span key={doc.id} className="doc-peek-sheet">
-                    {paperTitle(doc, fileFor(doc, byId))}
-                  </span>
-                ))}
-              </span>
-              <span className="doc-folder-face">
-                <span className="doc-folder-meta">
-                  {folder.code ? `#${folder.code}` : 'בלי קוד'}
-                  {next ? ` · הקרוב ${formatDay(next)}` : ''}
+            <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <FileText className="h-5 w-5 shrink-0 text-ink-3" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="t-body-strong block text-ink">{folder.name}</span>
+                <span className="t-caption mt-1 block text-ink-2">
+                  {folder.code ? `#${folder.code} · ` : ''}{folder.docs.length === 1 ? 'מסמך אחד' : `${folder.docs.length} מסמכים`}
+                  {next ? ` · תוקף ${formatDay(next)}` : ' · חסר תאריך תוקף'}
                 </span>
               </span>
+              <span className={`t-caption shrink-0 font-semibold ${overdue ? 'text-[var(--signal-critical)]' : dueSoon ? 'text-[var(--signal-warning)]' : 'text-ink-3'}`}>
+                {overdue ? `${overdue} פגי תוקף` : dueSoon ? `${dueSoon} לחידוש בקרוב` : 'לצפייה'}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
             </summary>
-            <ol className="doc-folder-pocket">
+            <ol className="grid gap-3 border-t border-border bg-canvas p-3 lg:grid-cols-2">
               {folder.docs.map((doc) => (
                 <Paper
                   key={doc.id}
@@ -123,11 +124,11 @@ function Paper({
       data-find-item
       data-find={`${title} ${typeLabel} ${expiry ? formatDay(expiry) : ''} ${expiry?.slice(0, 10) ?? ''}`}
     >
-      <div className="doc-file-head">
-        <form action={setDocumentTitleAction} className="doc-name-form">
+      <div className="doc-file-head max-md:!flex-col max-md:!items-stretch">
+        <form action={setDocumentTitleAction} className="doc-name-form max-md:w-full">
           <input type="hidden" name="documentId" value={doc.id} />
           <input
-            className="doc-name-input"
+            className="doc-name-input min-h-11"
             name="title"
             defaultValue={doc.title?.trim() || title}
             maxLength={80}
@@ -137,7 +138,7 @@ function Paper({
           <Button
             type="submit"
             size="sm"
-            className="w-8 px-0"
+            className="min-h-11 min-w-11 px-0"
             aria-label={`שמור שם ${title}`}
             title="שמור שם"
           >
@@ -179,14 +180,14 @@ function Paper({
         )}
       </div>
       {!doc.renewed ? (
-        <form action={setDocumentExpiryAction} className={expiry ? 'doc-expiry-quick' : 'doc-expiry-quick is-open'}>
+        <form action={setDocumentExpiryAction} className={`${expiry ? 'doc-expiry-quick' : 'doc-expiry-quick is-open'} max-md:!flex-col max-md:!items-stretch`}>
           <input type="hidden" name="documentId" value={doc.id} />
           <label className={expiry ? 'sr-only' : 'doc-expiry-label'} htmlFor={expiryId}>
             {expiry ? `תוקף ${title}` : 'תוקף'}
           </label>
           <input
             id={expiryId}
-            className="doc-expiry-date"
+            className="doc-expiry-date min-h-11 w-full"
             type="date"
             name="expiry"
             required
@@ -328,13 +329,23 @@ function groupByStore(documents: StoreDocument[]): Folder[] {
   return [...map.values()]
     .map((folder) => ({
       ...folder,
-      docs: [...folder.docs].sort((a, b) => paperTitle(a, null).localeCompare(paperTitle(b, null), 'he')),
+      docs: [...folder.docs].sort((a, b) => documentPriority(a) - documentPriority(b) || (a.extractedExpiry || '9999').localeCompare(b.extractedExpiry || '9999') || paperTitle(a, null).localeCompare(paperTitle(b, null), 'he')),
     }))
     .sort((a, b) => {
+      const priority = Math.min(...a.docs.map(documentPriority)) - Math.min(...b.docs.map(documentPriority))
+      if (priority) return priority
       if (!a.code) return 1
       if (!b.code) return -1
       return a.code.localeCompare(b.code, 'en', { numeric: true })
     })
+}
+
+function documentPriority(doc: StoreDocument): number {
+  if (doc.renewed) return 4
+  if (isDocumentOverdue(doc)) return 0
+  if (isDocumentDueSoon(doc)) return 1
+  if (!doc.extractedExpiry) return 2
+  return 3
 }
 
 function certificateIds(): Set<string> {

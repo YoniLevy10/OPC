@@ -28,14 +28,13 @@ import {
   areaManagerForStore,
   listAudits,
   listContactsForStore,
-  spendForTicket,
 } from '@/lib/data/ops-ledger'
-import { executionBlockReason } from '@/modules/spend/policy'
 import { regionLabel } from '@/modules/stores/regions'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
 import { ticketDecision } from '@/modules/decisions/queue'
-import { listVendors } from '@/modules/vendors/service'
+import { isVisitPlannableStatus } from '@/modules/visits/plan'
+import { canAccessStore } from '@/lib/auth/store-asset-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,42 +64,32 @@ export default async function StoreDetailPage({
   const code = decodeURIComponent(raw).trim()
 
   const { store } = await getStoreByCode(code)
-  if (!store) notFound()
+  if (!store || (actor && !canAccessStore(actor, store))) notFound()
 
   const businessPhone = await resolveWhatsAppBusinessPhone()
   const deepLink = businessPhone
     ? storeWhatsAppDeepLink(store.code, businessPhone)
     : null
-  const canEdit =
-    Boolean(
-      actor?.memberships.some(
-        (m) => m.role === 'global_admin' || m.role === 'country_manager',
-      ),
-    ) || shouldAllowDemoEntry()
+  const canEdit = actor ? canAccessStore(actor, store, 'store_write') : shouldAllowDemoEntry()
   const canDispatch = Boolean(
     actor?.memberships.some((m) =>
-      ['global_admin', 'global_maintenance', 'country_manager'].includes(m.role),
+      ['global_admin', 'global_maintenance'].includes(m.role),
     ),
   )
 
-  const [{ tickets }, vendorsResult] = await Promise.all([
-    listTickets({
-      storeCode: store.code,
-      statuses: [...OPEN_TICKET_STATUSES],
-      limit: 40,
-    }).catch(() => ({
-      tickets: [],
-      backend: 'memory' as const,
-    })),
-    listVendors({ activeOnly: true }).catch(() => ({
-      vendors: [],
-      backend: 'memory' as const,
-    })),
-  ])
+  const { tickets } = await listTickets({
+    storeCode: store.code,
+    statuses: [...OPEN_TICKET_STATUSES],
+    limit: 40,
+  }).catch(() => ({
+    tickets: [],
+    backend: 'memory' as const,
+  }))
 
   const openTickets = tickets.filter((t) => t.store_id === store.id)
   const openCount = openTickets.length
   const recent = openTickets.slice(0, 12)
+  const plannable = openTickets.filter((ticket) => isVisitPlannableStatus(ticket.status)).slice(0, 12)
 
   return (
     <OpsAppShell>
@@ -198,25 +187,17 @@ export default async function StoreDetailPage({
           )}
         </Panel>
 
-        {canDispatch && recent.length > 0 ? (
+        {canDispatch && plannable.length > 0 ? (
           <StoreVisitDispatch
             storeId={store.id}
             storeCode={store.code}
             city={store.city}
             region={store.region_id}
-            tickets={recent.map((t) => ({
+            tickets={plannable.map((t) => ({
               id: t.id,
               label: displayNum(t),
               title: t.title || t.description,
-              spendBlock: executionBlockReason(spendForTicket(t.id)),
               category: t.category,
-            }))}
-            vendors={(vendorsResult.vendors ?? []).map((v) => ({
-              id: v.id,
-              name: v.name,
-              specialties: v.specialties,
-              coverage: v.coverage_regions,
-              phone: v.contact_phone,
             }))}
           />
         ) : null}

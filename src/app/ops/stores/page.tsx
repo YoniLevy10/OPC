@@ -13,6 +13,7 @@ import { resolveWhatsAppBusinessPhone } from '@/modules/stores/business-phone'
 import { storeWhatsAppDeepLink } from '@/modules/stores/whatsapp-link'
 import { listTickets } from '@/modules/tickets/service'
 import { getServerActor } from '@/lib/auth/server-actor'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
@@ -42,7 +43,7 @@ export default async function StoresPage({
     | IlRegionCode
     | ''
   const [{ stores }, businessPhone] = await Promise.all([
-    fetchStores({ includeInactive: true }),
+    actor ? visibleStores(actor, true) : fetchStores({ includeInactive: true }),
     resolveWhatsAppBusinessPhone(),
   ])
 
@@ -202,7 +203,9 @@ export default async function StoresPage({
           <StoreBoard groups={groups} />
         )}
 
-        <div className="hidden md:block">
+        <details className="hidden rounded-[var(--radius-lg)] border border-border bg-surface p-4 md:block">
+        <summary className="t-body-strong cursor-pointer text-ink">QR וקישורי דיווח לכל החנויות</summary>
+        <div className="mt-4">
         <StoreQrAccordion
           stores={filtered
             .filter((s) => s.is_active !== false)
@@ -216,6 +219,7 @@ export default async function StoresPage({
             }))}
         />
         </div>
+        </details>
       </div>
     </OpsAppShell>
   )

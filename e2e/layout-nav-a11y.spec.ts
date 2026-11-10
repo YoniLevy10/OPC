@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { createStore172Ticket, DEMO_TECH_ID, patchTicket } from './helpers/api'
+import { createStore172Ticket, DEMO_TECH_ID, HQ_ADMIN_ID, patchTicket } from './helpers/api'
+import { TEST_ACTOR_COOKIE } from '../src/lib/auth/demo-session'
 import { gotoStable } from './helpers/goto'
 
 const VIEWPORTS = [
@@ -12,6 +13,44 @@ const VIEWPORTS = [
 ] as const
 
 test.describe('Navigation & layout', () => {
+  test.beforeEach(async ({ context, baseURL }) => {
+    await context.addCookies([
+      { name: TEST_ACTOR_COOKIE, value: HQ_ADMIN_ID, url: baseURL! },
+    ])
+  })
+
+  test('desktop keeps three primary destinations and opens tools for the active route', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await gotoStable(page, '/ops/dashboard')
+    const nav = page.getByRole('navigation', { name: 'ניווט עיקרי', exact: true })
+    await expect(nav.getByRole('link')).toHaveCount(3)
+    await expect(nav.getByRole('link', { name: 'דשבורד', exact: true })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'תקלות', exact: true })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'WhatsApp', exact: true })).toBeVisible()
+
+    const operations = nav.locator('details').filter({ has: page.locator('summary', { hasText: 'תפעול' }) })
+    await expect(operations).not.toHaveAttribute('open')
+    const summary = operations.locator('summary')
+    await summary.focus()
+    await summary.press('Enter')
+    await expect(operations).toHaveAttribute('open', '')
+    const approvals = nav.getByRole('link', { name: /^אישורים/ })
+    await expect(approvals).toBeVisible()
+    await expect(approvals.locator('.nav-alert')).toBeVisible()
+    await expect(nav.getByRole('link', { name: /^מסמכים/ })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'דוחות', exact: true })).toBeVisible()
+    await approvals.click()
+    await expect(page).toHaveURL(/\/ops\/approvals/)
+    await expect(nav.getByRole('link', { name: /^אישורים/ })).toHaveAttribute('aria-current', 'page')
+    await expect(operations).toHaveAttribute('open', '')
+
+    await gotoStable(page, '/ops/settings')
+    const system = nav.locator('details').filter({ has: page.locator('summary', { hasText: 'מערכת' }) })
+    await expect(system).toHaveAttribute('open', '')
+    await expect(nav.getByRole('link', { name: 'הגדרות', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(operations).not.toHaveAttribute('open')
+  })
+
   test('desktop sidebar routes', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     // /ops redirects to dashboard
@@ -37,18 +76,27 @@ test.describe('Navigation & layout', () => {
     const bottomNav = page.getByRole('navigation', { name: 'ניווט תחתון' })
     await expect(bottomNav.getByText('דשבורד')).toBeVisible()
     await expect(bottomNav.getByText('תקלות')).toBeVisible()
-    await expect(bottomNav.getByText('אישורים')).toBeVisible()
+    await expect(bottomNav.getByRole('link')).toHaveCount(3)
+    await expect(bottomNav.getByRole('link', { name: /^אישורים/ })).toHaveCount(0)
     await expect(bottomNav.getByRole('link', { name: 'WhatsApp' })).toBeVisible()
-    // Tasks stay under More. WhatsApp is a bottom-bar destination.
+    // Secondary workflows stay reachable under More, including budget approvals.
     await bottomNav.getByRole('button', { name: 'עוד' }).click()
     const more = page.getByRole('dialog')
     await expect(more.getByRole('link', { name: 'משימות' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'חנויות' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'אנשי מקצוע' })).toBeVisible()
-    await expect(
-      more.getByRole('link', { name: 'WhatsApp', exact: true }),
-    ).toBeVisible()
+    const approvals = more.getByRole('link', { name: /^אישורים/ })
+    await expect(approvals).toBeVisible()
+    await expect(approvals.locator('.nav-alert')).toBeVisible()
+    await expect(more.getByRole('link', { name: /^מסמכים/ })).toBeVisible()
+    await expect(more.getByRole('link', { name: 'דוחות', exact: true })).toBeVisible()
+    await expect(more.getByRole('link', { name: 'WhatsApp', exact: true })).toHaveCount(0)
+    await expect(more.getByRole('link', { name: 'דשבורד', exact: true })).toHaveCount(0)
+    await expect(more.getByRole('link', { name: 'תקלות', exact: true })).toHaveCount(0)
     await expect(more.getByRole('link', { name: 'הגדרות' })).toBeVisible()
+    await approvals.click()
+    await expect(page).toHaveURL(/\/ops\/approvals/)
+    await expect(more).toHaveCount(0)
   })
 
   test('deep link ticket + refresh', async ({ page, request }) => {

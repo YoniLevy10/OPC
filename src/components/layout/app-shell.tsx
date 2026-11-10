@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   BarChart3,
-  Bell,
   CheckSquare,
   ClipboardCheck,
   Ellipsis,
@@ -77,18 +76,18 @@ const PRIMARY: NavItem[] = [
     icon: MessageSquare,
     match: '/ops/inbox',
   },
-  {
-    href: '/ops/approvals',
-    label: 'אישורים',
-    icon: ClipboardCheck,
-    match: '/ops/approvals',
-  },
 ]
 
 const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'תפעול',
     items: [
+      {
+        href: '/ops/approvals',
+        label: 'אישורים',
+        icon: ClipboardCheck,
+        match: '/ops/approvals',
+      },
       {
         href: '/ops/pilot',
         label: 'כמה נחסך',
@@ -100,12 +99,6 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
         label: 'משימות',
         icon: CheckSquare,
         match: '/ops/tasks',
-      },
-      {
-        href: '/ops/alerts',
-        label: 'מה דורש פעולה',
-        icon: Bell,
-        match: '/ops/alerts',
       },
       { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
       {
@@ -423,10 +416,14 @@ export function AppShell({
           </ul>
 
           {toolGroups.map((group) => (
-            <div key={group.label} className="mt-6">
-              <p className="t-caption mb-2 px-2.5 text-ink-3">
+            <details
+              key={`${group.label}:${pathname}`}
+              open={group.items.some((item) => isActive(pathname, item.match))}
+              className="mt-4"
+            >
+              <summary className="t-caption cursor-pointer rounded-[var(--radius-md)] px-2.5 py-2 text-ink-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--tenant)]">
                 {group.label === 'מערכת' ? t('nav.system') : t('nav.operations')}
-              </p>
+              </summary>
               <ul className="flex flex-col gap-1">
                 {group.items.map((item) => (
                   <li key={item.href}>
@@ -434,7 +431,7 @@ export function AppShell({
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           ))}
         </nav>
 
@@ -595,24 +592,7 @@ export function AppShell({
         </ul>
       </nav>
 
-      <SideDrawer open={menuOpen} onOpenChange={setMenuOpen} title={t('nav.menu')}>
-        <div className="mb-3 flex items-center justify-between px-3">
-          <span className="t-caption text-ink-3">{t('nav.language')}</span>
-          <LocaleSwitcher />
-        </div>
-        <DeskBell label={t('nav.control')} items={notices.bundles} />
-        <ul className="mb-4 flex flex-col gap-0.5">
-          {PRIMARY.map((item) => (
-            <li key={item.href}>
-              <DrawerNavLink
-                item={item}
-                pathname={pathname}
-                notices={notices}
-                onNavigate={closeMenu}
-              />
-            </li>
-          ))}
-        </ul>
+      <SideDrawer open={menuOpen} onOpenChange={setMenuOpen} title={t('nav.moreTools')}>
         {toolGroups.map((group) => (
           <div key={group.label} className="mb-4">
             <p className="t-caption mb-1.5 px-3 text-ink-3">
@@ -633,10 +613,18 @@ export function AppShell({
           </div>
         ))}
         <div className="mt-2 border-t border-border px-1 pt-3">
+          <div className="mb-3 flex items-center justify-between gap-3 px-3">
+            <span className="t-caption text-ink-3">{t('nav.language')}</span>
+            <LocaleSwitcher />
+          </div>
+          <div className="mb-3 flex items-center justify-between gap-3 px-3">
+            <span className="t-caption text-ink-3">{t('nav.theme')}</span>
+            <ThemeToggle compact />
+          </div>
           <LogoutButton size="touch" variant="secondary" className="w-full" />
         </div>
       </SideDrawer>
-      {pathname.startsWith('/ops') && !pathname.startsWith('/ops/pilot') ? <AgentBubble /> : null}
+      {pathname.startsWith('/ops') && !pathname.startsWith('/ops/pilot') && !fillMain ? <AgentBubble /> : null}
     </div>
   )
 }

@@ -14,7 +14,7 @@ function CloseButton() {
   return (
     <Dialog.Close
       aria-label={p('סגירה')}
-      className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-ink-3 transition-colors duration-[var(--dur-1)] hover:bg-surface-sunken hover:text-ink"
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-ink-3 transition-colors duration-[var(--dur-1)] hover:bg-surface-sunken hover:text-ink"
     >
       <X className="h-4 w-4" />
     </Dialog.Close>
@@ -194,11 +194,13 @@ export function SideDrawer({
   onOpenChange,
   title,
   children,
+  returnFocusRef,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   title: string
   children: React.ReactNode
+  returnFocusRef?: React.RefObject<HTMLElement | null>
 }) {
   const p = usePhrase()
   return (
@@ -206,6 +208,12 @@ export function SideDrawer({
       <Dialog.Portal>
         <Dialog.Overlay className={overlayClass} />
         <Dialog.Content
+          onCloseAutoFocus={(event) => {
+            if (returnFocusRef?.current) {
+              event.preventDefault()
+              returnFocusRef.current.focus()
+            }
+          }}
           className="phone-drawer safe-pt safe-pb fixed inset-y-3 start-3 z-50 flex w-[min(86vw,320px)] animate-drawer-in flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface text-ink outline-none"
         >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">

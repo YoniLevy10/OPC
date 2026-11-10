@@ -7,6 +7,7 @@ import {
 import { findRecurrences, suggestPrevention, type HistoryTicket } from '@/modules/tickets/recurrence'
 import { getSlaBreachKind } from '@/modules/tickets/sla'
 import { rankKnownVendors, type VendorOutcome } from '@/modules/vendors/outcomes'
+import { midragCityMatchForCity } from '@/modules/vendors/external-search'
 import { applyIntakeRules } from './rules'
 
 const HAZARD_RULES = new Set([
@@ -47,8 +48,10 @@ export type BundleFault = {
   slaResolveBy?: string | null
   resolvedAt?: string | null
   firstResponseAt?: string | null
-  /** Store district. Used to suggest a combined visit nearby. */
+  /** District is context only; it does not establish that stores are nearby. */
   regionId?: string | null
+  /** Explicit geography for same-city, cross-store recommendations. */
+  city?: string | null
   /** Ari's flag. When set, it wins over priority. */
   urgent?: boolean | null
   /** Already on a service visit or waiting for a vendor. */
@@ -154,11 +157,18 @@ function toHistory(fault: BundleFault): HistoryTicket {
 
 function samePlace(anchor: BundleFault, other: BundleFault): boolean {
   if (other.storeId === anchor.storeId) return true
-  return Boolean(anchor.regionId && other.regionId && anchor.regionId === other.regionId)
+  const cityKey = (raw: string | null | undefined): string | null => {
+    const city = raw?.normalize('NFKC').trim().replace(/\s+/g, ' ')
+    if (!city) return null
+    const match = midragCityMatchForCity(city)
+    return match ? `city:${match.cityId}` : `city:${city.replace(/[-\s]/g, '')}`
+  }
+  const anchorCity = cityKey(anchor.city)
+  return Boolean(anchorCity && anchorCity === cityKey(other.city))
 }
 
 /**
- * An urgent fault suggests open non-urgent faults in the same store or district.
+ * An urgent fault suggests compatible non-urgent work in the same store or known city.
  * Leftover non-urgent faults of the same trade at one store can still be grouped.
  */
 export function recommendBundles(input: {
@@ -179,7 +189,7 @@ export function recommendBundles(input: {
 
   for (const fault of input.open) {
     if (!fault.storeId || fault.dispatched || !OPEN.has(fault.status)) continue
-    const category = normalizeTicketCategory(fault.category)
+    const category = normalizeTicketCategory(fault.category.trim().toLowerCase())
     const row = { ...fault, category }
     if (faultNeedsNow(row, now)) urgent.push(row)
     else later.push(row)
@@ -188,14 +198,14 @@ export function recommendBundles(input: {
   const claimed = new Set<string>()
   for (const fault of urgent) {
     const companions = later.filter(
-      (other) => !claimed.has(other.id) && samePlace(fault, other),
+      (other) => !claimed.has(other.id) && fault.category !== 'other' && other.category === fault.category && samePlace(fault, other),
     )
     for (const companion of companions) claimed.add(companion.id)
     const count = companions.length
     const sentence =
       count === 0
         ? `דחוף בסניף ${fault.storeName}. אין עכשיו תקלה לא דחופה לשלב.`
-        : `דחוף בסניף ${fault.storeName}. אפשר לסגור גם ${count === 1 ? 'תקלה לא דחופה אחת' : `${count} תקלות לא דחופות`} באותה חנות או מחוז.`
+        : `דחוף בסניף ${fault.storeName}. אפשר לסגור גם ${count === 1 ? 'תקלה לא דחופה אחת' : `${count} תקלות לא דחופות`} מאותו מקצוע באותה חנות או עיר.`
     cards.push({
       id: `urgent:${fault.id}`,
       kind: 'urgent',
@@ -213,6 +223,7 @@ export function recommendBundles(input: {
 
   for (const fault of later) {
     if (claimed.has(fault.id)) continue
+    if (fault.category === 'other') continue
     const key = `${fault.storeId}:${fault.category}`
     const list = groups.get(key) ?? []
     list.push(fault)

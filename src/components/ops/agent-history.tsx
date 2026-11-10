@@ -16,7 +16,7 @@ export function AgentHistoryButton({
       aria-pressed={pressed}
       aria-label="שיחות אחרונות"
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-sunken"
+      className="flex h-12 w-12 items-center justify-center rounded-full text-ink-2 hover:bg-surface-sunken"
     >
       <History className="h-4 w-4" aria-hidden />
     </button>

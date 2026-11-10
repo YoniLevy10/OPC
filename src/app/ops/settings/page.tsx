@@ -24,6 +24,8 @@ export default async function SettingsPage() {
           status={`${settings.brand_name} · ${settings.country_label}`}
         />
 
+        <p className="t-body text-ink-2">בחרו קטגוריה ועדכנו את פרטי המערכת. לאחר העריכה שמרו את השינויים.</p>
+
         <PhoneFold title="עריכה" summary={`${settings.brand_name} · ${settings.country_label}`}>
         <SettingsForm initial={settings} />
         </PhoneFold>

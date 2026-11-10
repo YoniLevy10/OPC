@@ -1295,7 +1295,9 @@ export async function processInboundMessage(
       }
     }
 
-    if (spoken && isStatusQuestion(spoken)) {
+    // Desk identities ask about the network, not only tickets reported by their
+    // own phone. Let the existing authorized Ari router handle these requests.
+    if (!ariDesk && spoken && isStatusQuestion(spoken)) {
       const tail = message.waId.slice(-9)
       const mine = memListTickets().filter(
         (ticket) =>
@@ -1318,6 +1320,7 @@ export async function processInboundMessage(
     }
 
     if (
+      !ariDesk &&
       session.state === 'done' &&
       session.active_ticket_id &&
       spoken &&

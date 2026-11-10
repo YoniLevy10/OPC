@@ -33,7 +33,7 @@ type OpenTicket = {
   title?: string | null
   description?: string | null
   created_at: string
-  stores?: { name?: string | null; code?: string | null } | null
+  stores?: { name?: string | null; code?: string | null; city?: string | null } | null
   organization_id?: string | null
   country_id?: string | null
   assigned_to?: string | null
@@ -64,6 +64,7 @@ export async function loadDeskNotices(actor: Actor | null): Promise<DeskNotices>
           summary: ticket.title || ticket.description || '',
           createdAt: ticket.created_at,
           regionId: ticket.region_id,
+          city: ticket.stores?.city,
           urgent: ticketIsUrgent(ticket),
           dispatched: ticket.status === 'engaged' || ticket.status === 'waiting_vendor',
         }),

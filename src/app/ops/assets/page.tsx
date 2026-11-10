@@ -10,6 +10,9 @@ import { listSpends } from '@/lib/data/ops-ledger'
 import { spendAmountForTrueCost, spendsContributeToTrueCost } from '@/modules/spend/true-cost'
 import { PartsStock } from '../inventory/parts-stock'
 import { PhoneFold } from '@/components/layout/phone-fold'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
+import { listAssets } from '@/modules/assets/service'
+import { MEM_ORG_ID } from '@/lib/data/memory-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,15 +20,21 @@ export default async function AssetsPage() {
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
 
-  const [{ stores }, ticketResult] = await Promise.all([
-    fetchStores({ includeInactive: true }),
+  const [{ stores }, ticketResult, assetResult] = await Promise.all([
+    actor ? visibleStores(actor, true) : fetchStores({ includeInactive: true }),
     listTickets(500).catch(() => ({
       tickets: [],
       backend: 'memory' as const,
     })),
+    listAssets(),
   ])
+  const allowedStoreIds = new Set(stores.map((store) => store.id))
+  const allowedAssetIds = new Set(assetResult.assets.filter((asset) => allowedStoreIds.has(asset.store_id)).map((asset) => asset.id))
+  const canReadWarehouse = !actor || actor.memberships.some((member) =>
+    member.organization_id === MEM_ORG_ID && ['global_admin', 'global_maintenance'].includes(member.role),
+  )
 
-  const tickets: AssetTicketHint[] = (ticketResult.tickets ?? []).map((t) => ({
+  const tickets: AssetTicketHint[] = (ticketResult.tickets ?? []).filter((ticket) => allowedStoreIds.has(ticket.store_id)).map((t) => ({
     id: t.id,
     store_id: t.store_id,
     asset_id: (t as { asset_id?: string | null }).asset_id ?? null,
@@ -39,7 +48,7 @@ export default async function AssetsPage() {
 
   const assetTrueCost: Record<string, number> = {}
   for (const spend of listSpends()) {
-    if (!spend.assetId || !spendsContributeToTrueCost(spend)) continue
+    if (!spend.assetId || !allowedStoreIds.has(spend.storeId) || !allowedAssetIds.has(spend.assetId) || !spendsContributeToTrueCost(spend)) continue
     assetTrueCost[spend.assetId] =
       (assetTrueCost[spend.assetId] ?? 0) + spendAmountForTrueCost(spend)
   }
@@ -66,9 +75,9 @@ export default async function AssetsPage() {
           assetTrueCost={assetTrueCost}
         />
         </section>
-        <PhoneFold title="חלקים במחסן" summary="מלאי">
+        {canReadWarehouse ? <PhoneFold title="חלקים במחסן" summary="מלאי">
         <PartsStock />
-        </PhoneFold>
+        </PhoneFold> : null}
       </div>
     </OpsAppShell>
   )

@@ -13,7 +13,6 @@ import { driveCanWrite, driveFolderUrl } from '@/modules/drive/folder'
 import { addDocumentAction, ingestFileAction } from '../work-actions'
 import { DocumentCabinet, preferStoredFiles } from './document-cabinet'
 import { DriveImportForm } from './drive-import-form'
-import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,22 +44,15 @@ export default async function DocumentsPage() {
                 : 'תוקף מהמסמך נשמר בנפרד ממועד שחושב'
           }
         />
-        {documents.length === 0 ? (
-          <Panel elevated>
-            <EmptyState
-              title="אין מסמכים במעקב"
-              description="חברו את תיקיית הדרייב של ארי, או שמרו מסמך עם קישור למקור."
-            />
-          </Panel>
-        ) : (
-          <DocumentCabinet documents={documents} files={files} />
-        )}
-        <PhoneFoldStack>
-        <PhoneFold title="סנכרון עם גוגל דרייב" summary={statusLine ?? 'לא סונכרן'}>
+        <details className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+        <summary className="t-body-strong flex min-h-12 cursor-pointer items-center text-[var(--tenant)]">הוספת מסמך או חיבור תיקייה</summary>
+        <div className="mt-4 grid gap-3">
+        <details className="rounded-[var(--radius-md)] border border-border p-3" open={Boolean(folderId)}>
+        <summary className="t-body-strong flex min-h-12 cursor-pointer items-center text-ink">סנכרון עם גוגל דרייב</summary>
         <Panel elevated>
           <h2 className="t-section mb-1 text-ink">סנכרון עם גוגל דרייב</h2>
           <p className="t-body mb-4 text-ink-2">
-            ארי ממשיך לעבוד בתיקיות. קובץ חדש או עדכון אצלו נכנס לכאן, ומסמך שנשמר כאן נכתב לתיקיית הסניף. עריכה שלו גוברת, וקובץ שלו לא נמחק ולא נדרס. מה שלא ברור נשאר לבדיקה.
+            חברו תיקייה כדי לייבא את המסמכים שבה. קבצים שלא זוהו בבירור יישארו לבדיקה.
           </p>
           <DriveImportForm
             connectedFolder={folderId ? driveFolderUrl(folderId) : null}
@@ -68,8 +60,9 @@ export default async function DocumentsPage() {
             canWrite={driveCanWrite()}
           />
         </Panel>
-        </PhoneFold>
-        <PhoneFold title="מסמך ידני" summary="לא לשימוש יומיומי">
+        </details>
+        <details className="rounded-[var(--radius-md)] border border-border p-3" open={!folderId}>
+        <summary className="t-body-strong mb-3 flex min-h-12 cursor-pointer items-center text-ink">שמירת מסמך מקישור</summary>
           <form action={addDocumentAction} className="grid gap-3">
             <Field label="קוד סניף" htmlFor="doc-store">
               <Input id="doc-store" name="storeCode" placeholder="6018" required />
@@ -99,10 +92,11 @@ export default async function DocumentsPage() {
             <p className="t-meta text-ink-2">
               כיולי שמיעה: טימפנומטר ואודיומטר כל שנה, תא אקוסטי כל שנתיים. אישור שמכסה כמה כיולים נשמר בנפרד לכל כיול. תזכורת חודש לפני תוקף.
             </p>
-            <Button type="submit">שמירת מסמך</Button>
+            <Button type="submit" variant="primary">שמירת מסמך</Button>
           </form>
-        </PhoneFold>
-        <PhoneFold title="קליטה ידנית של קובץ" summary="לא לשימוש יומיומי">
+        </details>
+        <details className="rounded-[var(--radius-md)] border border-border p-3">
+        <summary className="t-body-strong mb-3 flex min-h-12 cursor-pointer items-center text-ink">קליטת טקסט מקובץ · מתקדם</summary>
           <form action={ingestFileAction} className="grid gap-3">
             <Field label="שם קובץ" htmlFor="file-name">
               <Input id="file-name" name="name" required />
@@ -119,8 +113,19 @@ export default async function DocumentsPage() {
             <input type="hidden" name="mime" value="application/pdf" />
             <Button type="submit">קליטה</Button>
           </form>
-        </PhoneFold>
-        </PhoneFoldStack>
+        </details>
+        </div>
+        </details>
+        {documents.length === 0 ? (
+          <Panel elevated>
+            <EmptyState
+              title="אין מסמכים במעקב"
+              description="חברו את תיקיית הדרייב של ארי, או שמרו מסמך עם קישור למקור."
+            />
+          </Panel>
+        ) : (
+          <DocumentCabinet documents={documents} files={files} />
+        )}
       </div>
     </OpsAppShell>
   )

@@ -10,8 +10,8 @@ import { eligibleForQualityClose } from '@/modules/tickets/quality-hold'
 export const runtime = 'nodejs'
 
 /**
- * Close tickets the store already confirmed once the 30-day quality hold ends.
- * Does not close unconfirmed tickets and does not override an active hold.
+ * Reconcile legacy resolved tickets whose stores already confirmed them.
+ * V2.1 does not delay closure for a quality-window date; unconfirmed rows stay open.
  */
 function cronAuthorized(request: Request): boolean {
   if (process.env.MAINTAINOS_FORCE_MEMORY === '1') return true
@@ -33,8 +33,6 @@ async function loadEligibleIds(now: Date): Promise<string[]> {
       .select('id, status, store_confirmed_at, quality_hold_until')
       .eq('status', 'resolved')
       .not('store_confirmed_at', 'is', null)
-      .not('quality_hold_until', 'is', null)
-      .lte('quality_hold_until', now.toISOString())
       .limit(200)
     if (error) throw new Error(error.message)
     return (data ?? [])

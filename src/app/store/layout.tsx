@@ -5,7 +5,7 @@ import {
   shouldAllowDemoEntry,
 } from '@/lib/auth/home-path'
 import { hqRoles } from '@/lib/auth/types'
-import { fetchStores } from '@/modules/stores/data'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
 
 export default async function StoreLayout({
   children,
@@ -30,7 +30,7 @@ export default async function StoreLayout({
   if (actor) {
     const sid = primaryStoreId(actor) ?? actor.memberships.find((m) => m.store_id)?.store_id
     if (sid) {
-      const { stores } = await fetchStores()
+      const { stores } = await visibleStores(actor, false)
       const store = stores.find((s) => s.id === sid)
       storeName = store?.name
       storeCode = store?.code

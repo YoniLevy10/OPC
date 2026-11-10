@@ -12,6 +12,7 @@ import { storeWhatsAppDeepLink } from '@/modules/stores/whatsapp-link'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { PhoneDesktopOnly } from '@/components/layout/phone-desktop-only'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function PrintQrBatchPage() {
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
 
   const [{ stores }, businessPhone] = await Promise.all([
-    fetchStores(),
+    actor ? visibleStores(actor, false) : fetchStores(),
     resolveWhatsAppBusinessPhone(),
   ])
   const active = stores.filter((s) => s.is_active !== false)

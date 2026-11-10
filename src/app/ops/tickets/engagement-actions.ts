@@ -8,6 +8,9 @@ import {
   lockEngagement,
 } from '@/modules/engagements/service'
 import { setTicketUrgent } from '@/modules/tickets/service'
+import { getById } from '@/modules/tickets/service'
+import { canMutateHqTicket, type Actor } from '@/lib/auth/types'
+import { engagementTicketIds } from '@/modules/engagements/service'
 
 async function actorName() {
   const actor = await getServerActor()
@@ -20,7 +23,19 @@ async function actorName() {
         membership.role === 'global_maintenance',
     )
   if (!allowed) throw new Error('רק ארי מאשר עסקה')
-  return { id: actor?.id ?? null, name: actor?.full_name || 'ארי' }
+  return { id: actor?.id ?? null, name: actor?.full_name || 'ארי', actor }
+}
+
+async function authorizePlan(actor: Actor | null, ids: string[]) {
+  if (!actor && shouldAllowDemoEntry()) return
+  if (!actor) throw new Error('נדרשת כניסה')
+  for (const id of [...new Set(ids)]) {
+    const ticket = await getById(id)
+    if (!ticket || !canMutateHqTicket(actor, ticket) || !actor.memberships.some((membership) =>
+      membership.organization_id === ticket.organization_id &&
+      (membership.role === 'global_admin' || membership.role === 'global_maintenance'),
+    )) throw new Error('אין הרשאה לנהל את תוכנית הביקור')
+  }
 }
 
 export async function lockEngagementAction(formData: FormData) {
@@ -35,6 +50,7 @@ export async function lockEngagementAction(formData: FormData) {
     .getAll('bundle')
     .map((value) => String(value))
     .filter(Boolean)
+  await authorizePlan(actor.actor, [ticketId, ...bundled])
   await lockEngagement({
     ticketId,
     bundledTicketIds: bundled,
@@ -51,8 +67,9 @@ export async function lockEngagementAction(formData: FormData) {
 }
 
 export async function cancelEngagementAction(formData: FormData) {
-  await actorName()
+  const actor = await actorName()
   const ticketId = String(formData.get('ticketId') ?? '')
+  await authorizePlan(actor.actor, await engagementTicketIds(ticketId))
   await cancelEngagement(ticketId)
   revalidatePath(`/ops/tickets/${ticketId}`)
   revalidatePath('/ops/approvals')
@@ -62,6 +79,7 @@ export async function cancelEngagementAction(formData: FormData) {
 export async function setUrgentAction(formData: FormData) {
   const actor = await actorName()
   const ticketId = String(formData.get('ticketId') ?? '')
+  await authorizePlan(actor.actor, [ticketId])
   const urgent = formData.get('urgent') === '1'
   await setTicketUrgent(ticketId, urgent, actor.id)
   revalidatePath(`/ops/tickets/${ticketId}`)

@@ -9,6 +9,18 @@ describe('classifyFaultText', () => {
     })
   })
 
+  it('does not mistake an AC suffix inside a reference identifier for air conditioning', () => {
+    expect(classifyFaultText('נזילה בצינור מים visit-trades-1234abac-1234-4321-abcd-123456789012')).toEqual({
+      category: 'plumbing',
+      priority: 'high',
+    })
+  })
+
+  it('recognizes AC as a standalone trade term, including at the end of a report', () => {
+    expect(classifyFaultText('broken AC')).toEqual({ category: 'hvac', priority: 'high' })
+    expect(classifyFaultText('AC-unit is not cooling')).toEqual({ category: 'hvac', priority: 'high' })
+  })
+
   it('marks security as critical', () => {
     expect(classifyFaultText('הדלת לא ננעלת')).toEqual({
       category: 'security',

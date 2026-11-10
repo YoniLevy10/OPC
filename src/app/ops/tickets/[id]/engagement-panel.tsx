@@ -1,168 +1,140 @@
-import {
-  cancelEngagementAction,
-  lockEngagementAction,
-  setUrgentAction,
-} from '@/app/ops/tickets/engagement-actions'
-import type { Engagement } from '@/modules/engagements/service'
-import { formatIls } from '@/modules/spend/true-cost'
-import type { MidragPro } from '@/modules/vendors/midrag/live-results'
-import { Button } from '@/components/ui/button'
+'use client'
 
-export type CompanionChoice = {
-  id: string
-  storeName: string
-  summary: string
-}
+import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { cancelEngagementAction, setUrgentAction } from '@/app/ops/tickets/engagement-actions'
+import type { Engagement } from '@/modules/engagements/service'
+import { isVisitPlannableStatus, type VisitPlanTicket } from '@/modules/visits/plan'
+import { formatIls } from '@/modules/spend/true-cost'
+import { Button } from '@/components/ui/button'
+import { VisitHandoffList, VisitPlanSheet, type VisitHandoff } from '../visit-plan-sheet'
 
 export function EngagementPanel({
-  ticketId,
+  ticket,
   urgent,
   status,
   locked,
-  pros,
-  searchUrl,
-  fallback,
   companions,
+  canApprove,
 }: {
-  ticketId: string
+  ticket: VisitPlanTicket
   urgent: boolean
   status: string
   locked: Engagement | null
-  pros: MidragPro[]
-  searchUrl: string
-  fallback: boolean
-  companions: CompanionChoice[]
+  companions: VisitPlanTicket[]
+  canApprove: boolean
 }) {
+  const router = useRouter()
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [snapshot, setSnapshot] = useState<VisitPlanTicket[] | null>(null)
+  const [open, setOpen] = useState(false)
+  const [session, setSession] = useState(0)
+  const [retryResult, setRetryResult] = useState<{ id: string; handoffs: VisitHandoff[] } | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const retryLock = useRef(false)
+  const handoffs = locked && retryResult?.id === locked.id ? retryResult.handoffs : locked?.handoffs ?? []
+  const planned = snapshot ?? [ticket, ...companions.filter((row) => selected.has(row.id))]
+
   if (status === 'closed' || status === 'cancelled') return null
 
-  if (locked && status === 'engaged') {
-    return (
-      <section className="grid gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-        <p className="t-body-strong text-ink">ארי יצא. מנהל החנות מתאם.</p>
-        <p className="t-body text-ink-2">
-          {locked.professionalName} · {locked.professionalPhone} ·{' '}
-          {formatIls(locked.approvedAmount)}
-        </p>
-        <p className="t-meta text-ink-3">המחיר נעול. שינוי דורש ביטול וחזרה לתור.</p>
-        <form action={cancelEngagementAction}>
-          <input type="hidden" name="ticketId" value={ticketId} />
-          <Button type="submit" variant="secondary" size="sm">
-            בטל אישור
-          </Button>
-        </form>
-      </section>
-    )
+  async function retryHandoff() {
+    if (!locked || retryLock.current) return
+    retryLock.current = true
+    setBusy(true)
+    setError('')
+    try {
+      const response = await fetch('/api/ops/engagements', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retry', ticketId: locked.ticketId }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data?.engagement?.id || !Array.isArray(data.handoffs)) {
+        throw new Error(data?.error || 'העברת ההודעה לא הושלמה')
+      }
+      setRetryResult({ id: data.engagement.id, handoffs: data.handoffs })
+      router.refresh()
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'בדקו את החיבור ונסו שוב')
+    } finally {
+      retryLock.current = false
+      setBusy(false)
+    }
   }
 
   return (
-    <section className="grid gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="t-body-strong text-ink">{urgent ? 'דחוף' : 'לא דחוף'}</p>
-        <form action={setUrgentAction}>
-          <input type="hidden" name="ticketId" value={ticketId} />
-          <input type="hidden" name="urgent" value={urgent ? '0' : '1'} />
-          <Button type="submit" variant="secondary" size="sm">
-            {urgent ? 'סמן כלא דחוף' : 'סמן כדחוף'}
-          </Button>
-        </form>
-      </div>
-
-      {urgent ? (
-        <form action={lockEngagementAction} className="grid gap-3">
-          <input type="hidden" name="ticketId" value={ticketId} />
-          {pros.length > 0 ? (
-            <fieldset className="grid gap-2">
-              <legend className="t-body-strong text-ink">מידרג באזור</legend>
-              <p className="t-meta text-ink-3">טווח מידרג הוא לא המחיר שאושר.</p>
-              <ul className="grid max-h-72 gap-2 overflow-y-auto">
-                {pros.map((pro) => (
-                  <li key={pro.id} className="rounded-[var(--radius-md)] border border-border px-3">
-                    <label className="flex min-h-[var(--tap)] items-center gap-3 py-2">
-                      <input
-                        type="radio"
-                        name="midrag"
-                        value={`${pro.id}::${encodeURIComponent(pro.name)}`}
-                        className="h-5 w-5 shrink-0"
-                      />
-                      <span className="min-w-0">
-                        <span className="t-body block text-ink">
-                          {pro.name}
-                          {pro.rating != null ? ` · ${pro.rating}` : ''}
-                          {pro.reviews != null ? ` · ${pro.reviews} חוות דעת` : ''}
-                        </span>
-                        <span className="t-meta block text-ink-3">
-                          {pro.availability || 'זמינות לא צוינה'}
-                          {pro.priceMin != null
-                            ? ` · טווח ${formatIls(pro.priceMin)}${pro.priceMax != null ? `–${formatIls(pro.priceMax)}` : ''}`
-                            : ''}
-                        </span>
-                        <a className="t-meta text-ink underline" href={pro.profileUrl} target="_blank" rel="noreferrer">
-                          דברו איתי במידרג
-                        </a>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </fieldset>
-          ) : (
-            <p className="t-body text-ink-2">
-              {fallback ? 'מידרג לא נפתח עכשיו. ' : ''}
-              <a className="underline" href={searchUrl} target="_blank" rel="noreferrer">
-                פתח במידרג
-              </a>
-            </p>
-          )}
-
-          {companions.length > 0 ? (
-            <fieldset className="grid gap-2">
-              <legend className="t-body-strong text-ink">לסגור באותו ביקור</legend>
-              {companions.map((row) => (
-                <label key={row.id} className="flex items-start gap-2">
-                  <input type="checkbox" name="bundle" value={row.id} defaultChecked />
-                  <span className="t-body text-ink">
-                    {row.storeName} · {row.summary}
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          ) : null}
-
-          <label className="grid gap-1">
-            <span className="t-meta text-ink-2">שם אחרי השיחה</span>
-            <input
-              name="professional_name"
-              className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
-              placeholder="אם לא בחרת מהרשימה"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="t-meta text-ink-2">טלפון</span>
-            <input
-              name="professional_phone"
-              required
-              inputMode="tel"
-              className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
-              placeholder="המספר שארי קיבל"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="t-meta text-ink-2">מחיר שסוכם</span>
-            <input
-              name="approved_amount"
-              required
-              inputMode="decimal"
-              className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
-              placeholder="₪"
-            />
-          </label>
-          <Button type="submit" variant="primary" className="max-md:w-full">
-            אשר עסקה
-          </Button>
-        </form>
-      ) : (
-        <p className="t-body text-ink-2">נשאר בתור. ייכנס להצעת שילוב כשתהיה דחופה באותה חנות או מחוז.</p>
-      )}
-    </section>
+    <>
+      <section className="grid gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+        {locked ? (
+          <>
+            <p className="t-body-strong text-ink">הטיפול אושר. מנהל החנות מתאם.</p>
+            <p className="t-body text-ink-2">{locked.professionalName} · {locked.professionalPhone} · {formatIls(locked.approvedAmount)} לכל הביקור</p>
+            <p className="t-meta text-ink-3">המחיר נעול. שינוי דורש ביטול וחזרה לתור.</p>
+            {handoffs.length ? <VisitHandoffList handoffs={handoffs} /> : <p className="t-caption text-[var(--signal-warning)]">אין תיעוד העברה לחנות.</p>}
+            {canApprove && !locked.closedAt && handoffs.some((handoff) => handoff.canRetry) ? (
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => void retryHandoff()}>{busy ? 'מעביר…' : 'נסה שוב להעביר לחנות'}</Button>
+            ) : null}
+            {error ? <p role="alert" className="t-caption text-[var(--signal-critical)]">{error}</p> : null}
+            {canApprove && !locked.closedAt ? (
+              <form action={cancelEngagementAction}>
+                <input type="hidden" name="ticketId" value={ticket.id} />
+                <Button type="submit" variant="ghost" size="sm" disabled={busy}>בטל אישור</Button>
+              </form>
+            ) : null}
+          </>
+        ) : canApprove && isVisitPlannableStatus(status) ? (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <p className="t-body-strong text-ink">{urgent ? 'דחוף' : 'לא דחוף'}</p>
+              <form action={setUrgentAction}>
+                <input type="hidden" name="ticketId" value={ticket.id} />
+                <input type="hidden" name="urgent" value={urgent ? '0' : '1'} />
+                <Button type="submit" variant="ghost" size="sm">{urgent ? 'סמן כלא דחוף' : 'סמן כדחוף'}</Button>
+              </form>
+            </div>
+            {companions.length ? (
+              <details>
+                <summary className="t-caption cursor-pointer py-2 text-ink-2">אפשר לצרף {companions.length} תקלות מאותו מקצוע ועיר</summary>
+                <ul className="grid gap-2 pt-2">
+                  {companions.map((row) => (
+                    <li key={row.id}>
+                      <label className="t-body flex items-start gap-2 text-ink">
+                        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={selected.has(row.id)} onChange={() => setSelected((current) => {
+                          const next = new Set(current)
+                          if (next.has(row.id)) next.delete(row.id)
+                          else next.add(row.id)
+                          return next
+                        })} />
+                        <span>{row.label} · חנות #{row.storeCode} · {row.title}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+            <Button type="button" variant="primary" size="touch" onClick={() => { setSnapshot(planned); setOpen(true) }}>תכנון ביקור</Button>
+          </>
+        ) : <p className="t-body text-ink-2">{status === 'resolved'
+          ? 'הטיפול ממתין לאישור מנהל החנות.'
+          : canApprove
+            ? 'התקלה כבר בתהליך טיפול. פרטי הטיפול וההעברה לחנות מופיעים בהיסטוריה.'
+            : 'אישור המחיר והעברת הטיפול לחנות מתבצעים בידי ארי.'}</p>}
+      </section>
+      <VisitPlanSheet
+        key={session}
+        open={open}
+        tickets={planned}
+        onDismiss={({ complete, hasApprovals }) => {
+          setOpen(false)
+          if (complete) {
+            setSelected(new Set())
+            setSnapshot(null)
+            setSession((current) => current + 1)
+          } else if (!hasApprovals) setSnapshot(null)
+        }}
+      />
+    </>
   )
 }

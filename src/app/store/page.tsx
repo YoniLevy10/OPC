@@ -13,6 +13,7 @@ import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { OperationalRow, RowList, Dot } from '@/components/ui/operational-row'
 import type { QueueTicket } from '@/modules/tickets/queue'
 import { StoreWaPrimaryNotice } from './wa-primary-notice'
+import { visibleStores } from '@/lib/auth/store-asset-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,10 +22,14 @@ export default async function StoreHomePage() {
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
 
   const storeId = actor ? primaryStoreId(actor) : null
-  const { stores } = await fetchStores()
-  const store = storeId
+  const { stores } = actor ? await visibleStores(actor, false) : await fetchStores()
+  const store = actor
     ? stores.find((s) => s.id === storeId)
     : stores.find((s) => s.code === canonicalStoreCode('172')) ?? stores[0]
+
+  if (actor && !store) {
+    return <Panel elevated><p className="t-body text-ink-2">לא נמצאה חנות מורשית שמשויכת לחשבון. פנו למנהל המערכת לעדכון השיוך.</p></Panel>
+  }
 
   const result = await listTickets({
     limit: 50,

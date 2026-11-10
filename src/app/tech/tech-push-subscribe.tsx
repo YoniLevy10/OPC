@@ -39,7 +39,7 @@ export function TechPushSubscribe() {
   if (!vapid) {
     return (
       <p className="t-caption mb-3 text-ink-3">
-        התראות Push יופעלו כשיוגדרו מפתחות VAPID. בינתיים: SMS + WhatsApp.
+        התראות למכשיר אינן זמינות כרגע. אפשר לעקוב אחר העבודות ברשימה הזו.
       </p>
     )
   }
@@ -49,7 +49,7 @@ export function TechPushSubscribe() {
     setStatus(null)
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        throw new Error('הדפדפן לא תומך ב־Push')
+        throw new Error('הדפדפן הזה אינו תומך בהתראות למכשיר')
       }
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.subscribe({
@@ -67,7 +67,7 @@ export function TechPushSubscribe() {
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'הרשמה נכשלה')
-      setStatus('התראות Push הופעלו')
+      setStatus('התראות למכשיר הופעלו')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'הרשמה נכשלה')
     } finally {
@@ -85,7 +85,7 @@ export function TechPushSubscribe() {
         disabled={busy}
         onClick={() => void subscribe()}
       >
-        {busy ? 'מפעיל…' : 'הפעלת התראות Push'}
+        {busy ? 'מפעיל…' : 'הפעלת התראות למכשיר'}
       </Button>
       {status ? <p className="t-caption text-ink-2">{status}</p> : null}
     </div>

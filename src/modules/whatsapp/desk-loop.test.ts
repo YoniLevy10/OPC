@@ -57,6 +57,24 @@ describe('WhatsApp desk loop', () => {
     expect(isAriSender(ARI)).toBe(true)
   })
 
+  it.each([ARI, '972548102688'])('routes an authorized desk status question to network summary (%s)', async (waId) => {
+    const before = memListTickets().length
+    const result = await processInboundMessage(msg({ waId, text: 'מה המצב?' }), dry)
+    expect(result.ok).toBe(true)
+    expect(result.reply).toBeTruthy()
+    expect(result.reply).not.toContain('לא מצאתי פנייה פתוחה מהמספר הזה')
+    expect(result.reply).not.toContain('קוד הסניף ואז את הדיווח')
+    expect(result.reply).toContain('ארי')
+    expect(result.ticketId).toBeUndefined()
+    expect(memListTickets().length).toBe(before)
+  })
+
+  it('keeps an ordinary shop status question on the reporter-specific path', async () => {
+    const result = await processInboundMessage(msg({ waId: '972501234599', text: 'מה המצב?' }), dry)
+    expect(result.reply).toContain('לא מצאתי פנייה פתוחה מהמספר הזה')
+    expect(result.ticketId).toBeUndefined()
+  })
+
   it('keeps a fault on the ticket path', async () => {
     const waId = '972501234501'
     const before = memListTickets().length

@@ -77,7 +77,8 @@ export async function loadAlertsCenter(input: {
 
   let decisions: DecisionItem[] = []
   try {
-    await hydrateOpsLedger()
+    const loaded = await hydrateOpsLedger()
+    if (!loaded.ok) throw new Error(loaded.error)
     const ticketDecisions = tickets
       .map((t) => ticketDecision(t, new Date(), input.locale))
       .filter((item): item is DecisionItem => item != null)

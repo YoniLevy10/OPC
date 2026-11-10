@@ -28,7 +28,7 @@ export function CreateTicketDialog({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const isDesktop = useMediaQuery('(min-width: 768px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
 

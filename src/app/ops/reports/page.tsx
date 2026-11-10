@@ -236,13 +236,15 @@ export default async function ReportsPage({
           }
         />
 
+        <p className="t-body text-ink-2">בחרו תקופה כדי לבדוק תקלות ועלויות, או הורידו את הדוח בפורמט שמתאים לכם.</p>
+
         <Panel elevated className="!p-4 md:!p-5">
           <PanelHeader
             title={`עלויות אחזקה ${annual.year}`}
             meta={`סה״כ רשת ${formatIls(annual.network)}`}
           />
           {annual.stores.length === 0 ? (
-            <EmptyState title="אין עדיין ביקורים שנסגרו השנה" />
+            <p className="t-body py-4 text-ink-2">אין עדיין ביקורים שנסגרו השנה.</p>
           ) : (
             <ul className="mt-4 grid gap-2">
               {annual.stores.map((store) => (
@@ -258,20 +260,6 @@ export default async function ReportsPage({
         <PhoneFoldStack>
         <PhoneFold title="סינון" summary={rangeLabel}>
         <ReportsFilters from={from} to={to} status={status} />
-        </PhoneFold>
-
-        <PhoneFold title="ייצוא" summary={`${all.length} תקלות`}>
-        <Panel elevated className="!p-4 md:!p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <PanelHeader title="הנפקת דוח" meta="לפי הטווח שנבחר" />
-            </div>
-            <div className="flex flex-col items-stretch gap-3 md:items-end">
-              <ReportsExportActions query={exportQuery} count={all.length} />
-              <ReportsSaveButton from={from} to={to} month={month} />
-            </div>
-          </div>
-        </Panel>
         </PhoneFold>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -571,6 +559,9 @@ export default async function ReportsPage({
         </Panel>
 
         <Panel flush elevated className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
+            <ReportsSaveButton from={from} to={to} month={month} />
+          </div>
           <PanelHeader
             title="ארכיון שמורים"
             meta={`${snapshotResult.snapshots.length} בארכיון`}

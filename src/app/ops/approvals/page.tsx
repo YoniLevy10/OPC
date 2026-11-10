@@ -27,7 +27,7 @@ import {
 import { photosForTickets } from '@/modules/tickets/attachments'
 import { listTickets } from '@/modules/tickets/service'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
-import { loadMidragResults } from '@/modules/vendors/midrag/live-results'
+import { buildVisitPlan, isVisitPlannableStatus, type VisitPlanTicket } from '@/modules/visits/plan'
 import { ApprovalCard } from './approval-card'
 import { approveFromBrief } from './brief-actions'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
@@ -95,33 +95,38 @@ export default async function ApprovalsPage({
     summary: ticket.title || ticket.description,
     createdAt: ticket.created_at,
     regionId: ticket.region_id,
+    city: ticket.stores?.city,
     urgent: ticketIsUrgent(ticket),
     dispatched: ticket.status === 'engaged' || ticket.status === 'waiting_vendor',
   }))
-  const companionsByLead = new Map<string, { id: string; storeName: string; summary: string }[]>()
+  const toPlanTicket = (row: (typeof visible)[number]): VisitPlanTicket => ({
+    id: row.id,
+    label: row.display_number || (row.number != null ? `OC-${row.number}` : row.id.slice(0, 8)),
+    title: row.title || row.description,
+    storeId: row.store_id,
+    storeCode: row.stores?.code || '',
+    city: row.stores?.city,
+    region: row.region_id,
+    category: row.category,
+  })
+  const canApprove = Boolean(actor?.memberships.some((membership) =>
+    membership.role === 'global_admin' || membership.role === 'global_maintenance')) ||
+    (!actor && shouldAllowDemoEntry())
+  const companionsByLead = new Map<string, VisitPlanTicket[]>()
   for (const card of recommendBundles({ open: bundleFaults })) {
     if (card.kind !== 'urgent' || card.ticketIds.length < 2) continue
     const [lead, ...rest] = card.ticketIds
-    companionsByLead.set(
-      lead!,
-      rest.map((id) => {
-        const row = visible.find((ticket) => ticket.id === id)
-        return {
-          id,
-          storeName: row?.stores?.name || row?.stores?.code || 'סניף',
-          summary: row?.title || row?.description || 'תקלה',
-        }
-      }),
-    )
+    const anchor = visible.find((row) => row.id === lead)
+    if (!anchor) continue
+    companionsByLead.set(lead!, rest.flatMap((id) => {
+      const row = visible.find((ticket) => ticket.id === id)
+      if (!row || !isVisitPlannableStatus(row.status)) return []
+      const candidate = toPlanTicket(row)
+      const plan = buildVisitPlan([toPlanTicket(anchor), candidate])
+      return plan.length === 1 && plan[0].ready ? [candidate] : []
+    }))
   }
   const photos = await photosForTickets(awaiting.map((ticket) => ticket.id))
-  const opened = openId ? awaiting.find((ticket) => ticket.id === openId) : null
-  const midrag = opened
-    ? await loadMidragResults({
-        category: opened.category,
-        city: opened.stores?.city ?? null,
-      }).catch(() => null)
-    : null
   const locale = await getLocale()
   const tx = (key: MessageKey, vars?: Record<string, string | number>) =>
     translate(locale, key, vars)
@@ -137,13 +142,14 @@ export default async function ApprovalsPage({
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 lg:max-w-4xl">
         <OpsPageHero
-          title="מחכות לאישור"
+          title="טיפול ובקשות תקציב"
           status={
             awaiting.length === 0
-              ? 'אין תקלות שמחכות לאישור'
-              : `${awaiting.length} מחכות לאישור`
+              ? 'אין תקלות דחופות שממתינות לתוכנית טיפול'
+              : `${awaiting.length} תקלות ממתינות לתוכנית טיפול`
           }
         />
+        <p className="t-body text-ink-2">בתוכנית הטיפול בוחרים איש מקצוע ומאשרים את המחיר שסוכם. בקשות תקציב קיימות מופיעות בנפרד בהמשך העמוד.</p>
         <PhoneFoldStack>
         {awaiting.length === 0 ? (
           <p className="t-body text-ink-2">אין תקלות דחופות שמחכות לארי.</p>
@@ -170,7 +176,7 @@ export default async function ApprovalsPage({
               return (
                 <ApprovalCard
                   key={ticket.id}
-                  ticketId={ticket.id}
+                  ticket={toPlanTicket(ticket)}
                   store={store}
                   category={category}
                   fault={fault}
@@ -181,10 +187,8 @@ export default async function ApprovalsPage({
                   urgent={ticketIsUrgent(ticket)}
                   status={ticket.status}
                   locked={null}
-                  pros={open ? (midrag?.pros ?? []) : []}
-                  searchUrl={open ? (midrag?.searchUrl ?? '') : ''}
-                  fallback={open ? (midrag?.fallback ?? true) : false}
                   companions={open ? companions : []}
+                  canApprove={canApprove}
                 />
               )
             })}
@@ -192,6 +196,7 @@ export default async function ApprovalsPage({
         )}
         {waiting.length > 0 ? (
           <div className="flex flex-col gap-3">
+            <h2 className="t-section text-ink">בקשות תקציב קיימות</h2>
             {waitingOrdered.map((spend, index) => {
               const brief = approvalBrief(
                 spend,

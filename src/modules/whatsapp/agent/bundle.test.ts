@@ -143,23 +143,24 @@ describe('recommendBundles', () => {
     expect(cards.find((card) => card.kind === 'bundle')).toBeUndefined()
   })
 
-  it('suggests a non-urgent fault in the same district, at another store', () => {
+  it('suggests only same-trade work in the same explicit city, including city aliases', () => {
     const cards = recommendBundles({
       open: [
         fault({
           id: 'a',
           summary: 'המזגן כבה',
+          category: 'hvac',
           priority: 'high',
-          regionId: 'north',
+          city: 'תל אביב יפו',
         }),
         fault({
           id: 'b',
-          summary: 'ניקיון ויטרינה',
-          category: 'cleaning',
+          summary: 'ניקוי פילטר מזגן',
+          category: 'hvac',
           priority: 'low',
           storeId: 'store-2',
-          storeName: 'נהריה',
-          regionId: 'north',
+          storeName: 'שינקין',
+          city: 'תל-אביב',
         }),
         fault({
           id: 'c',
@@ -168,11 +169,40 @@ describe('recommendBundles', () => {
           priority: 'low',
           storeId: 'store-3',
           storeName: 'אילת',
-          regionId: 'south',
+          city: 'אילת',
         }),
       ],
     })
     expect(cards.find((card) => card.kind === 'urgent')?.ticketIds).toEqual(['a', 'b'])
+  })
+
+  it('does not attach cleaning work to an urgent HVAC visit even within the same store', () => {
+    const cards = recommendBundles({ open: [
+      fault({ id: 'urgent', summary: 'מזגן לא מקרר', category: 'hvac', priority: 'high' }),
+      fault({ id: 'cleaning', summary: 'ניקיון ויטרינה', category: 'cleaning', priority: 'low' }),
+      fault({ id: 'hvac', summary: 'פילטר', category: 'hvac', priority: 'low' }),
+    ] })
+    expect(cards.find((card) => card.kind === 'urgent')?.ticketIds).toEqual(['urgent', 'hvac'])
+  })
+
+  it.each([
+    { city: 'חיפה', peerCity: 'נהריה' },
+    { city: 'חיפה', peerCity: null },
+    { city: null, peerCity: null },
+  ])('does not infer nearby stores from the same region ($city/$peerCity)', ({ city, peerCity }) => {
+    const cards = recommendBundles({ open: [
+      fault({ id: 'urgent', summary: 'תקלה דחופה', priority: 'high', regionId: 'north', city }),
+      fault({ id: 'later', summary: 'בדיקת ברז', storeId: 'store-2', priority: 'low', regionId: 'north', city: peerCity }),
+    ] })
+    expect(cards.find((card) => card.kind === 'urgent')?.ticketIds).toEqual(['urgent'])
+  })
+
+  it('normalizes electrical hazards to electrical work when proposing companions', () => {
+    const cards = recommendBundles({ open: [
+      fault({ id: 'urgent', summary: 'ניצוצות', category: 'electrical_hazard', priority: 'critical' }),
+      fault({ id: 'later', summary: 'נורת שירות', category: 'electrical', priority: 'low' }),
+    ] })
+    expect(cards.find((card) => card.kind === 'urgent')?.ticketIds).toEqual(['urgent', 'later'])
   })
 
   it('turns a repeat into a check, not another bundled call', () => {
