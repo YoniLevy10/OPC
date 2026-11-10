@@ -107,10 +107,13 @@ export function canAccessInbox(actor: Actor | null): boolean {
   return hasHq(actor)
 }
 
-/** Alerts center — HQ desk scan (Ari). */
-export function canAccessAlerts(actor: Actor | null): boolean {
-  if (!actor) return true
-  return hasHq(actor)
+/** Decisions live on the home board. The separate tab stays reachable by URL. */
+export function canAccessAlerts(_actor: Actor | null): boolean {
+  return false
+}
+
+export function canAccessApprovals(_actor: Actor | null): boolean {
+  return false
 }
 
 export function canAccessActivity(actor: Actor | null): boolean {
@@ -120,6 +123,7 @@ export function canAccessActivity(actor: Actor | null): boolean {
 
 const ACCESS: Record<string, (actor: Actor | null) => boolean> = {
   alerts: canAccessAlerts,
+  approvals: canAccessApprovals,
   pilot: canAccessPilot,
   inbox: canAccessInbox,
   tasks: canAccessTasks,

@@ -9,9 +9,6 @@ import {
 import { persistOpsLedger } from '@/lib/data/ops-db'
 import { createServiceVisit } from '@/modules/visits/service'
 import { phonesMatch } from '@/modules/whatsapp/classify'
-import { listProfessionals } from '@/modules/professionals/service'
-import { send019Sms } from '@/lib/sms/019'
-import { faultsSms } from '@/modules/whatsapp/store-person'
 import { notifyManagerInWindow } from '@/modules/whatsapp/window-reply'
 
 export function encodeBundleScope(vendorId: string | null, ticketIds: string[]): string {
@@ -100,19 +97,18 @@ export async function requestBundleVisit(
     originWaId: phone,
   })
   applySpendDecision(spend.id, 'approved', actor, input.averageAmount ?? null)
-  const smsLine = await smsVisit(input)
-  if (input.vendorId) {
+  const smsLine = 'הביקור תוכנן. פרטי בעל המקצוע יישלחו אחרי נעילת מחיר.'
+  if (input.ticketIds.length > 0) {
     try {
       await createServiceVisit({
         storeId: input.storeId,
         ticketIds: input.ticketIds,
-        vendorId: input.vendorId,
         notes: input.sentence,
         idempotencyKey: `bundle:${spend.id}`,
       })
     } catch {
       addTask({
-        title: 'לשייך ספק לפני שיגור',
+        title: 'הביקור לא נשמר',
         storeId: input.storeId,
         storeCode: input.storeCode,
         assignee: null,
@@ -121,7 +117,7 @@ export async function requestBundleVisit(
         documentId: null,
         spendId: spend.id,
         needsClarification: true,
-        clarification: 'ארי הזמין ביקור ואין ספק זמין לשיגור',
+        clarification: 'ארי ביקש לתכנן ביקור והשמירה נכשלה',
       })
     }
   }
@@ -135,20 +131,6 @@ export async function requestBundleVisit(
         ? 'הביקור הוזמן. המנהל עודכן בוואטסאפ.'
         : 'הביקור הוזמן. חלון 24 השעות סגור, לא נשלחה הודעה בתשלום.',
   }
-}
-
-async function smsVisit(input: BundleRequest): Promise<string> {
-  const listed = await listProfessionals({ limit: 200 }).catch(() => ({ professionals: [] }))
-  const pro = listed.professionals.find(
-    (row) => row.id === input.vendorId || row.full_name === input.vendorName,
-  )
-  if (!pro?.phone) return 'אין מספר ל-SMS.'
-  const sent = await send019Sms({
-    to: pro.phone,
-    message: faultsSms(input.storeName, [input.sentence]),
-    meta: { storeCode: input.storeCode },
-  }).catch(() => ({ ok: false as const }))
-  return sent.ok ? `נשלח SMS ל${pro.full_name}.` : 'ה-SMS לא יצא.'
 }
 
 export async function decideBundleVisit(input: {
@@ -183,30 +165,12 @@ export async function decideBundleVisit(input: {
     applySpendDecision(spend.id, 'approved', input.actor, spend.requestedAmount || null)
   }
 
-  if (!parsed.vendorId) {
-    addTask({
-      title: 'לשייך ספק לפני שיגור',
-      storeId: spend.storeId,
-      storeCode: spend.storeCode,
-      assignee: null,
-      dueAt: null,
-      ticketId: parsed.ticketIds[0] ?? null,
-      documentId: null,
-      spendId: spend.id,
-      needsClarification: true,
-      clarification: 'ההזמנה אושרה ואין ספק במערכת',
-    })
-    await persistOpsLedger()
-    return { reply: 'ההזמנה אושרה. חסר ספק במערכת לפני השיגור.' }
-  }
-
   await createServiceVisit({
     storeId: spend.storeId,
     ticketIds: parsed.ticketIds,
-    vendorId: parsed.vendorId,
     notes: spend.reason,
     idempotencyKey: `bundle:${spend.id}`,
   })
   await persistOpsLedger()
-  return { reply: 'ההזמנה אושרה. בעל המקצוע ישובץ לביקור אחד.' }
+  return { reply: 'הביקור תוכנן. פרטי בעל המקצוע יישלחו אחרי נעילת מחיר.' }
 }

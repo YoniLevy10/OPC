@@ -13,7 +13,7 @@ import {
   useSubmitGuard,
   type VisitResult,
 } from '@/app/ops/tickets/visit-confirm-sheet'
-import { approveVisitCommitments } from '@/app/ops/tickets/visit-approval-actions'
+import { lockPlannedVisitAction } from '@/app/ops/tickets/engagement-actions'
 
 type TicketOpt = {
   id: string
@@ -88,7 +88,7 @@ export function StoreVisitDispatch({
     retryFailedOnly?: boolean
     retryTicketIds?: string[]
   }) {
-    if (selectedList.length === 0 || !vendorId) return
+    if (selectedList.length === 0) return
     const key =
       idempotencyKey ??
       buildVisitIdempotencyKey({
@@ -106,7 +106,6 @@ export function StoreVisitDispatch({
         body: JSON.stringify({
           storeId,
           ticketIds: selectedList.map((t) => t.id),
-          vendorId,
           notes: notes.trim() || undefined,
           scheduledAt: scheduledAtToIso(scheduledAt),
           idempotencyKey: key,
@@ -134,9 +133,9 @@ export function StoreVisitDispatch({
       }
       setResult(visit)
       const failed = visit.items.filter((i) => i.can_retry).length
-      if (failed === 0 && visit.status === 'dispatched') {
+      if (visit.status === 'planned') {
         toast.push({
-          title: `ביקור שובץ לחנות #${storeCode}`,
+          title: `ביקור תוכנן לחנות #${storeCode}`,
           tone: 'success',
         })
         setSelected(new Set())
@@ -153,30 +152,40 @@ export function StoreVisitDispatch({
     })
   }
 
-  async function approveAndSend(ticketIds: string[]) {
-    const vendorName = vendors.find((row) => row.id === vendorId)?.name ?? ''
-    let approved = false
+  async function lockVisit(input: {
+    name: string
+    phone: string
+    amount: number
+    scope: string
+  }) {
+    let line = 'האישור נכשל'
+    let ok = false
     await run(async () => {
       try {
-        await approveVisitCommitments(ticketIds, vendorName)
-        approved = true
-      } catch (error) {
-        toast.push({
-          title: error instanceof Error ? error.message : 'האישור נכשל',
-          tone: 'critical',
+        const result = await lockPlannedVisitAction({
+          ticketIds: selectedList.map((ticket) => ticket.id),
+          professionalName: input.name,
+          professionalPhone: input.phone,
+          approvedAmount: input.amount,
+          scope: input.scope,
         })
+        ok = result.ok
+        line = result.line
+        toast.push({ title: result.line, tone: result.ok ? 'success' : 'critical' })
+        if (result.ok) startTransition(() => router.refresh())
+      } catch (error) {
+        line = error instanceof Error ? error.message : line
+        toast.push({ title: line, tone: 'critical' })
       }
     })
-    if (approved) {
-      await postVisit({ retryFailedOnly: true, retryTicketIds: ticketIds })
-    }
+    return { ok, line }
   }
 
   return (
     <Panel elevated>
-      <p className="t-section mb-1 text-ink">שיגור ביקור משולב</p>
+      <p className="t-section mb-1 text-ink">תכנון ביקור</p>
       <p className="t-caption mb-3 text-ink-3">
-        סמנו תקלות בחנות זו ושלחו ביקור אחד לספק
+        סמנו תקלות בחנות זו. בעל המקצוע והמחיר ננעלים אחרי השיחה.
       </p>
       <ul className="mb-3 space-y-2">
         {tickets.map((t) => (
@@ -219,7 +228,7 @@ export function StoreVisitDispatch({
         onClick={openSheet}
       >
         <Truck className="h-4 w-4" aria-hidden />
-        שיגור ביקור ({selectedList.length})
+        תכנן ביקור ({selectedList.length})
       </Button>
 
       <VisitConfirmSheet
@@ -261,7 +270,7 @@ export function StoreVisitDispatch({
             retryTicketIds: [ticketId],
           })
         }
-        onApprove={(ticketIds) => void approveAndSend(ticketIds)}
+        onLock={lockVisit}
       />
     </Panel>
   )

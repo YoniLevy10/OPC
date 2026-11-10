@@ -41,6 +41,7 @@ function StoreFolder({
     0,
   )
   const range = storeCost[store.id]
+  const recorded = range && range !== 'אין עדיין מחיר' ? range : null
 
   return (
     <article
@@ -78,78 +79,86 @@ function StoreFolder({
 
       {open ? (
         <div className="border-t border-border">
-          <div className="px-4 py-4">
-            <p className="t-caption text-ink-3">{p('נרשם')}</p>
-            {range ? (
-              <p className="t-title t-num mt-1 text-ink">{range}</p>
-            ) : (
-              <p className="t-meta mt-1 text-ink-2">{p('אין עדיין מחיר')}</p>
-            )}
-            <p className="t-meta mt-1 text-ink-2">
-              {p('רק סכום שנרשם על התקלות האלה')}
-            </p>
-          </div>
+          {recorded ? (
+            <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+              <p className="t-meta text-ink-3">{p('נרשם')}</p>
+              <p className="t-body-strong t-num text-end text-ink">{recorded}</p>
+            </div>
+          ) : null}
           {store.categories.map((category) => (
-            <div key={category.key} className="border-t border-border first:border-t-0">
-              <p className="t-caption px-4 pt-3 text-ink-3">{category.label}</p>
-              <ul>
-                {category.rows.map((row) => (
-                  <li key={row.id}>
-                    <Link
-                      href={row.href}
-                      className={cn(
-                        'flex min-w-0 items-start justify-between gap-3 px-4 py-3 hover:bg-surface/70',
-                        row.overdue && 'edge edge-overdue',
-                      )}
-                    >
-                      <span className="min-w-0">
-                        <span className="t-body block text-ink">{row.problem}</span>
-                        <span
-                          className={cn(
-                            't-meta mt-1 block',
-                            row.overdue
-                              ? 'font-semibold text-[var(--tenant)]'
-                              : 'text-ink-3',
-                          )}
-                        >
-                          {row.openFor}
-                        </span>
-                        {ticketCost[row.id] ? (
-                          <span className="t-meta t-num mt-1 block text-ink-2">
-                            {ticketCost[row.id]}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span
-                        className={cn(
-                          't-caption shrink-0',
-                          row.awaiting
-                            ? 'font-semibold text-[var(--tenant)]'
-                            : 'text-ink-2',
-                        )}
-                      >
-                        {row.status}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex items-center justify-between gap-3 px-4 pb-3 max-md:flex-col max-md:items-stretch">
-                <p className="t-meta min-w-0 text-ink-2">{category.advice}</p>
+            <section
+              key={category.key}
+              className={cn(
+                'border-t border-border',
+                !recorded && 'first:border-t-0',
+              )}
+            >
+              <div className="flex items-center gap-3 px-4 py-2">
+                <h4 className="t-caption text-ink-3">{category.label}</h4>
                 {category.urgent ? (
-                  <Button asChild variant="primary" size="sm" className="shrink-0 max-md:w-full">
+                  <Button asChild variant="primary" size="sm" className="shrink-0">
                     <Link href={category.actionHref}>{category.actionLabel}</Link>
                   </Button>
                 ) : (
-                  <Link href={category.actionHref} className="t-meta shrink-0 text-ink">
+                  <Link
+                    href={category.actionHref}
+                    className="t-meta shrink-0 text-ink"
+                  >
                     {category.actionLabel}
                   </Link>
                 )}
               </div>
+              <ul className="divide-y divide-border">
+                {category.rows.map((row) => {
+                  const price = ticketCost[row.id]
+                  const shownPrice =
+                    price && price !== 'אין עדיין מחיר' ? price : null
+                  return (
+                    <li key={row.id}>
+                      <Link
+                        href={row.href}
+                        className={cn(
+                          'block min-w-0 px-4 py-2.5 hover:bg-surface/70',
+                          row.overdue && 'edge edge-overdue',
+                        )}
+                      >
+                        <span className="t-body block text-ink">{row.problem}</span>
+                        <span className="t-meta mt-0.5 flex flex-wrap items-center gap-x-1.5 text-ink-3">
+                          <span
+                            className={cn(
+                              row.overdue &&
+                                'font-semibold text-[var(--tenant)]',
+                            )}
+                          >
+                            {row.openFor}
+                          </span>
+                          <span aria-hidden>·</span>
+                          <span
+                            className={cn(
+                              row.awaiting &&
+                                'font-semibold text-[var(--tenant)]',
+                            )}
+                          >
+                            {row.status}
+                          </span>
+                          {shownPrice ? (
+                            <>
+                              <span aria-hidden>·</span>
+                              <span className="t-num">{shownPrice}</span>
+                            </>
+                          ) : null}
+                        </span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
               {category.prevention ? (
-                <p className="t-meta px-4 pb-3 text-ink-2">{category.prevention}</p>
+                <p className="t-meta border-t border-border px-4 py-3 text-ink-2">
+                  {category.prevention}
+                </p>
               ) : null}
-            </div>
+            </section>
           ))}
         </div>
       ) : null}

@@ -16,16 +16,43 @@ export async function GET(
 ) {
   const { id } = await context.params
   if (!ID.test(id)) return new NextResponse(null, { status: 404 })
+  let actor
   try {
-    await requireActor(request)
+    actor = await requireActor(request)
   } catch (err) {
     return authErrorResponse(err)
+  }
+  const hq = actor.memberships.some((membership) =>
+    ['global_admin', 'global_maintenance', 'country_manager', 'regional_manager'].includes(
+      membership.role,
+    ),
+  )
+  if (!hq) {
+    const storeId = await documentStoreId(id)
+    const allowed = actor.memberships.some(
+      (membership) => membership.store_id && membership.store_id === storeId,
+    )
+    if (!allowed) return new NextResponse(null, { status: 403 })
   }
 
   const stored = await fileFromBucket(id)
   if (stored) return stored
   if (process.env.NODE_ENV === 'production') return new NextResponse(null, { status: 404 })
   return fileFromDisk(id)
+}
+
+async function documentStoreId(id: string): Promise<string | null> {
+  try {
+    const supabase = createAdminClient()
+    const { data } = await supabase
+      .from('store_documents')
+      .select('store_id')
+      .eq('client_id', id)
+      .maybeSingle()
+    return data?.store_id ? String(data.store_id) : null
+  } catch {
+    return null
+  }
 }
 
 async function fileFromBucket(id: string): Promise<NextResponse | null> {

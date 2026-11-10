@@ -127,6 +127,6 @@ export async function loadMidragResults(input: {
     cache.set(key, { at: Date.now(), pros })
     return { pros, searchUrl, fallback: pros.length === 0 }
   } catch {
-    return { pros: hit?.pros ?? [], searchUrl, fallback: true }
+    return { pros: [], searchUrl, fallback: true }
   }
 }

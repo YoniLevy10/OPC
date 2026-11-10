@@ -9,17 +9,17 @@ describe('Critical classification examples', () => {
     })
   })
 
-  it('burnt bulb → electrical high', () => {
+  it('burnt bulb stays off the urgent queue', () => {
     expect(classifyFaultText('נורה שרופה במחסן')).toEqual({
       category: 'electrical',
-      priority: 'high',
+      priority: 'medium',
     })
   })
 
-  it('loose door handle → security critical', () => {
+  it('loose door handle stays off the urgent queue', () => {
     expect(classifyFaultText('ידית הדלת רופפת')).toEqual({
       category: 'security',
-      priority: 'critical',
+      priority: 'medium',
     })
   })
 

@@ -15,6 +15,8 @@ import { getPublicAppUrl } from '@/lib/auth/app-url'
 import { logEvent } from '@/lib/logging'
 import { notifyAri } from '@/modules/notify/ari'
 import { replyToAri } from '@/modules/ops/agent-chat'
+import { sendWhatsAppAudio } from '@/modules/whatsapp/send'
+import { synthesizeHebrew, withVoiceOutcome } from '@/modules/whatsapp/speech'
 import {
   findTicketAwaitingAri,
   lockEngagement,
@@ -138,7 +140,9 @@ async function applyAriDecision(
       approvedBy: 'ארי',
     })
     return {
-      reply: `נעלתי ${locked.approvedAmount} ש״ח ל${locked.professionalName}. מנהל החנות ב${place} קיבל את הפרטים.`,
+      reply: locked.handoff?.ok
+        ? `נעלתי ${locked.approvedAmount} ש״ח ל${locked.professionalName}. ${locked.handoff.line}.`
+        : `נעלתי ${locked.approvedAmount} ש״ח ל${locked.professionalName}. ${locked.handoff?.line ?? 'ההודעה למנהל החנות לא יצאה.'}`,
       storeReply: null,
     }
   } catch (error) {
@@ -347,14 +351,27 @@ export async function routeInboundToDesk(input: {
     if (decision) return applyAriDecision(decision, input.text)
     const message = input.text?.trim()
     if (message) {
+      const voice = input.mediaKind === 'audio'
       const answered = await replyToAri({
         message,
         actor: null,
         locale: 'he',
         source: 'whatsapp',
-        voice: input.mediaKind === 'audio',
+        voice,
       })
-      return { reply: answered.reply, storeReply: null }
+      if (!voice) return { reply: answered.reply, storeReply: null }
+      const spoken = await synthesizeHebrew(answered.reply)
+      const sent =
+        'bytes' in spoken
+          ? await sendWhatsAppAudio({
+              toWaId: input.waId,
+              audio: spoken.bytes,
+              forceDryRun: input.dryRun,
+              purpose: 'ops_reply',
+            })
+          : null
+      const delivered = Boolean(sent?.ok && !sent.dryRun && !sent.skippedByPolicy)
+      return { reply: withVoiceOutcome(answered.reply, delivered), storeReply: null }
     }
   }
   const kind = classifyInbound({ text: input.text, mediaKind: input.mediaKind })

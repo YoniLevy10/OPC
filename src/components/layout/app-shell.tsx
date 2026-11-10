@@ -9,7 +9,6 @@ import {
   BarChart3,
   Bell,
   CheckSquare,
-  ClipboardCheck,
   Ellipsis,
   FileText,
   Inbox,
@@ -66,22 +65,22 @@ type NavItem = {
 const PRIMARY: NavItem[] = [
   {
     href: '/ops/dashboard',
-    label: 'דשבורד',
+    label: 'סקירה',
     icon: LayoutDashboard,
     match: '/ops/dashboard',
   },
   { href: '/ops/tickets', label: 'תקלות', icon: Inbox, match: '/ops/tickets' },
   {
-    href: '/ops/inbox',
-    label: 'WhatsApp',
-    icon: MessageSquare,
-    match: '/ops/inbox',
+    href: '/ops/documents',
+    label: 'מסמכים',
+    icon: FileText,
+    match: '/ops/documents',
   },
   {
-    href: '/ops/approvals',
-    label: 'אישורים',
-    icon: ClipboardCheck,
-    match: '/ops/approvals',
+    href: '/ops/reports',
+    label: 'דוחות',
+    icon: BarChart3,
+    match: '/ops/reports',
   },
 ]
 
@@ -108,6 +107,12 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
         match: '/ops/alerts',
       },
       { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
+      {
+        href: '/ops/inbox',
+        label: 'WhatsApp',
+        icon: MessageSquare,
+        match: '/ops/inbox',
+      },
       {
         href: '/ops/professionals',
         label: 'אנשי מקצוע',
@@ -548,7 +553,7 @@ export function AppShell({
       <nav
         aria-label={p('ניווט תחתון')}
         className="phone-tabbar fixed inset-x-3 z-30 md:hidden"
-        style={{ bottom: 'calc(var(--safe-b) + var(--bottomnav-gap))' }}
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--bottomnav-gap))' }}
       >
         <ul
           className="apple-glass flex overflow-hidden rounded-[28px]"

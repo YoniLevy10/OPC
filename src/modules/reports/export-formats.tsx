@@ -299,7 +299,7 @@ export function buildTicketsCsv(data: ReportExportRow): string {
   ]
   if (data.annualCosts) {
     rows.push([])
-    rows.push([`עלויות אחזקה ${data.annualCosts.year}`, 'סכום שאושר'])
+    rows.push([`מחיר שאושר ${data.annualCosts.year}`, 'סכום שאושר, לא תשלום'])
     for (const store of data.annualCosts.stores) {
       rows.push([store.storeName, String(store.amount)])
     }

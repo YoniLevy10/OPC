@@ -6,6 +6,7 @@ import { buildAiRawFromIntake } from '@/modules/tickets/classification-explain'
 import { applyIntakeRules } from '@/modules/whatsapp/agent/rules'
 import { PREFERRED_VENDOR_SEEDS } from '@/modules/vendors/preferred-seed'
 import { TRIAL_FAULTS } from '@/modules/demo/trial-scenario'
+import type { LiveDeskRow } from '@/lib/data/live-desk-snapshot'
 
 export type MemTicket = {
   id: string
@@ -480,7 +481,7 @@ function store(): GlobalMem {
   if (!seedingTrial) {
     seedingTrial = true
     try {
-      seedTrialFaults(mem)
+      if (!absorbLiveDesk(mem)) seedTrialFaults(mem)
     } finally {
       seedingTrial = false
     }
@@ -776,6 +777,93 @@ export function clearDeskMemory() {
   mem.rfqDrafts.clear()
   mem.deskCleared = true
   ;(globalThis as { __maintainosDeskCleared?: boolean }).__maintainosDeskCleared = true
+}
+
+/**
+ * Load `.local/live-desk.json` on the Node server only.
+ * The module specifier is not a static import/require, so Turbopack does not
+ * pull live-desk-snapshot (or node:fs) into client bundles such as assets-admin.
+ * If the bundler require cannot see that module, read the file directly.
+ */
+function readLiveDeskSnapshot(): LiveDeskRow[] | null {
+  if (typeof window !== 'undefined') return null
+  try {
+    const specifier = ['@/lib/data/', 'live-desk-snapshot'].join('')
+    const nodeRequire = eval('require') as NodeRequire
+    const mod = nodeRequire(specifier) as {
+      readLiveDeskSnapshot: () => LiveDeskRow[] | null
+    }
+    return mod.readLiveDeskSnapshot()
+  } catch {
+    return readLiveDeskSnapshotFromDisk()
+  }
+}
+
+function readLiveDeskSnapshotFromDisk(): LiveDeskRow[] | null {
+  if (typeof window !== 'undefined') return null
+  if (process.env.NODE_ENV !== 'development') return null
+  if (process.env.VITEST) return null
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return null
+  }
+  try {
+    const load = (
+      process as NodeJS.Process & {
+        getBuiltinModule?: (specifier: string) => unknown
+      }
+    ).getBuiltinModule
+    if (typeof load !== 'function') return null
+    const fs = load('node:fs') as {
+      existsSync: (path: string) => boolean
+      readFileSync: (path: string, encoding: 'utf8') => string
+    }
+    const path = load('node:path') as { join: (...parts: string[]) => string }
+    const filePath = path.join(process.cwd(), '.local', 'live-desk.json')
+    if (!fs.existsSync(filePath)) return null
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown
+    if (!Array.isArray(parsed)) return null
+    return parsed as LiveDeskRow[]
+  } catch {
+    return null
+  }
+}
+
+/** Drop the trial desk and load the local copy of the live tickets. */
+function absorbLiveDesk(mem: GlobalMem): boolean {
+  const rows = readLiveDeskSnapshot()
+  if (!rows || rows.length === 0) return false
+  for (const [id, ticket] of [...mem.tickets]) {
+    if (ticket.source === 'trial') mem.tickets.delete(id)
+  }
+  for (const row of rows) {
+    if (!row.id || mem.tickets.has(row.id)) continue
+    const ticket = memCreate({
+      id: row.id,
+      store: {
+        id: row.store_id,
+        code: row.store_code,
+        name: row.store_name,
+        city: row.store_city,
+      },
+      description: row.description || row.title || '',
+      title: row.title ?? undefined,
+      priority: row.priority || 'medium',
+      category: row.category || 'other',
+      source: 'web_fallback',
+      status: row.status,
+      createdAt: row.created_at,
+      sla_respond_by: row.sla_respond_by ?? undefined,
+      sla_resolve_by: row.sla_resolve_by ?? undefined,
+    })
+    ticket.number = row.number
+    ticket.display_number = row.display_number
+    ticket.resolved_at = row.resolved_at
+    ticket.updated_at = row.updated_at ?? row.created_at
+    if (row.status === 'resolved' || row.status === 'closed') {
+      ticket.closed_at = row.resolved_at
+    }
+  }
+  return true
 }
 
 function seedTrialFaults(mem: GlobalMem) {

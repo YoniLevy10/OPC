@@ -50,6 +50,9 @@ export default async function TasksPage() {
             <Field label="מועד" htmlFor="task-due">
               <Input id="task-due" name="due" type="date" />
             </Field>
+            <Field label="חוזר כל כמה ימים" htmlFor="task-repeat">
+              <Input id="task-repeat" name="repeatDays" type="number" min={1} placeholder="למשל 365" />
+            </Field>
             <Field label="תקלה מקושרת" htmlFor="task-ticket">
               <Input id="task-ticket" name="ticketId" placeholder="מספר תקלה, אם יש" />
             </Field>

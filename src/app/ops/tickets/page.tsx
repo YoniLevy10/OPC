@@ -142,7 +142,9 @@ export default async function TicketsPage({
     ),
   )
   const canOverrideResolve = Boolean(
-    actor?.memberships.some((m) => m.role === 'global_maintenance'),
+    actor?.memberships.some(
+      (m) => m.role === 'global_maintenance' || m.role === 'global_admin',
+    ),
   )
   const canDispatchVisit = Boolean(
     actor?.memberships.some((m) =>

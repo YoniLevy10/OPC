@@ -553,3 +553,83 @@ export async function sendWhatsAppTemplate(
     toWaId,
   }
 }
+
+/** Sends a spoken reply. A dry run or a failed upload is not a delivered voice note. */
+export async function sendWhatsAppAudio(params: {
+  toWaId: string
+  audio: Uint8Array
+  forceDryRun?: boolean
+  purpose?: OutboundPurpose
+}): Promise<SendWhatsAppResult> {
+  const purpose = params.purpose ?? 'ops_reply'
+  const toWaId = normalizeWhatsAppRecipient(params.toWaId)
+  const phoneNumberId = resolveWhatsAppPhoneNumberId(null)
+  if (!shouldSendWhatsApp(purpose) || params.forceDryRun) {
+    return {
+      ok: false,
+      dryRun: true,
+      skippedByPolicy: !shouldSendWhatsApp(purpose),
+      waMessageId: null,
+      error: 'ההודעה הקולית לא נשלחה',
+      phoneNumberId,
+      toWaId,
+    }
+  }
+  const token = resolveAccessToken(false)
+  if (!token || !phoneNumberId) {
+    return {
+      ok: false,
+      dryRun: false,
+      waMessageId: null,
+      error: 'ההודעה הקולית לא נשלחה',
+      phoneNumberId,
+      toWaId,
+    }
+  }
+  const form = new FormData()
+  form.set('messaging_product', 'whatsapp')
+  form.set('type', 'audio/mpeg')
+  form.set('file', new Blob([params.audio as BlobPart], { type: 'audio/mpeg' }), 'reply.mp3')
+  const uploaded = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  const uploadedJson = (await uploaded.json().catch(() => ({}))) as { id?: string }
+  if (!uploaded.ok || !uploadedJson.id) {
+    return {
+      ok: false,
+      dryRun: false,
+      waMessageId: null,
+      error: 'ההודעה הקולית לא נשלחה',
+      phoneNumberId,
+      toWaId,
+    }
+  }
+  const sent = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toWaId,
+      type: 'audio',
+      audio: { id: uploadedJson.id },
+    }),
+  })
+  const sentJson = (await sent.json().catch(() => ({}))) as {
+    messages?: Array<{ id?: string }>
+  }
+  const waMessageId = sentJson.messages?.[0]?.id ?? null
+  return {
+    ok: sent.ok && Boolean(waMessageId),
+    dryRun: false,
+    waMessageId,
+    error: sent.ok ? undefined : 'ההודעה הקולית לא נשלחה',
+    phoneNumberId,
+    toWaId,
+  }
+}

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const bodySchema = z.object({
   storeId: z.string().min(1),
   ticketIds: z.array(z.string().min(1)).min(1).max(40),
-  vendorId: z.string().min(1),
+  vendorId: z.string().min(1).optional(),
   notes: z.string().trim().max(2000).optional(),
   scheduledAt: z.string().datetime().optional().nullable(),
   idempotencyKey: z.string().trim().min(8).max(160).optional(),
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const visit = await createServiceVisit({
       storeId: parsed.data.storeId,
       ticketIds: parsed.data.ticketIds,
-      vendorId: parsed.data.vendorId,
+      vendorId: parsed.data.vendorId ?? null,
       actorId: actor.id,
       notes: parsed.data.notes ?? null,
       scheduledAt: parsed.data.scheduledAt ?? null,

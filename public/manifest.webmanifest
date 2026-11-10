@@ -5,7 +5,7 @@
   "lang": "he",
   "dir": "rtl",
   "start_url": "/ops/dashboard?source=pwa",
-  "scope": "/ops",
+  "scope": "/",
   "id": "/ops/dashboard",
   "display": "standalone",
   "display_override": [

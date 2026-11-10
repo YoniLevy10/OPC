@@ -83,7 +83,8 @@ export function memFindVisitByIdempotency(
 export type CreateServiceVisitInput = {
   storeId: string
   ticketIds: string[]
-  vendorId: string
+  /** Set only when an already-locked engagement is being dispatched. Planning omits it. */
+  vendorId?: string | null
   actorId?: string | null
   notes?: string | null
   scheduledAt?: string | null
@@ -161,6 +162,155 @@ function visitStatusFromItems(items: VisitItemOutcome[]): string {
   return anyOk ? 'partial' : 'partial'
 }
 
+function plannedItems(
+  tickets: { id: string; display_number: string | null }[],
+): VisitItemOutcome[] {
+  return tickets.map((ticket) => ({
+    ticket_id: ticket.id,
+    display_number: ticket.display_number,
+    status: 'queued' as const,
+    dispatch_id: null,
+    error: null,
+    can_retry: false,
+  }))
+}
+
+/**
+ * Group faults into a visit before a vendor or a price exists.
+ * No webhook and no SMS. Ari locks the price later.
+ */
+async function planServiceVisit(input: {
+  storeId: string
+  ticketIds: string[]
+  actorId?: string | null
+  notes?: string | null
+  scheduledAt?: string | null
+  orgId: string
+  idempotencyKey: string | null
+  tickets: {
+    id: string
+    display_number: string | null
+  }[]
+}): Promise<ServiceVisit> {
+  const items = plannedItems(input.tickets)
+
+  if (!(await supabaseReady())) {
+    if (input.idempotencyKey) {
+      const existing = memFindVisitByIdempotency(input.orgId, input.idempotencyKey)
+      if (existing) return existing
+    }
+    const visit: MemVisit = {
+      id: `visit-${crypto.randomUUID()}`,
+      organization_id: input.orgId,
+      store_id: input.storeId,
+      vendor_id: null,
+      status: 'planned',
+      scheduled_at: input.scheduledAt ?? null,
+      created_by: input.actorId ?? null,
+      notes: input.notes ?? null,
+      created_at: new Date().toISOString(),
+      idempotency_key: input.idempotencyKey,
+      ticket_ids: input.ticketIds,
+      dispatch_ids: [],
+      items,
+    }
+    memVisits.set(visit.id, visit)
+    for (const ticketId of input.ticketIds) {
+      await appendEvent(ticketId, 'service_visit_planned', input.actorId ?? null, {
+        visit_id: visit.id,
+        ticket_count: input.ticketIds.length,
+      })
+    }
+    return visit
+  }
+
+  const supabase = createSystemClient('service_visits')
+  if (input.idempotencyKey) {
+    const { data: existing, error: findError } = await supabase
+      .from('service_visits')
+      .select('*')
+      .eq('organization_id', input.orgId)
+      .eq('idempotency_key', input.idempotencyKey)
+      .maybeSingle()
+    if (findError) {
+      if (isSupabaseSchemaError(findError)) throw schemaDurableError(findError)
+      throw new Error(findError.message)
+    }
+    if (existing) {
+      return {
+        id: String(existing.id),
+        organization_id: String(existing.organization_id),
+        store_id: String(existing.store_id),
+        vendor_id: null,
+        status: 'planned',
+        scheduled_at: existing.scheduled_at ? String(existing.scheduled_at) : null,
+        created_by: existing.created_by ? String(existing.created_by) : null,
+        notes: existing.notes ? String(existing.notes) : null,
+        created_at: String(existing.created_at),
+        idempotency_key: input.idempotencyKey,
+        ticket_ids: input.ticketIds,
+        dispatch_ids: [],
+        items,
+      }
+    }
+  }
+
+  const { data: visitRow, error: visitError } = await supabase
+    .from('service_visits')
+    .insert({
+      organization_id: input.orgId,
+      store_id: input.storeId,
+      vendor_id: null,
+      status: 'planned',
+      scheduled_at: input.scheduledAt ?? null,
+      created_by: input.actorId ?? null,
+      notes: input.notes ?? null,
+      ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),
+    })
+    .select('*')
+    .single()
+
+  if (visitError) {
+    if (visitError.code === '23505' && input.idempotencyKey) {
+      return planServiceVisit(input)
+    }
+    if (isSupabaseSchemaError(visitError)) throw schemaDurableError(visitError)
+    throw new Error(visitError.message)
+  }
+
+  const visitId = String(visitRow.id)
+  const { error: linkError } = await supabase.from('service_visit_tickets').insert(
+    input.ticketIds.map((ticket_id) => ({ visit_id: visitId, ticket_id })),
+  )
+  if (linkError) {
+    if (isSupabaseSchemaError(linkError)) throw schemaDurableError(linkError)
+    throw new Error(linkError.message)
+  }
+
+  for (const ticketId of input.ticketIds) {
+    await appendEvent(ticketId, 'service_visit_planned', input.actorId ?? null, {
+      visit_id: visitId,
+      ticket_count: input.ticketIds.length,
+    })
+  }
+
+  return {
+    id: visitId,
+    organization_id: String(visitRow.organization_id),
+    store_id: String(visitRow.store_id),
+    vendor_id: null,
+    status: 'planned',
+    scheduled_at: visitRow.scheduled_at ? String(visitRow.scheduled_at) : null,
+    created_by: visitRow.created_by ? String(visitRow.created_by) : null,
+    notes: visitRow.notes ? String(visitRow.notes) : null,
+    created_at: String(visitRow.created_at),
+    idempotency_key: input.idempotencyKey,
+    ticket_ids: input.ticketIds,
+    dispatch_ids: [],
+    items,
+  }
+}
+
 /**
  * Create a service visit for one store + multiple tickets, then dispatch
  * each ticket to the vendor under the shared visit_id.
@@ -175,7 +325,6 @@ export async function createServiceVisit(
     throw new Error('יש לבחור לפחות תקלה אחת')
   }
   if (!input.storeId?.trim()) throw new Error('חנות נדרשת')
-  if (!input.vendorId?.trim()) throw new Error('ספק נדרש')
 
   const tickets = await Promise.all(ticketIds.map((id) => getById(id)))
   for (let i = 0; i < tickets.length; i++) {
@@ -188,11 +337,26 @@ export async function createServiceVisit(
 
   const orgId = tickets[0]?.organization_id ?? MEM_ORG_ID
 
-  // Active + specialty-suitable vendor
+  if (!input.vendorId?.trim()) {
+    return planServiceVisit({
+      storeId: input.storeId,
+      ticketIds,
+      actorId: input.actorId,
+      notes: input.notes,
+      scheduledAt: input.scheduledAt,
+      orgId,
+      idempotencyKey: input.idempotencyKey?.trim() || null,
+      tickets: tickets as NonNullable<(typeof tickets)[number]>[],
+    })
+  }
+
+  // Active + specialty-suitable vendor. Dispatch stays behind an explicit vendor id
+  // used by retries; the Ari path plans first and locks a price before any send.
+  const vendorId = input.vendorId.trim()
   const vendor =
     (await supabaseReady())
-      ? await getVendorSecret(input.vendorId)
-      : memGetVendor(input.vendorId)
+      ? await getVendorSecret(vendorId)
+      : memGetVendor(vendorId)
   if (!vendor || !vendor.active) {
     throw new Error('ספק לא זמין')
   }
@@ -220,6 +384,7 @@ export async function createServiceVisit(
     return finishVisit(
       await createVisitMemory({
         ...input,
+        vendorId,
         ticketIds,
         orgId,
         idempotencyKey,
@@ -233,6 +398,7 @@ export async function createServiceVisit(
     return await finishVisit(
       await createVisitSupabase({
         ...input,
+        vendorId,
         ticketIds,
         orgId,
         idempotencyKey,

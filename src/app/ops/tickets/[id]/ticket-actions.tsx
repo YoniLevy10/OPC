@@ -157,34 +157,18 @@ export function TicketActions({
         </Button>
       ) : null}
 
-      {open ? (
+      {open && canOverrideResolve ? (
         <Button
           type="button"
           variant="secondary"
           size="sm"
           disabled={disabled}
-          onClick={() =>
-            void (async () => {
-              const result = await patch(
-                { status: 'resolved' },
-                'התקלה הסתיימה',
-              )
-              if (result.ok) {
-                setLocalStatus('resolved')
-                startTransition(() => router.push('/ops/tickets?view=resolved'))
-                return
-              }
-              if (
-                canOverrideResolve &&
-                result.error?.includes('תמונה או וידאו')
-              ) {
-                setOverrideReason('')
-                setOverrideOpen(true)
-              }
-            })()
-          }
+          onClick={() => {
+            setOverrideReason('')
+            setOverrideOpen(true)
+          }}
         >
-          סגור תקלה
+          סגירה ידנית
         </Button>
       ) : null}
 
@@ -243,8 +227,8 @@ export function TicketActions({
       <BottomSheet
         open={overrideOpen}
         onOpenChange={setOverrideOpen}
-        title="סגירה ללא הוכחה"
-        description="נדרשת סיבת חריגה לרישום ביומן"
+        title="סגירה ידנית"
+        description="בלי אישור מנהל החנות נדרשת סיבה, והיא נשמרת ביומן"
       >
         <div className="space-y-4">
           <label className="flex flex-col gap-1.5">
@@ -269,8 +253,9 @@ export function TicketActions({
                   {
                     status: 'resolved',
                     overrideReason: overrideReason.trim(),
+                    ariManualClose: true,
                   },
-                  'התקלה נסגרה בחריגה',
+                  'התקלה נסגרה ידנית',
                 )
                 if (result.ok) {
                   setLocalStatus('resolved')

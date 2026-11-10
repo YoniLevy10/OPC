@@ -73,7 +73,7 @@ export function repairRangeLine(category: string, recorded: CostBand | null = nu
   const estimate = estimateFaultCost(category, recorded)
   const text = formatCostBand(estimate.band)
   if (estimate.basis === 'recorded') {
-    return `טווח משוער לתיקון, לפי מה שכבר שולם על אותו סוג: ${text}.`
+    return `טווח משוער לתיקון, לפי מחיר שאושר על אותו סוג: ${text}.`
   }
   return `טווח משוער לתיקון: ${text}.`
 }

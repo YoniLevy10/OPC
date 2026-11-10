@@ -149,4 +149,29 @@ describe('store confirm close', () => {
     await rejectStoreFix({ ticketId: created.id, actorLabel: 'מנהל חנות' })
     expect(memGet(created.id)?.status).toBe('new')
   })
+
+  it('blocks engaged close without the store, and allows Ari with a reason', async () => {
+    const store = israelStoresAsRows().find((s) => s.code === '6006')!
+    const created = memCreate({
+      store,
+      description: 'דלת',
+      priority: 'high',
+      category: 'other',
+      reporterPhone: '0501111111',
+    })
+    await lockEngagement({
+      ticketId: created.id,
+      professionalName: 'דני',
+      professionalPhone: '0501234567',
+      approvedAmount: 180,
+      approvedBy: 'ארי',
+    })
+    await expect(updateStatus(created.id, 'closed')).rejects.toThrow(/אישור מנהל החנות/)
+    const closed = await updateStatus(created.id, 'closed', 'ari', {
+      ariManualClose: true,
+      overrideReason: 'החנות לא זמינה',
+      actorRoles: ['global_maintenance'],
+    })
+    expect(closed.status).toBe('closed')
+  })
 })

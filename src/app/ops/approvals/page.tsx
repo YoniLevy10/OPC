@@ -163,7 +163,7 @@ export default async function ApprovalsPage({
               const range = formatCostBand(estimate.band)
               const rangeLine =
                 estimate.basis === 'recorded'
-                  ? `טווח משוער ${range} · לפי מה שכבר שולם`
+                  ? `טווח משוער ${range} · לפי מחיר שאושר`
                   : `טווח משוער ${range}`
               const companions = companionsByLead.get(ticket.id) ?? []
               const open = ticket.id === openId

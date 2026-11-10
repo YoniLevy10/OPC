@@ -5,7 +5,7 @@
   "lang": "he",
   "dir": "rtl",
   "start_url": "/tech",
-  "scope": "/tech",
+  "scope": "/",
   "id": "/tech",
   "display": "standalone",
   "display_override": [

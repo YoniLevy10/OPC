@@ -42,6 +42,7 @@ import { translate, type MessageKey } from '@/lib/i18n/messages'
 import { TicketTrueCostPanel } from './ticket-true-cost'
 import { listOutcomes, listSpends, spendsForAsset, spendsForTicket } from '@/lib/data/ops-ledger'
 import { formatIls, trueCostBreakdown } from '@/modules/spend/true-cost'
+import { serviceCallRecord } from '@/modules/tickets/call-record'
 import {
   bandFromPrices,
   categorySamples,
@@ -249,6 +250,18 @@ export default async function TicketDetailPage({
       : urgent
         ? 'מחכה לאישור'
         : 'לא דחוף'
+  const call = serviceCallRecord({
+    store: storeName,
+    type: categoryLabel,
+    urgent,
+    openedAt: ticket.created_at,
+    events: ticket.events ?? [],
+    professional: locked?.professionalName,
+    phone: locked?.professionalPhone,
+    approvedPrice: locked?.approvedAmount,
+    closedAt: ticket.closed_at,
+    storeConfirmedAt: ticket.store_confirmed_at,
+  })
 
   return (
     <OpsAppShell>
@@ -309,6 +322,29 @@ export default async function TicketDetailPage({
             <KeyValue phoneTile label={tx('ticket.category')}>
               {categoryLabel}
             </KeyValue>
+            <KeyValue phoneTile label="ביקורים">
+              {call.visits}
+            </KeyValue>
+            <KeyValue phoneTile label="בעל מקצוע">
+              {call.professional ?? 'אחרי השיחה'}
+            </KeyValue>
+            <KeyValue phoneTile label="טלפון">
+              {call.phone ?? '—'}
+            </KeyValue>
+            <KeyValue phoneTile label="מחיר שאושר">
+              {call.approvedPrice != null ? formatIls(call.approvedPrice) : '—'}
+            </KeyValue>
+            <KeyValue phoneTile label="אופן סגירה">
+              {call.closeMethod}
+            </KeyValue>
+            <KeyValue phoneTile label="אישור חנות">
+              {call.storeApproved ? 'אושר' : 'ממתין'}
+            </KeyValue>
+            {call.decisions.length > 0 ? (
+              <KeyValue phoneTile label="החלטות">
+                {call.decisions.join(' · ')}
+              </KeyValue>
+            ) : null}
             {etaLabel ? (
               <KeyValue phoneTile label={tx('ticket.eta')}>{etaLabel}</KeyValue>
             ) : null}

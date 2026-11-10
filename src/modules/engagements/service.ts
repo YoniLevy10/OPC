@@ -36,12 +36,16 @@ export type Engagement = {
   approvedAt: string
   status: 'locked' | 'cancelled'
   closedAt: string | null
+  /** Present on the lock that just ran. Not a stored column. */
+  handoff?: { ok: boolean; line: string }
 }
 
 const memory: Engagement[] = []
+const handoffSent = new Map<string, { ok: boolean; line: string }>()
 
 export function resetEngagementsForTests() {
   memory.splice(0, memory.length)
+  handoffSent.clear()
 }
 
 const WAITING = new Set(['new', 'triaged', 'awaiting_info', 'assigned'])
@@ -114,30 +118,29 @@ function handoffText(input: {
   name: string
   phone: string
   amount: number
+  scope?: string | null
 }): string {
   return [
     'ארי אישר את הטיפול.',
     `איש המקצוע: ${input.name}`,
     `טלפון: ${input.phone}`,
+    input.scope?.trim() ? `עבודה: ${input.scope.trim()}` : null,
     `מחיר שאושר: ${formatIls(input.amount)}`,
     'תאמו איתו ישירות את מועד ההגעה.',
     'כשהעבודה תסתיים, אשרו אם התקלה סודרה.',
-  ].join('\n')
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join('\n')
 }
 
-async function tellStore(input: {
-  ticketId: string
-  storeCode: string
-  reporterPhone: string | null
-  body: string
-}) {
-  const manager = ISRAEL_STORES.find((store) => store.code === input.storeCode)
-    ?.managerPhone
-  const phones = [manager, input.reporterPhone]
-    .map((phone) => normalizePhoneDigits(phone))
-    .filter((phone): phone is string => phone != null && phone.length >= 9)
-    .filter((phone, index, all) => all.indexOf(phone) === index)
+export type StoreHandoff = { ok: boolean; line: string }
 
+async function recordHandoff(input: {
+  ticketId: string
+  body: string
+  delivered: boolean
+  line: string
+}) {
   const ready = await supabaseReady()
   if (ready) {
     const supabase = createSystemClient('engagements')
@@ -146,29 +149,90 @@ async function tellStore(input: {
       channel: 'whatsapp',
       direction: 'outbound',
       body: input.body,
-      raw: { kind: 'engagement_locked' },
+      raw: { kind: 'engagement_locked', delivered: input.delivered, line: input.line },
     })
-  } else if (memGet(input.ticketId)) {
+    return
+  }
+  if (memGet(input.ticketId)) {
     memAddMessage(input.ticketId, {
       channel: 'whatsapp',
       direction: 'outbound',
       body: input.body,
     })
   }
+}
 
-  for (const phone of phones) {
-    await sendWhatsAppText({
-      toWaId: phone,
-      text: input.body,
+/** Sends the store handoff only after the engagement row exists. A repeat of the same key does not send twice. */
+async function tellStore(input: {
+  ticketId: string
+  storeCode: string
+  reporterPhone: string | null
+  body: string
+  idempotencyKey: string
+}): Promise<StoreHandoff> {
+  const cached = handoffSent.get(input.idempotencyKey)
+  if (cached?.ok) return cached
+
+  const manager = ISRAEL_STORES.find((store) => store.code === input.storeCode)
+    ?.managerPhone
+  const phones = [manager, input.reporterPhone]
+    .map((phone) => normalizePhoneDigits(phone))
+    .filter((phone): phone is string => phone != null && phone.length >= 9)
+    .filter((phone, index, all) => all.indexOf(phone) === index)
+
+  if (phones.length === 0) {
+    const missed: StoreHandoff = {
+      ok: false,
+      line: 'אין מספר למנהל החנות. הפרטים נשמרו ולא נשלחו.',
+    }
+    await recordHandoff({
       ticketId: input.ticketId,
-      purpose: 'status_update',
-      forceDryRun: !ready,
-      buttons: [
-        { id: storeConfirmButtonId(input.ticketId), title: STORE_CONFIRM_BUTTON_TITLE },
-        { id: storeRejectButtonId(input.ticketId), title: STORE_REJECT_BUTTON_TITLE },
-      ],
-    }).catch(() => undefined)
+      body: input.body,
+      delivered: false,
+      line: missed.line,
+    })
+    return missed
   }
+
+  const ready = await supabaseReady()
+  let delivered = false
+  let lastError = 'ההודעה למנהל החנות לא יצאה'
+  for (const phone of phones) {
+    try {
+      const sent = await sendWhatsAppText({
+        toWaId: phone,
+        text: input.body,
+        ticketId: input.ticketId,
+        purpose: 'status_update',
+        forceDryRun: !ready,
+        buttons: [
+          { id: storeConfirmButtonId(input.ticketId), title: STORE_CONFIRM_BUTTON_TITLE },
+          { id: storeRejectButtonId(input.ticketId), title: STORE_REJECT_BUTTON_TITLE },
+        ],
+      })
+      if (sent.ok && !sent.dryRun && !sent.skippedByPolicy) {
+        delivered = true
+      } else if (!sent.ok) {
+        lastError = sent.error || lastError
+      } else {
+        lastError = 'הפרטים נשמרו. ההודעה לא נמסרה בוואטסאפ.'
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : lastError
+    }
+  }
+
+  const result: StoreHandoff = delivered
+    ? { ok: true, line: 'מנהל החנות קיבל את הפרטים' }
+    : { ok: false, line: lastError }
+  await recordHandoff({
+    ticketId: input.ticketId,
+    body: input.body,
+    delivered,
+    line: result.line,
+  })
+  if (delivered) handoffSent.set(input.idempotencyKey, result)
+  return result
 }
 
 export async function lockEngagement(input: {
@@ -179,6 +243,7 @@ export async function lockEngagement(input: {
   professionalPhone: string
   approvedAmount: number
   approvedBy: string
+  scope?: string | null
 }): Promise<Engagement> {
   const name = input.professionalName.trim()
   const phone = input.professionalPhone.trim()
@@ -259,19 +324,28 @@ export async function lockEngagement(input: {
       professionalPhone: engagement.professionalPhone,
       approvedAmount: engagement.approvedAmount,
       approvedBy: engagement.approvedBy,
+      scope: input.scope?.trim() || null,
       bundled: engagement.bundledTicketIds,
     })
   }
 
-  await tellStore({
+  const handoff = await tellStore({
     ticketId: engagement.ticketId,
     storeCode: engagement.storeCode,
     reporterPhone: ticket.reporter_phone,
+    idempotencyKey: `engagement:${engagement.id}`,
     body: handoffText({
       name: engagement.professionalName,
       phone: engagement.professionalPhone,
       amount: engagement.approvedAmount,
+      scope: input.scope,
     }),
+  })
+  engagement.handoff = handoff
+  await appendEvent(engagement.ticketId, 'store_handoff', null, {
+    engagementId: engagement.id,
+    ok: handoff.ok,
+    line: handoff.line,
   })
 
   return engagement
@@ -316,12 +390,14 @@ export async function engagementTicketIds(ticketId: string): Promise<string[]> {
 
 export async function closedEngagementCosts(): Promise<ClosedEngagementCost[]> {
   const rows = await listEngagements()
-  return rows
-    .filter((row) => row.status === 'locked' && row.closedAt)
-    .map((row) => ({
-      storeCode: row.storeCode,
-      storeName: row.storeName,
-      approvedAmount: row.approvedAmount,
-      closedAt: row.closedAt as string,
-    }))
+  const closed = rows.filter((row) => row.status === 'locked' && row.closedAt)
+  const tickets = await listTickets({ limit: 1000 }).catch(() => ({ tickets: [] }))
+  const categoryById = new Map(tickets.tickets.map((ticket) => [ticket.id, ticket.category]))
+  return closed.map((row) => ({
+    storeCode: row.storeCode,
+    storeName: row.storeName,
+    approvedAmount: row.approvedAmount,
+    closedAt: row.closedAt as string,
+    category: categoryById.get(row.ticketId) ?? null,
+  }))
 }

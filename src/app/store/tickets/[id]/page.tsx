@@ -16,6 +16,8 @@ import {
 } from '@/modules/tickets/constants'
 import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
 import { formatQualityHoldHe, isQualityHoldActive } from '@/modules/tickets/quality-hold'
+import { lockedEngagementFor } from '@/modules/engagements/service'
+import { formatIls } from '@/modules/spend/true-cost'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +38,7 @@ export default async function StoreTicketPage({
   }
   if (!ticket) notFound()
 
+  const engagement = await lockedEngagementFor(ticket.id).catch(() => null)
   const etaLabel = formatRepairEtaHe(ticket.repair_eta_at)
   const holdLabel =
     ticket.status === 'resolved' && isQualityHoldActive(ticket.quality_hold_until)
@@ -50,6 +53,18 @@ export default async function StoreTicketPage({
         status={ticket.description || ticket.title || 'ללא תיאור'}
         footer={<StatusLabel status={ticket.status as TicketStatus} />}
       />
+
+      {engagement ? (
+        <Panel elevated>
+          <p className="t-body-strong text-ink">ארי אישר את העבודה</p>
+          <dl className="mt-3 divide-y divide-border">
+            <KeyValue label="בעל מקצוע">{engagement.professionalName}</KeyValue>
+            <KeyValue label="טלפון">{engagement.professionalPhone}</KeyValue>
+            <KeyValue label="מחיר שאושר">{formatIls(engagement.approvedAmount)}</KeyValue>
+          </dl>
+          <p className="t-meta mt-3 text-ink-3">תאמו איתו ישירות את מועד ההגעה.</p>
+        </Panel>
+      ) : null}
 
       <PhoneFold title="פרטים" summary={TICKET_CATEGORY_LABELS_HE[ticket.category] ?? ticket.category}>
       <Panel elevated>

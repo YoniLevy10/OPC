@@ -51,7 +51,7 @@ describe('repairRangeLine', () => {
   it('gives every fault type a range before any price is written', () => {
     expect(repairRangeLine('hvac')).toContain('טווח משוער לתיקון')
     expect(repairRangeLine('other')).toContain('₪')
-    expect(repairRangeLine('plumbing', { low: 400, high: 700 })).toContain('לפי מה שכבר שולם')
+    expect(repairRangeLine('plumbing', { low: 400, high: 700 })).toContain('לפי מחיר שאושר')
   })
 })
 

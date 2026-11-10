@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { BottomSheet } from '@/components/ui/overlay'
 import { buildMidragSearchUrl } from '@/modules/vendors/external-search'
@@ -50,7 +50,9 @@ function statusLabel(status: string): string {
     case 'blocked':
       return 'חסום — נדרש אישור'
     case 'queued':
-      return 'בתור'
+      return 'בתכנון'
+    case 'planned':
+      return 'תוכנן'
     case 'partial':
       return 'חלקי'
     case 'dispatched':
@@ -94,6 +96,7 @@ export function VisitConfirmSheet({
   onRetryFailed,
   onRetryTicket,
   onApprove,
+  onLock,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -117,6 +120,12 @@ export function VisitConfirmSheet({
   onRetryFailed: () => void
   onRetryTicket: (ticketId: string) => void
   onApprove?: (ticketIds: string[]) => void
+  onLock?: (input: {
+    name: string
+    phone: string
+    amount: number
+    scope: string
+  }) => Promise<{ ok: boolean; line: string } | void>
 }) {
   const place = useMemo(
     () => ({ city, region, category }),
@@ -129,22 +138,11 @@ export function VisitConfirmSheet({
   const groups = useMemo(() => groupVisitVendors(vendors, place), [vendors, place])
   const placeName = visitPlaceLabel(place)
   const midragUrl = buildMidragSearchUrl({ category: category || 'other', city })
-  const armed = useRef(false)
-  useEffect(() => {
-    if (!open) {
-      armed.current = false
-      return
-    }
-    if (armed.current || !suggestion) return
-    armed.current = true
-    if (vendorId !== suggestion.id) onVendorIdChange(suggestion.id)
-  }, [open, suggestion, vendorId, onVendorIdChange])
-  const approvalNeeds = useMemo(
-    () => tickets.filter((t) => Boolean(t.spendBlock)),
-    [tickets],
-  )
-  const vendorName =
-    vendors.find((v) => v.id === vendorId)?.name ?? '—'
+  const [proName, setProName] = useState('')
+  const [proPhone, setProPhone] = useState('')
+  const [proScope, setProScope] = useState('')
+  const [proPrice, setProPrice] = useState('')
+  const [lockLine, setLockLine] = useState<string | null>(null)
   const failed = result?.items.filter((i) => i.can_retry) ?? []
   const awaitingApproval =
     result?.items.filter((item) => item.needs_approval) ?? []
@@ -164,7 +162,7 @@ export function VisitConfirmSheet({
         {!result ? (
           <>
             <p className="t-body text-ink">
-              זה לא רץ לבד. כאן בוחרים ספק ומאשרים שיגור לביקור אחד. בלי לחיצה לא נשלח כלום.
+              הביקור נבנה מהתקלות. בחירת בעל מקצוע ומחיר הם השלב הבא, אחרי השיחה.
             </p>
             <dl className="t-caption grid gap-2 text-ink-2">
               <div className="flex justify-between gap-3">
@@ -178,8 +176,8 @@ export function VisitConfirmSheet({
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt>ספק</dt>
-                <dd className="font-semibold text-ink">{vendorName || '—'}</dd>
+                <dt>בעל מקצוע</dt>
+                <dd className="font-semibold text-ink">אחרי השיחה</dd>
               </div>
             </dl>
 
@@ -191,24 +189,11 @@ export function VisitConfirmSheet({
                     <span className="line-clamp-1">{t.title}</span>
                   ) : null}
                   {t.spendBlock ? (
-                    <span className="text-[var(--signal-critical)]">
-                      {t.spendBlock}
-                    </span>
-                  ) : (
-                    <span className="text-[var(--signal-success)]">
-                      אישור הוצאה תקין
-                    </span>
-                  )}
+                    <span className="text-ink-3">המחיר יינעל אחרי השיחה</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
-
-            {approvalNeeds.length > 0 ? (
-              <p className="t-body text-[var(--signal-critical)]">
-                {approvalNeeds.length} תקלות ממתינות לאישור הוצאה — השיגור
-                ייחסם עבורן
-              </p>
-            ) : null}
 
             <div className="flex flex-col gap-2">
               <span className="t-caption text-ink-2">מהמאגר שלנו</span>
@@ -278,12 +263,74 @@ export function VisitConfirmSheet({
               variant="primary"
               size="touch"
               className="w-full"
-              disabled={busy || !canSubmit || !vendorId}
+              disabled={busy || !canSubmit}
               onClick={onSubmit}
             >
-              {busy ? 'שולח…' : 'אישור שיגור'}
+              {busy ? 'שומר…' : 'תכנן ביקור'}
             </Button>
           </>
+        ) : result.status === 'planned' && onLock ? (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const amount = Number(proPrice)
+              void (async () => {
+                const locked = await onLock({
+                  name: proName,
+                  phone: proPhone,
+                  amount,
+                  scope: proScope,
+                })
+                if (locked?.line) setLockLine(locked.line)
+              })()
+            }}
+          >
+            <p className="t-body text-ink">
+              הביקור תוכנן. אחרי השיחה עם בעל המקצוע, נעלו שם, טלפון ומחיר. רק אז נשלחים הפרטים לחנות.
+            </p>
+            <label className="flex flex-col gap-1.5">
+              <span className="t-caption text-ink-2">שם</span>
+              <input
+                required
+                value={proName}
+                onChange={(e) => setProName(e.target.value)}
+                className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="t-caption text-ink-2">טלפון</span>
+              <input
+                required
+                inputMode="tel"
+                value={proPhone}
+                onChange={(e) => setProPhone(e.target.value)}
+                className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="t-caption text-ink-2">העבודה</span>
+              <input
+                value={proScope}
+                onChange={(e) => setProScope(e.target.value)}
+                className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="t-caption text-ink-2">מחיר שסוכם</span>
+              <input
+                required
+                inputMode="decimal"
+                value={proPrice}
+                onChange={(e) => setProPrice(e.target.value)}
+                className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
+              />
+            </label>
+            {lockLine ? <p className="t-body text-ink">{lockLine}</p> : null}
+            <Button type="submit" variant="primary" size="touch" className="w-full" disabled={busy}>
+              {busy ? 'שומר…' : 'אשר עבודה'}
+            </Button>
+          </form>
         ) : (
           <>
             {result.sms ? (
@@ -388,11 +435,11 @@ export function VisitConfirmSheet({
 /** Stable client idempotency key for a visit selection (survives double-click). */
 export function buildVisitIdempotencyKey(input: {
   storeId: string
-  vendorId: string
+  vendorId?: string
   ticketIds: string[]
 }): string {
   const tickets = [...input.ticketIds].sort().join(',')
-  return `visit-client:${input.storeId}:${input.vendorId}:${tickets}`
+  return `visit-client:${input.storeId}:plan:${tickets}`
 }
 
 export function scheduledAtToIso(localValue: string): string | null {

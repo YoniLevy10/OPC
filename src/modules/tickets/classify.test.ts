@@ -9,10 +9,21 @@ describe('classifyFaultText', () => {
     })
   })
 
-  it('marks security as critical', () => {
-    expect(classifyFaultText('הדלת לא ננעלת')).toEqual({
+  it('keeps a noisy air conditioner off the urgent queue', () => {
+    expect(classifyFaultText('המזגן מרעיש')).toEqual({
+      category: 'hvac',
+      priority: 'medium',
+    })
+  })
+
+  it('marks an alarm as critical and a door as not urgent', () => {
+    expect(classifyFaultText('האזעקה לא מפסיקה')).toEqual({
       category: 'security',
       priority: 'critical',
+    })
+    expect(classifyFaultText('הדלת לא ננעלת')).toEqual({
+      category: 'security',
+      priority: 'medium',
     })
   })
 

@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     title: 'Optical Center · טכנאי',
     statusBarStyle: 'default',
   },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
   icons: {
     icon: [
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },

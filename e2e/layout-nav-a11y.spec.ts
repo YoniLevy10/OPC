@@ -35,11 +35,11 @@ test.describe('Navigation & layout', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await gotoStable(page, '/ops/dashboard')
     const bottomNav = page.getByRole('navigation', { name: 'ניווט תחתון' })
-    await expect(bottomNav.getByText('דשבורד')).toBeVisible()
+    await expect(bottomNav.getByText('סקירה')).toBeVisible()
     await expect(bottomNav.getByText('תקלות')).toBeVisible()
-    await expect(bottomNav.getByText('אישורים')).toBeVisible()
-    await expect(bottomNav.getByRole('link', { name: 'WhatsApp' })).toBeVisible()
-    // Tasks stay under More. WhatsApp is a bottom-bar destination.
+    await expect(bottomNav.getByText('מסמכים')).toBeVisible()
+    await expect(bottomNav.getByText('דוחות')).toBeVisible()
+    // WhatsApp stays under More. The bottom bar is the four work areas.
     await bottomNav.getByRole('button', { name: 'עוד' }).click()
     const more = page.getByRole('dialog')
     await expect(more.getByRole('link', { name: 'משימות' })).toBeVisible()

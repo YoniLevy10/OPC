@@ -569,10 +569,6 @@ body {
 
   .phone-sheet {
     overflow: visible;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0;
   }
   .phone-sheet > header {
     min-height: 2.75rem;
@@ -652,10 +648,10 @@ textarea:focus-visible,
    ============================================================ */
 
 .safe-pt {
-  padding-top: var(--safe-t);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 .safe-pb {
-  padding-bottom: var(--safe-b);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .safe-x {
   padding-left: max(1rem, var(--safe-l));

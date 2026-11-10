@@ -64,6 +64,8 @@ describe('lockEngagement', () => {
     expect(memGet(ticket.id)?.messages.some((row) => row.body?.includes('ארי אישר'))).toBe(
       true,
     )
+    expect(locked.handoff?.ok).toBe(false)
+    expect(locked.handoff?.line).toMatch(/לא נמסרה|לא יצאה|נשמרו/)
     await expect(
       lockEngagement({
         ticketId: ticket.id,

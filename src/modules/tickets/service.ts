@@ -79,6 +79,7 @@ export type TicketRecord = {
   quality_hold_started_at?: string | null
   /** B04 — estimated repair / arrival time (ISO). */
   repair_eta_at?: string | null
+  store_confirmed_at?: string | null
   created_at: string
   updated_at: string
   ai_summary?: string | null
@@ -173,6 +174,7 @@ function memToRecord(t: MemTicket): TicketRecord {
     quality_hold_until: t.quality_hold_until ?? null,
     quality_hold_started_at: t.quality_hold_started_at ?? null,
     repair_eta_at: t.repair_eta_at ?? null,
+    store_confirmed_at: t.store_confirmed_at ?? null,
     created_at: t.created_at,
     updated_at: t.updated_at,
     ai_summary: t.ai_summary ?? null,
@@ -204,7 +206,7 @@ const MUTATION_SELECT =
   'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, language, stores ( id, code, name, city, address )'
 
 const MUTATION_SELECT_WITH_HOLD =
-  'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, quality_hold_until, quality_hold_started_at, repair_eta_at, language, stores ( id, code, name, city, address )'
+  'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, quality_hold_until, quality_hold_started_at, repair_eta_at, store_confirmed_at, language, stores ( id, code, name, city, address )'
 
 async function queryTicketsList(
   supabase: SupabaseClient,
@@ -917,6 +919,8 @@ export type UpdateStatusOptions = {
    * Requires overrideReason.
    */
   qualityHoldOverride?: boolean
+  /** Ari closes without store confirmation. Requires overrideReason and an Ari role. */
+  ariManualClose?: boolean
 }
 
 export async function updateStatus(
@@ -941,8 +945,27 @@ export async function updateStatus(
     QUALITY_HOLD_OVERRIDE_REASON_REQUIRED_HE,
   } = await import('@/modules/tickets/quality-hold')
 
+  function assertEngagedClose(from: string, confirmedAt: string | null | undefined) {
+    if (from !== 'engaged' || nextStatus !== 'closed') return
+    if (confirmedAt) return
+    const reason = opts?.overrideReason?.trim()
+    const ari = (opts?.actorRoles ?? []).some(
+      (role) => role === 'global_admin' || role === 'global_maintenance',
+    )
+    if (opts?.ariManualClose && ari && reason) return
+    throw new Error('סגירה רק אחרי אישור מנהל החנות')
+  }
+
   async function enforceResolveProof(): Promise<'proof' | 'override'> {
     if (nextStatus !== 'resolved') return 'proof'
+    if (opts?.ariManualClose) {
+      const reason = opts.overrideReason?.trim()
+      const ari = (opts.actorRoles ?? []).some(
+        (role) => role === 'global_admin' || role === 'global_maintenance',
+      )
+      if (ari && reason) return 'override'
+      throw new Error('סגירה ידנית דורשת סיבה של ארי')
+    }
     if (opts?.proofAlreadyAttached) return 'proof'
     const hasProof = await ticketHasResolveProof(id)
     if (hasProof) return 'proof'
@@ -978,6 +1001,10 @@ export async function updateStatus(
     const current = await getTicketForMutation(id)
     if (!current) throw new Error('תקלה לא נמצאה')
     const from = current.status as TicketStatus
+    assertEngagedClose(
+      from,
+      (current as { store_confirmed_at?: string | null }).store_confirmed_at,
+    )
     assertTransition(from, nextStatus)
     const proofMode = await enforceResolveProof()
     const holdMode = enforceQualityHoldClose(
@@ -1034,6 +1061,13 @@ export async function updateStatus(
       from,
       to: nextStatus,
     })
+    if (opts?.ariManualClose && (nextStatus === 'resolved' || nextStatus === 'closed')) {
+      await appendEvent(id, 'ari_manual_close', actorId ?? null, {
+        reason: opts.overrideReason?.trim(),
+        from,
+        to: nextStatus,
+      })
+    }
     if (proofMode === 'override' && nextStatus === 'resolved') {
       await appendEvent(id, 'resolve_override', actorId ?? null, {
         reason: opts?.overrideReason?.trim(),
@@ -1053,10 +1087,18 @@ export async function updateStatus(
 
   const current = memGet(id)
   if (!current) throw new Error('תקלה לא נמצאה')
+  assertEngagedClose(current.status, current.store_confirmed_at)
   assertTransition(current.status as TicketStatus, nextStatus)
   const proofMode = await enforceResolveProof()
   const holdMode = enforceQualityHoldClose(current.quality_hold_until)
   const updated = memToRecord(memUpdateStatus(id, nextStatus, null, actorId))
+  if (opts?.ariManualClose && (nextStatus === 'resolved' || nextStatus === 'closed')) {
+    await appendEvent(id, 'ari_manual_close', actorId ?? null, {
+      reason: opts.overrideReason?.trim(),
+      from: current.status,
+      to: nextStatus,
+    })
+  }
   if (proofMode === 'override' && nextStatus === 'resolved') {
     await appendEvent(id, 'resolve_override', actorId ?? null, {
       reason: opts?.overrideReason?.trim(),

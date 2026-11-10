@@ -45,6 +45,35 @@ function approveSpendForTicket(input: {
   applySpendDecision(spend.id, 'approved', 'ארי')
 }
 
+describe('createServiceVisit — plan without a vendor', () => {
+  beforeEach(() => {
+    process.env.MAINTAINOS_FORCE_MEMORY = '1'
+    memReset()
+    memResetVisits()
+    resetOpsLedger()
+  })
+
+  it('plans a visit from faults and does not dispatch', async () => {
+    const store = israelStoresAsRows().find((s) => s.code === '6018')!
+    const ticket = memCreate({
+      store,
+      description: 'מזגן',
+      priority: 'high',
+      category: 'hvac',
+    })
+    const visit = await createServiceVisit({
+      storeId: store.id,
+      ticketIds: [ticket.id],
+      idempotencyKey: 'plan-without-vendor',
+    })
+    expect(visit.status).toBe('planned')
+    expect(visit.vendor_id).toBeNull()
+    expect(visit.dispatch_ids).toHaveLength(0)
+    expect(visit.items[0]?.status).toBe('queued')
+    expect(memListDispatches()).toHaveLength(0)
+  })
+})
+
 describe('createServiceVisit — C01 reliability', () => {
   beforeEach(() => {
     process.env.MAINTAINOS_FORCE_MEMORY = '1'

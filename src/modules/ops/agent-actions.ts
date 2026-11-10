@@ -4,7 +4,12 @@ import { expiryFromText } from '@/modules/drive/import'
 import { ISRAEL_STORES, israelStoreId, type IsraelStoreSeed } from '@/modules/stores/israel-stores'
 import type { TicketPriority } from '@/modules/tickets/constants'
 import { repairRangeLine } from '@/modules/recommendations/estimate'
-import { createTicket, formatDisplayNumber, type TicketSource } from '@/modules/tickets/service'
+import {
+  createTicket,
+  formatDisplayNumber,
+  setTicketUrgent,
+  type TicketSource,
+} from '@/modules/tickets/service'
 
 type Turn = { role: 'user' | 'assistant'; text: string }
 
@@ -31,6 +36,26 @@ export async function actForAri(input: {
   source?: Extract<TicketSource, 'web_fallback' | 'whatsapp'>
 }): Promise<AriAct | null> {
   const message = input.message.trim()
+  if (/סמן/.test(message) && /דחופ/.test(message)) {
+    const urgent = !/לא דחופ/.test(message)
+    const named = pickStore(message)
+    const pool = (input.open ?? []).filter((fault) => fault.id)
+    const match = named.store
+      ? pool.filter(
+          (fault) =>
+            fault.storeName.includes(named.store!.name) ||
+            named.store!.name.includes(fault.storeName),
+        )
+      : pool
+    const target = match.length === 1 ? match[0] : null
+    if (!target?.id) return say('איזו תקלה לסמן? כתוב את שם הסניף.')
+    await setTicketUrgent(target.id, urgent, null)
+    return say(
+      urgent
+        ? `סימנתי את התקלה ב${target.storeName} כדחופה.`
+        : `הורדתי את הדחיפות ב${target.storeName}.`,
+    )
+  }
   const task = CREATE_TASK.test(message)
   const ticket = CREATE_TICKET.test(message)
   const permit = /כיבוי אש|אישור כיבוי|רישיון/.test(message)

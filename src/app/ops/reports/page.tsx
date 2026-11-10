@@ -40,7 +40,7 @@ import {
 } from '@/modules/reports/snapshots'
 import { cn } from '@/lib/utils'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
-import { annualMaintenanceCost } from '@/modules/engagements/cost'
+import { annualMaintenanceCost, approvedByFaultType, compareStorePeriods } from '@/modules/engagements/cost'
 import { closedEngagementCosts } from '@/modules/engagements/service'
 import { formatIls } from '@/modules/spend/true-cost'
 
@@ -216,10 +216,10 @@ export default async function ReportsPage({
   ]
 
   const costYear = Number((from ?? '').slice(0, 4)) || new Date().getFullYear()
-  const annual = annualMaintenanceCost(
-    await closedEngagementCosts().catch(() => []),
-    costYear,
-  )
+  const closedCosts = await closedEngagementCosts().catch(() => [])
+  const annual = annualMaintenanceCost(closedCosts, costYear)
+  const byFaultType = approvedByFaultType(closedCosts, costYear)
+  const periodComparison = compareStorePeriods(closedCosts, costYear)
 
   return (
     <OpsAppShell>
@@ -238,8 +238,8 @@ export default async function ReportsPage({
 
         <Panel elevated className="!p-4 md:!p-5">
           <PanelHeader
-            title={`עלויות אחזקה ${annual.year}`}
-            meta={`סה״כ רשת ${formatIls(annual.network)}`}
+            title={`מחיר שאושר ${annual.year}`}
+            meta={`סה״כ רשת ${formatIls(annual.network)} · לא תשלום שבוצע`}
           />
           {annual.stores.length === 0 ? (
             <EmptyState title="אין עדיין ביקורים שנסגרו השנה" />
@@ -249,6 +249,48 @@ export default async function ReportsPage({
                 <li key={store.storeCode || store.storeName} className="flex justify-between gap-3">
                   <span className="t-body text-ink">{store.storeName}</span>
                   <span className="t-body-strong t-num text-ink">{formatIls(store.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel elevated className="!p-4 md:!p-5">
+          <PanelHeader
+            title="מחיר שאושר לפי סוג תקלה"
+            meta={`${annual.year} · לא תשלום שבוצע`}
+          />
+          {byFaultType.length === 0 ? (
+            <EmptyState title="אין עדיין מחיר שאושר לפי סוג" />
+          ) : (
+            <ul className="mt-4 grid gap-2">
+              {byFaultType.map((row) => (
+                <li key={row.category} className="flex justify-between gap-3">
+                  <span className="t-body text-ink">
+                    {TICKET_CATEGORY_LABELS_HE[row.category] ?? row.category}
+                  </span>
+                  <span className="t-body-strong t-num text-ink">{formatIls(row.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel elevated className="!p-4 md:!p-5">
+          <PanelHeader
+            title="השוואת חנויות"
+            meta={`${annual.year} מול ${annual.year - 1} · מחיר שאושר`}
+          />
+          {periodComparison.length === 0 ? (
+            <EmptyState title="אין עדיין השוואה בין תקופות" />
+          ) : (
+            <ul className="mt-4 grid gap-2">
+              {periodComparison.map((row) => (
+                <li key={row.storeCode || row.storeName} className="flex justify-between gap-3">
+                  <span className="t-body text-ink">{row.storeName}</span>
+                  <span className="t-body t-num text-ink">
+                    {formatIls(row.current)} · קודם {formatIls(row.previous)}
+                  </span>
                 </li>
               ))}
             </ul>

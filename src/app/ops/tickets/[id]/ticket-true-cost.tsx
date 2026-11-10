@@ -28,7 +28,7 @@ export function TicketTrueCostPanel({
           משוער <span className="t-num font-medium">{estimate.text}</span>
           <span className="t-meta mt-1 block text-ink-3">
             {estimate.basis === 'recorded'
-              ? 'לפי מה שכבר שולם על תקלות מאותו סוג'
+              ? 'לפי מחיר שאושר על תקלות מאותו סוג'
               : 'לפי סוג התקלה. מחיר שנרשם מחליף את ההערכה.'}
           </span>
         </p>

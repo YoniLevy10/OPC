@@ -86,7 +86,7 @@ export function TechShell({
         <div
           aria-label={p('פעולות עבודה')}
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background"
-          style={{ paddingBottom: 'var(--safe-b)' }}
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           <div className="safe-x mx-auto w-full max-w-xl py-3">{actions}</div>
         </div>

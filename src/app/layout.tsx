@@ -35,6 +35,9 @@ export const metadata: Metadata = {
     title: 'OPC',
     statusBarStyle: 'default',
   },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
   formatDetection: { telephone: false },
   icons: {
     icon: [
@@ -83,7 +86,7 @@ export default async function RootLayout({
         </LocaleProvider>
         <script
           dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}`,
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'}).catch(function(){})})}`,
           }}
         />
       </body>

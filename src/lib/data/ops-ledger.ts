@@ -104,6 +104,9 @@ export type OpsTask = {
   needsClarification: boolean
   clarification: string | null
   createdAt: string
+  /** When set, completing the task opens the next one this many days later. */
+  repeatDays?: number | null
+  nextOpened?: boolean
 }
 
 export type StoreOverlay = {
@@ -812,6 +815,26 @@ export function setTaskStatus(id: string, status: NonNullable<OpsTask['status']>
   task.done = status === 'done'
   task.needsClarification = status === 'waiting'
   if (status === 'waiting' && !task.clarification) task.clarification = 'ממתין להמשך'
+  if (status === 'done' && task.repeatDays && task.repeatDays > 0 && !task.nextOpened) {
+    task.nextOpened = true
+    const due = new Date()
+    due.setDate(due.getDate() + task.repeatDays)
+    addTask({
+      title: task.title,
+      storeId: task.storeId,
+      storeCode: task.storeCode,
+      assignee: task.assignee,
+      dueAt: due.toISOString(),
+      ticketId: task.ticketId,
+      documentId: task.documentId,
+      spendId: null,
+      needsClarification: false,
+      clarification: null,
+      status: 'open',
+      repeatDays: task.repeatDays,
+      nextOpened: false,
+    })
+  }
   return task
 }
 

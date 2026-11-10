@@ -384,6 +384,7 @@ export async function addTaskAction(formData: FormData) {
       !formData.get('assignee') || !formData.get('due')
         ? 'חסר אחראי או מועד'
         : null,
+    repeatDays: Number(formData.get('repeatDays')) > 0 ? Number(formData.get('repeatDays')) : null,
   })
   await refresh('/ops/tasks')
 }

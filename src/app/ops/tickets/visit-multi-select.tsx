@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { BottomSheet } from '@/components/ui/overlay'
 import { PhoneCallLink } from '@/components/ui/phone-call-link'
 import { useToast } from '@/components/ui/toast'
-import { approveVisitCommitments } from './visit-approval-actions'
+import { lockPlannedVisitAction } from './engagement-actions'
 import {
   VisitConfirmSheet,
   buildVisitIdempotencyKey,
@@ -106,9 +106,9 @@ function VisitBarInner({
     retryFailedOnly?: boolean
     retryTicketIds?: string[]
   }) {
-    if (!canOpen || storeIds.length !== 1 || !vendorId) {
+    if (!canOpen || storeIds.length !== 1) {
       toast.push({
-        title: 'יש לבחור תקלות מחנות אחת וספק',
+        title: 'יש לבחור תקלות מחנות אחת',
         tone: 'critical',
       })
       return
@@ -130,7 +130,6 @@ function VisitBarInner({
         body: JSON.stringify({
           storeId: storeIds[0],
           ticketIds: selectedTickets.map((t) => t.id),
-          vendorId,
           notes: notes.trim() || undefined,
           scheduledAt: scheduledAtToIso(scheduledAt),
           idempotencyKey: key,
@@ -158,9 +157,9 @@ function VisitBarInner({
       }
       setResult(visit)
       const failed = visit.items.filter((i) => i.can_retry).length
-      if (failed === 0 && visit.status === 'dispatched') {
+      if (visit.status === 'planned') {
         toast.push({
-          title: `ביקור שובץ · ${selectedTickets.length} תקלות`,
+          title: `ביקור תוכנן · ${selectedTickets.length} תקלות`,
           tone: 'success',
         })
         selection?.clear()
@@ -181,23 +180,36 @@ function VisitBarInner({
     })
   }
 
-  async function approveAndSend(ticketIds: string[]) {
-    const vendorName = vendors.find((row) => row.id === vendorId)?.name ?? ''
-    let approved = false
+  async function lockVisit(input: {
+    name: string
+    phone: string
+    amount: number
+    scope: string
+  }) {
+    let line = 'האישור נכשל'
+    let ok = false
     await run(async () => {
       try {
-        await approveVisitCommitments(ticketIds, vendorName)
-        approved = true
-      } catch (error) {
-        toast.push({
-          title: error instanceof Error ? error.message : 'האישור נכשל',
-          tone: 'critical',
+        const result = await lockPlannedVisitAction({
+          ticketIds: selectedTickets.map((ticket) => ticket.id),
+          professionalName: input.name,
+          professionalPhone: input.phone,
+          approvedAmount: input.amount,
+          scope: input.scope,
         })
+        ok = result.ok
+        line = result.line
+        toast.push({ title: result.line, tone: result.ok ? 'success' : 'critical' })
+        if (result.ok) {
+          selection?.clear()
+          startTransition(() => router.refresh())
+        }
+      } catch (error) {
+        line = error instanceof Error ? error.message : line
+        toast.push({ title: line, tone: 'critical' })
       }
     })
-    if (approved) {
-      await postVisit({ retryFailedOnly: true, retryTicketIds: ticketIds })
-    }
+    return { ok, line }
   }
 
   return (
@@ -230,7 +242,7 @@ function VisitBarInner({
           }}
         >
           <Truck className="h-3.5 w-3.5" aria-hidden />
-          {vendors.length === 0 ? 'בחר איש מקצוע' : 'שיגור ביקור'}
+          תכנן ביקור
         </Button>
       </div>
 
@@ -279,7 +291,7 @@ function VisitBarInner({
           setOpen(next)
           if (!next) setResult(null)
         }}
-        title="שיגור ביקור משולב"
+        title="תכנון ביקור"
         storeLabel={storeCodes[0] ? `חנות #${storeCodes[0]}` : 'חנות'}
         tickets={selectedTickets.map((t) => ({
           id: t.id,
@@ -321,7 +333,7 @@ function VisitBarInner({
             retryTicketIds: [ticketId],
           })
         }
-        onApprove={(ticketIds) => void approveAndSend(ticketIds)}
+        onLock={lockVisit}
       />
     </>
   )

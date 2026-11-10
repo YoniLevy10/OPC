@@ -23,6 +23,37 @@ async function actorName() {
   return { id: actor?.id ?? null, name: actor?.full_name || 'ארי' }
 }
 
+export async function lockPlannedVisitAction(input: {
+  ticketIds: string[]
+  professionalName: string
+  professionalPhone: string
+  approvedAmount: number
+  scope?: string | null
+}): Promise<{ ok: boolean; line: string }> {
+  const actor = await actorName()
+  const ids = [...new Set(input.ticketIds.map((id) => id.trim()).filter(Boolean))]
+  const ticketId = ids[0]
+  if (!ticketId) throw new Error('אין תקלה לאשר')
+  const locked = await lockEngagement({
+    ticketId,
+    bundledTicketIds: ids.slice(1),
+    professionalName: input.professionalName,
+    professionalPhone: input.professionalPhone,
+    approvedAmount: input.approvedAmount,
+    approvedBy: actor.name,
+    scope: input.scope,
+  })
+  revalidatePath(`/ops/tickets/${ticketId}`)
+  revalidatePath('/ops/approvals')
+  revalidatePath('/ops/dashboard')
+  revalidatePath('/ops/reports')
+  for (const id of ids) revalidatePath(`/store/tickets/${id}`)
+  return {
+    ok: locked.handoff?.ok ?? false,
+    line: locked.handoff?.line ?? 'הפרטים נשמרו. ההודעה למנהל החנות לא אומתה.',
+  }
+}
+
 export async function lockEngagementAction(formData: FormData) {
   const actor = await actorName()
   const ticketId = String(formData.get('ticketId') ?? '')
@@ -43,6 +74,7 @@ export async function lockEngagementAction(formData: FormData) {
     professionalPhone: String(formData.get('professional_phone') ?? ''),
     approvedAmount: Number(formData.get('approved_amount')),
     approvedBy: actor.name,
+    scope: String(formData.get('scope') ?? '') || null,
   })
   revalidatePath(`/ops/tickets/${ticketId}`)
   revalidatePath('/ops/approvals')

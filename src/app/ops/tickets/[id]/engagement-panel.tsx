@@ -147,6 +147,14 @@ export function EngagementPanel({
             />
           </label>
           <label className="grid gap-1">
+            <span className="t-meta text-ink-2">העבודה שסוכמה</span>
+            <input
+              name="scope"
+              className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
+              placeholder="מה בעל המקצוע יעשה"
+            />
+          </label>
+          <label className="grid gap-1">
             <span className="t-meta text-ink-2">מחיר שסוכם</span>
             <input
               name="approved_amount"

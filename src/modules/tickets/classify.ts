@@ -27,21 +27,28 @@ export function classifyFaultText(text: string): FaultClassification {
     return { category: 'electrical_hazard', priority: 'critical' }
   }
 
+  const urgent =
+    /דחוף|מיידי|לא עובד|לא מקרר|מוצף|שוטף|אין חשמל|קצר|אזעקה|כספת|panne|leak|urgent|down|flood/.test(
+      t,
+    )
   if (
     /מזגן|מיזוג|מזגנים|קירור|חימום|hvac|air\s*cond|ac[\s-]|climatisation|\bclim\b|chauffage/.test(
       t,
     )
   ) {
-    return { category: 'hvac', priority: 'high' }
+    return { category: 'hvac', priority: urgent ? 'high' : 'medium' }
   }
   if (/חשמל|קצר|נפילת\s*מתח|לוח\s*חשמל|תאורה|נורה|electric|[ée]lectricit|[ée]clairage/.test(t)) {
-    return { category: 'electrical', priority: 'high' }
+    return { category: 'electrical', priority: urgent ? 'high' : 'medium' }
   }
   if (/מים|נזילה|אינסטל|סתימה|שירותים|כיור|plumbing|leak|fuite|plomberie|\beau\b/.test(t)) {
-    return { category: 'plumbing', priority: 'high' }
+    return { category: 'plumbing', priority: urgent || /נזיל|leak|fuite/.test(t) ? 'high' : 'medium' }
   }
   if (/דלת|מנעול|כספת|אזעקה|אבטחה|security|lock|serrure|alarme|\bporte\b/.test(t)) {
-    return { category: 'security', priority: 'critical' }
+    return {
+      category: 'security',
+      priority: /אזעקה|כספת|alarme/.test(t) ? 'critical' : 'medium',
+    }
   }
   if (/מחשב|קופה|מסוף|רשת|wifi|אינטרנט|מדפסת|pos|it\b|caisse|ordinateur|imprimante/.test(t)) {
     return { category: 'it', priority: 'medium' }

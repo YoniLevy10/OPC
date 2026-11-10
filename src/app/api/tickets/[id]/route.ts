@@ -36,6 +36,8 @@ const patchSchema = z
     overrideReason: z.string().trim().min(3).max(2000).optional(),
     /** B03 — close before quality hold ends (requires overrideReason). */
     qualityHoldOverride: z.boolean().optional(),
+    /** Ari manual close without store confirmation. Requires overrideReason. */
+    ariManualClose: z.boolean().optional(),
     /** B04 — repair ETA ISO string, or null to clear. */
     repairEtaAt: z.union([z.string().datetime(), z.null()]).optional(),
   })
@@ -118,10 +120,30 @@ export async function PATCH(
       assignedTechId = parsed.data.assignedTo
     }
     if (parsed.data.status) {
+      const roles = actor.memberships.map((m) => m.role)
+      const finishing =
+        parsed.data.status === 'resolved' || parsed.data.status === 'closed'
+      const confirmed = Boolean(
+        (existing as { store_confirmed_at?: string | null }).store_confirmed_at,
+      )
+      const ari = roles.some(
+        (role) => role === 'global_admin' || role === 'global_maintenance',
+      )
+      if (
+        finishing &&
+        !confirmed &&
+        !(ari && parsed.data.ariManualClose && parsed.data.overrideReason?.trim())
+      ) {
+        return NextResponse.json(
+          { error: 'סגירה רק אחרי אישור מנהל החנות' },
+          { status: 403 },
+        )
+      }
       ticket = await updateStatus(id, parsed.data.status, actor.id, {
         overrideReason: parsed.data.overrideReason,
-        actorRoles: actor.memberships.map((m) => m.role),
+        actorRoles: roles,
         qualityHoldOverride: parsed.data.qualityHoldOverride,
+        ariManualClose: parsed.data.ariManualClose,
       })
     }
     if (parsed.data.repairEtaAt !== undefined) {
