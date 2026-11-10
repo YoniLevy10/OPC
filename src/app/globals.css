@@ -567,20 +567,9 @@ body {
     color: var(--ink);
   }
 
-  .phone-sheet {
-    overflow: visible;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0;
-  }
-  .phone-sheet > header {
-    min-height: 2.75rem;
-    margin-bottom: 2px;
-    border: 0;
-    background: transparent;
-    padding-inline: 2px;
-  }
+  /* BottomSheet is a dialog surface. Keep its opaque background and clipped
+     corners on phones as well as desktop; only page lists use transparent
+     containers. Safe-area sheet insets are defined with the shell helpers. */
   .phone-list {
     display: flex;
     flex-direction: column;

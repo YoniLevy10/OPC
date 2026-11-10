@@ -55,15 +55,19 @@ function VisitBarInner({
   const [notes, setNotes] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
   const [result, setResult] = useState<VisitResult | null>(null)
+  const [visitTickets, setVisitTickets] = useState<VisitSelectableTicket[] | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
   const { busy, run } = useSubmitGuard()
 
   const selectedTickets = useMemo(() => {
+    // A queue refresh can remove dispatched tickets. Keep the open visit's
+    // selection stable until its result is dismissed, including partial retries.
+    if (visitTickets) return visitTickets
     if (!selection) return [] as VisitSelectableTicket[]
     return [...selection.selected]
       .map((id) => selection.ticketsById.get(id))
       .filter((t): t is VisitSelectableTicket => Boolean(t))
-  }, [selection])
+  }, [selection, visitTickets])
 
   const storeIds = useMemo(
     () => [...new Set(selectedTickets.map((t) => t.storeId).filter(Boolean))],
@@ -91,6 +95,7 @@ function VisitBarInner({
 
   function openSheet() {
     if (!canOpen || storeIds.length !== 1) return
+    setVisitTickets(selectedTickets)
     setResult(null)
     setIdempotencyKey(
       buildVisitIdempotencyKey({
@@ -163,7 +168,6 @@ function VisitBarInner({
           title: `ביקור שובץ · ${selectedTickets.length} תקלות`,
           tone: 'success',
         })
-        selection?.clear()
         startTransition(() => router.refresh())
       } else if (failed > 0) {
         toast.push({
@@ -277,7 +281,16 @@ function VisitBarInner({
         open={open}
         onOpenChange={(next) => {
           setOpen(next)
-          if (!next) setResult(null)
+          if (!next) {
+            if (
+              result?.status === 'dispatched' &&
+              result.items.every((item) => !item.can_retry)
+            ) {
+              selection.clear()
+            }
+            setVisitTickets(null)
+            setResult(null)
+          }
         }}
         title="שיגור ביקור משולב"
         storeLabel={storeCodes[0] ? `חנות #${storeCodes[0]}` : 'חנות'}

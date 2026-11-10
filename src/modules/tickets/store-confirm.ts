@@ -56,6 +56,7 @@ export async function confirmStoreFix(input: {
   }
   if (!row) throw new Error('תקלה לא נמצאה')
   if (row.status === 'closed') {
+    if (row.store_confirmed_at) await closeCompletedEngagement(input.ticketId, now)
     return {
       id: row.id,
       status: row.status,
@@ -67,7 +68,7 @@ export async function confirmStoreFix(input: {
     throw new Error('ניתן לאשר רק אחרי שהטיפול אושר או סומן כנפתר')
   }
   if (row.status === 'engaged') {
-    return closeEngagedTickets(input.ticketId, now, actorLabel)
+    return closeEngagedTicket(input.ticketId, now, actorLabel)
   }
 
   const { error: updErr } = await supabase
@@ -119,6 +120,7 @@ async function confirmStoreFixMemoryFallback(
   const ticket = memGet(input.ticketId)
   if (!ticket) throw new Error('תקלה לא נמצאה')
   if (ticket.status === 'closed') {
+    if (ticket.store_confirmed_at) await closeCompletedEngagement(input.ticketId, now)
     return {
       id: ticket.id,
       status: ticket.status,
@@ -130,7 +132,7 @@ async function confirmStoreFixMemoryFallback(
     throw new Error('ניתן לאשר רק אחרי שהטיפול אושר או סומן כנפתר')
   }
   if (ticket.status === 'engaged') {
-    return closeEngagedTickets(input.ticketId, now, actorLabel)
+    return closeEngagedTicket(input.ticketId, now, actorLabel)
   }
   ticket.store_confirmed_at = now
   ticket.store_confirmed_by = actorLabel
@@ -175,52 +177,66 @@ export function storeConfirmUrl(ticketId: string): string {
   return `${appUrl}/store/tickets/${ticketId}`
 }
 
-/**
- * Store reports the fix did not hold → back to in_progress.
- * Preserves ticket history (events/messages); only clears resolved_at via status transition.
- */
-async function closeEngagedTickets(
+/** A store's feedback confirms only the ticket it names, even in a shared visit. */
+async function closeEngagedTicket(
   ticketId: string,
   now: string,
   actorLabel: string,
 ) {
-  const ids = await engagementTicketIds(ticketId)
-  let closedId = ticketId
-  let status = 'closed'
-  for (const id of ids) {
-    const ticket = await getById(id)
-    if (!ticket || ticket.status === 'closed' || ticket.status !== 'engaged') continue
-    if (await supabaseReady()) {
-      const supabase = createSystemClient('store_confirm')
-      await supabase
-        .from('tickets')
-        .update({
-          store_confirmed_at: now,
-          store_confirmed_by: actorLabel,
-          updated_at: now,
-        })
-        .eq('id', id)
-    } else {
-      const mem = memGet(id)
-      if (mem) {
-        mem.store_confirmed_at = now
-        mem.store_confirmed_by = actorLabel
-      }
-    }
-    await appendEvent(id, 'store_confirmed', null, { by: actorLabel })
-    const closed = await updateStatus(id, 'closed')
-    closedId = closed.id
-    status = closed.status
+  if (await supabaseReady()) {
+    const supabase = createSystemClient('store_confirm')
+    const { error } = await supabase
+      .from('tickets')
+      .update({
+        store_confirmed_at: now,
+        store_confirmed_by: actorLabel,
+        updated_at: now,
+      })
+      .eq('id', ticketId)
+    if (error) throw new Error(error.message)
+  } else {
+    const ticket = memGet(ticketId)
+    if (!ticket) throw new Error('תקלה לא נמצאה')
+    ticket.store_confirmed_at = now
+    ticket.store_confirmed_by = actorLabel
+    ticket.updated_at = now
   }
-  await markEngagementClosed(ticketId, now)
+  await appendEvent(ticketId, 'store_confirmed', null, { by: actorLabel })
+  const closed = await updateStatus(ticketId, 'closed')
+  await closeCompletedEngagement(ticketId, now)
   const detail = await getById(ticketId)
   if (detail) await notifyReporter(detail, 'closed')
   return {
-    id: closedId,
-    status,
+    id: closed.id,
+    status: closed.status,
     store_confirmed_at: now,
     pending_final_close: false as const,
   }
+}
+
+/** Do not finish a visit or count its cost until every included fix is confirmed. */
+async function closeCompletedEngagement(ticketId: string, now: string): Promise<void> {
+  const ids = [...new Set(await engagementTicketIds(ticketId))]
+  if (await supabaseReady()) {
+    const supabase = createSystemClient('store_confirm')
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('id, status, store_confirmed_at')
+      .in('id', ids)
+    if (error) throw new Error(error.message)
+    if (
+      !data || data.length !== ids.length ||
+      data.some((row) => row.status !== 'closed' || !row.store_confirmed_at)
+    ) {
+      return
+    }
+  } else if (ids.some((id) => {
+    const ticket = memGet(id)
+    return !ticket || ticket.status !== 'closed' || !ticket.store_confirmed_at
+  })) {
+    return
+  }
+  await markEngagementClosed(ticketId, now)
 }
 
 export async function rejectStoreFix(input: {
