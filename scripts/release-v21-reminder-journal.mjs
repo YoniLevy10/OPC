@@ -151,6 +151,10 @@ export async function migrateReminderJournal({ env = process.env, args = process
   }
   const client = createClient(options)
   let transaction = false
+  let asynchronousFailure
+  // pg may emit idle connection errors outside query promises. Do not let Node
+  // print an unhandled error event containing raw database details.
+  client.on?.('error', (error) => { asynchronousFailure = error })
   try {
     await client.connect()
     const stream = client.connection?.stream
@@ -180,6 +184,7 @@ export async function migrateReminderJournal({ env = process.env, args = process
       historyStatus = 'recorded'
     }
     await client.query("NOTIFY pgrst, 'reload schema'")
+    if (asynchronousFailure) throw asynchronousFailure
     await client.query('COMMIT')
     transaction = false
     return { journal: before.journal_exists ? 'verified_existing' : 'created_and_verified', history: historyStatus }

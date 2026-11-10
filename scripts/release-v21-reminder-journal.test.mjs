@@ -198,3 +198,21 @@ test('pg failures are rolled back and safe reporting does not reveal raw errors'
   assert.equal(safeFailure(new Error(releaseEnv.SUPABASE_DB_PASSWORD)),'release_step_failed')
   assert.equal(safeFailure({code:'PASSWORD-leaked'}),'release_step_failed')
 })
+
+test('idle pg error events are handled without printing raw errors or committing', async () => {
+  const database=fakeDatabase()
+  let onError
+  database.client.on=(event, listener) => { assert.equal(event,'error'); onError=listener }
+  const query=database.client.query
+  database.client.query=async (sql,values) => {
+    const result=await query(sql,values)
+    if (sql.startsWith('NOTIFY')) onError(Object.assign(new Error('sensitive idle database error'),{code:'08006'}))
+    return result
+  }
+  await assert.rejects(run(database),(error) => {
+    assert.equal(safeFailure(error),'postgres_08006')
+    return true
+  })
+  assert.equal(database.statements.includes('COMMIT'),false)
+  assert.deepEqual(database.statements.slice(-2),['ROLLBACK','END'])
+})
