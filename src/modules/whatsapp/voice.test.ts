@@ -17,6 +17,27 @@ function fields(body: BodyInit | null | undefined) {
 }
 
 describe('transcribeVoice language', () => {
+  it('keeps recordings for review without making network requests when no provider is configured', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    expect(await transcribeVoice('https://example.com/unavailable.ogg')).toMatchObject({ status: 'needs_review', text: null })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('returns a review outcome instead of losing intake when media download fails', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'test-key')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('media unavailable')))
+    expect(await transcribeVoice('https://example.com/unavailable.ogg')).toMatchObject({ status: 'needs_review', text: null })
+  })
+
+  it('returns a review outcome when the transcription service disconnects', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'test-key')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('transcription unavailable')))
+    expect(await transcribeVoice(audio)).toMatchObject({ status: 'needs_review', text: null })
+  })
+
   it('keeps an English recording in English', async () => {
     vi.stubEnv('AI_GATEWAY_API_KEY', 'test-key')
     const seen: Array<ReturnType<typeof fields>> = []

@@ -25,15 +25,8 @@ export async function transcribeVoice(
   if (!mediaUrl) {
     return { text: null, status: 'needs_review', reason: 'אין קובץ הקלטה', language: null }
   }
-  const audio = await loadAudio(mediaUrl, accessToken)
-  if (!audio) {
-    return {
-      text: null,
-      status: 'needs_review',
-      reason: 'ההקלטה נשמרה וממתינה לתמלול',
-      language: null,
-    }
-  }
+  // No transcription provider means no reason to download potentially slow or
+  // unavailable media. Intake retains the original recording for human review.
   const route = transcriptionRoute()
   if (!route) {
     return {
@@ -43,7 +36,16 @@ export async function transcribeVoice(
       language: null,
     }
   }
-  const first = await requestWhisper(audio, route, null)
+  const audio = await loadAudio(mediaUrl, accessToken).catch(() => null)
+  if (!audio) {
+    return {
+      text: null,
+      status: 'needs_review',
+      reason: 'ההקלטה נשמרה וממתינה לתמלול',
+      language: null,
+    }
+  }
+  const first = await requestWhisper(audio, route, null).catch(() => null)
   if (!first) {
     return {
       text: null,
@@ -60,7 +62,7 @@ export async function transcribeVoice(
   // already show, otherwise Hebrew — the language of this network.
   if (first.language && !detected) {
     const lock = first.text ? reportLanguage(first.text) : 'he'
-    const second = await requestWhisper(audio, route, lock)
+    const second = await requestWhisper(audio, route, lock).catch(() => null)
     const text = second?.text || first.text
     if (text) {
       return { text, status: 'transcribed', reason: null, language: lock }
@@ -100,6 +102,7 @@ async function requestWhisper(
     method: 'POST',
     headers: { authorization: `Bearer ${route.key}` },
     body,
+    signal: AbortSignal.timeout(20_000),
   })
   if (!res.ok) return null
   const json = (await res.json()) as { text?: string; language?: string }
@@ -134,7 +137,7 @@ async function loadAudio(
     }
   }
   if (/^https:\/\//i.test(mediaUrl)) {
-    const res = await fetch(mediaUrl)
+    const res = await fetch(mediaUrl, { signal: AbortSignal.timeout(8_000) })
     if (!res.ok) return null
     return {
       bytes: new Uint8Array(await res.arrayBuffer()),
@@ -146,11 +149,11 @@ async function loadAudio(
   if (!mediaId || !token) return null
   const metaRes = await fetch(
     `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`,
-    { headers: { authorization: `Bearer ${token}` } },
+    { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8_000) },
   )
   const meta = (await metaRes.json()) as { url?: string; mime_type?: string }
   if (!metaRes.ok || !meta.url) return null
-  const bin = await fetch(meta.url, { headers: { authorization: `Bearer ${token}` } })
+  const bin = await fetch(meta.url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8_000) })
   if (!bin.ok) return null
   return { bytes: new Uint8Array(await bin.arrayBuffer()), mime: meta.mime_type || 'audio/ogg' }
 }
