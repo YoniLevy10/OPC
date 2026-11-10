@@ -28,7 +28,7 @@ export function classifyFaultText(text: string): FaultClassification {
   }
 
   if (
-    /מזגן|מיזוג|מזגנים|קירור|חימום|hvac|air\s*cond|ac[\s-]|climatisation|\bclim\b|chauffage/.test(
+    /מזגן|מיזוג|מזגנים|קירור|חימום|hvac|air\s*cond|\bac\b|climatisation|\bclim\b|chauffage/.test(
       t,
     )
   ) {
