@@ -20,7 +20,6 @@ import { confirmStoreFix } from '@/modules/tickets/store-confirm'
 import {
   isQualityHoldActive,
   qualityHoldUntilFrom,
-  QUALITY_HOLD_BLOCK_CLOSE_HE,
 } from '@/modules/tickets/quality-hold'
 import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
 import { israelStoresAsRows } from '@/modules/stores/israel-stores'
@@ -86,13 +85,13 @@ describe('B01 true cost', () => {
   })
 })
 
-describe('B03 quality hold', () => {
+describe('B03 follow-up metadata under V2.1 closure policy', () => {
   beforeEach(() => {
     process.env.MAINTAINOS_FORCE_MEMORY = '1'
     memReset()
   })
 
-  it('starts 30-day hold on resolve and blocks early close', async () => {
+  it('keeps 30-day follow-up metadata without delaying store-confirmed closure', async () => {
     const ticket = memCreate({
       store: store(),
       description: 'נזילה',
@@ -111,17 +110,14 @@ describe('B03 quality hold', () => {
       ticketId: ticket.id,
       actorLabel: 'מנהל חנות',
     })
-    expect(confirmed.pending_final_close).toBe(true)
-    expect(confirmed.status).toBe('resolved')
-    expect(memGet(ticket.id)?.status).toBe('resolved')
+    expect(confirmed.pending_final_close).toBe(false)
+    expect(confirmed.status).toBe('closed')
+    expect(memGet(ticket.id)?.status).toBe('closed')
     expect(memGet(ticket.id)?.store_confirmed_at).toBeTruthy()
-
-    await expect(updateStatus(ticket.id, 'closed', 'hq-1')).rejects.toThrow(
-      QUALITY_HOLD_BLOCK_CLOSE_HE,
-    )
+    expect(memGet(ticket.id)?.quality_hold_until).toBe(resolved.quality_hold_until)
   })
 
-  it('allows Ari override of quality hold with reason', async () => {
+  it('closes a legacy already-confirmed repair without requiring an Ari hold override', async () => {
     const ticket = memCreate({
       store: store(),
       description: 'חריגת hold',
@@ -131,12 +127,12 @@ describe('B03 quality hold', () => {
     })
     attachPair(ticket.id)
     await updateStatus(ticket.id, 'resolved', 'tech-1')
-    const closed = await updateStatus(ticket.id, 'closed', 'ari-1', {
-      actorRoles: ['global_maintenance'],
-      qualityHoldOverride: true,
-      overrideReason: 'סגירה מוקדמת — ציוד הוחלף',
-    })
+    const row = memGet(ticket.id)!
+    row.store_confirmed_at = new Date().toISOString()
+    row.store_confirmed_by = 'מנהל החנות'
+    const closed = await updateStatus(ticket.id, 'closed')
     expect(closed.status).toBe('closed')
+    expect(isQualityHoldActive(row.quality_hold_until)).toBe(true)
   })
 
   it('closes after hold expires', async () => {

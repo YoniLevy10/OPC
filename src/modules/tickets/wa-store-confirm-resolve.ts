@@ -8,31 +8,41 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   memGet,
   memListTickets,
-  memResolveStoreByWaId,
+  memFindStoreById,
 } from '@/lib/data/memory-store'
 import { normalizePhoneDigits } from '@/lib/phone'
 import { logEvent } from '@/lib/logging'
 import {
   parseStoreConfirmButtonId,
   parseStoreRejectButtonId,
-  reporterPhoneMatches,
 } from '@/modules/tickets/wa-store-confirm'
 
-async function resolveLinkedStoreId(
+async function managerStoreIdsForSender(
   supabase: SupabaseClient | null,
   waId: string,
-): Promise<string | null> {
-  if (!waId) return null
-  if (!supabase) {
-    return memResolveStoreByWaId(waId, null)?.id ?? null
-  }
-  const { data } = await supabase
-    .from('store_phones')
-    .select('store_id')
-    .eq('wa_id', waId)
-    .limit(1)
-    .maybeSingle()
-  return (data?.store_id as string | null | undefined) ?? null
+): Promise<string[]> {
+  const digits = normalizePhoneDigits(waId)
+  if (!digits) return []
+  if (!supabase) return [...new Set(memListTickets().flatMap((ticket) => {
+    const store = memFindStoreById(ticket.store_id)
+    return store?.is_active && normalizePhoneDigits(store.manager_phone) === digits
+      ? [store.id]
+      : []
+  }))]
+
+  // Match formatted numbers in SQL, then require full normalized equality.
+  // A reporting phone or a generic store-phone link grants no feedback authority.
+  const tail = digits.slice(-9)
+  const { data, error } = await supabase
+    .from('stores')
+    .select('id, manager_phone')
+    .eq('is_active', true)
+    .ilike('manager_phone', `%${tail.split('').join('%')}%`)
+    .limit(500)
+  if (error) throw new Error(error.message)
+  return (data ?? [])
+    .filter((store) => normalizePhoneDigits(store.manager_phone as string | null) === digits)
+    .map((store) => String(store.id))
 }
 
 export type AwaitingConfirmTicket = {
@@ -51,11 +61,6 @@ export type StoreConfirmResolve =
   /** Supabase was expected but the identity-scoped query failed — never fall to demo memory. */
   | { outcome: 'unavailable' }
 
-function phoneTail(waId: string): string {
-  const digits = normalizePhoneDigits(waId) || waId.replace(/\D/g, '')
-  return digits.slice(-9)
-}
-
 function displayFor(row: {
   id: string
   display_number?: string | null
@@ -67,14 +72,13 @@ function displayFor(row: {
 }
 
 function memAwaitingForSender(waId: string): AwaitingConfirmTicket[] {
-  const linked = memResolveStoreByWaId(waId, null)
+  const digits = normalizePhoneDigits(waId)
   return memListTickets()
     .filter((ticket) => {
       if (ticket.status !== 'resolved' && ticket.status !== 'engaged') return false
       if (ticket.store_confirmed_at) return false
-      if (reporterPhoneMatches(waId, ticket.reporter_phone)) return true
-      if (linked && ticket.store_id === linked.id) return true
-      return false
+      const store = memFindStoreById(ticket.store_id)
+      return Boolean(digits && store?.is_active && normalizePhoneDigits(store.manager_phone) === digits)
     })
     .map((ticket) => ({
       id: ticket.id,
@@ -93,12 +97,19 @@ export async function senderAuthorizedForTicket(input: {
   reporterPhone: string | null | undefined
   supabase: SupabaseClient | null
 }): Promise<boolean> {
-  if (reporterPhoneMatches(input.waId, input.reporterPhone)) return true
-
-  if (!input.storeId) return false
-
-  const linkedStoreId = await resolveLinkedStoreId(input.supabase, input.waId)
-  return Boolean(linkedStoreId && linkedStoreId === input.storeId)
+  const digits = normalizePhoneDigits(input.waId)
+  if (!digits || !input.storeId) return false
+  if (!input.supabase) {
+    const store = memFindStoreById(input.storeId)
+    return Boolean(store?.is_active && normalizePhoneDigits(store.manager_phone) === digits)
+  }
+  const { data, error } = await input.supabase
+    .from('stores')
+    .select('manager_phone, is_active')
+    .eq('id', input.storeId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return Boolean(data?.is_active && normalizePhoneDigits(data.manager_phone as string | null) === digits)
 }
 
 async function loadTicketAuthFields(
@@ -157,7 +168,7 @@ async function loadTicketAuthFields(
 
 /**
  * Identity-scoped search for resolved tickets awaiting store confirm.
- * Filters in DB by reporter phone and/or authorized store — never loads a global window then filters.
+ * Filters in DB by current store-manager contact — never by original reporter.
  */
 export async function listAwaitingStoreConfirm(input: {
   waId: string
@@ -171,34 +182,21 @@ export async function listAwaitingStoreConfirm(input: {
   }
 
   const digits = normalizePhoneDigits(input.waId)
-  const tail = phoneTail(input.waId)
-  if (!digits && !tail) {
+  if (!digits) {
     return { ok: false, reason: 'no_identity' }
   }
 
-  let storeId: string | null = null
+  let storeIds: string[]
   try {
-    storeId = await resolveLinkedStoreId(input.supabase, input.waId)
+    storeIds = await managerStoreIdsForSender(input.supabase, input.waId)
   } catch (e) {
-    logEvent('whatsapp:store_confirm', 'warn', 'store_phone_lookup_failed', {
+    logEvent('whatsapp:store_confirm', 'warn', 'store_manager_lookup_failed', {
       error: e instanceof Error ? e.message : String(e),
     })
+    return { ok: false, reason: 'unavailable' }
   }
 
-  const phoneClauses: string[] = []
-  if (digits) phoneClauses.push(`reporter_phone.eq.${digits}`)
-  if (tail && tail.length >= 8) {
-    phoneClauses.push(`reporter_phone.ilike.%${tail}`)
-  }
-  // Common local storage form 05…
-  if (digits?.startsWith('972') && digits.length >= 12) {
-    phoneClauses.push(`reporter_phone.eq.0${digits.slice(3)}`)
-  }
-
-  const orParts = [...phoneClauses]
-  if (storeId) orParts.push(`store_id.eq.${storeId}`)
-
-  if (orParts.length === 0) {
+  if (storeIds.length === 0) {
     return { ok: false, reason: 'no_identity' }
   }
 
@@ -209,7 +207,7 @@ export async function listAwaitingStoreConfirm(input: {
     )
     .in('status', ['resolved', 'engaged'])
     .is('store_confirmed_at', null)
-    .or(orParts.join(','))
+    .in('store_id', storeIds)
     .order('updated_at', { ascending: false })
     .limit(10)
 
@@ -232,11 +230,7 @@ export async function listAwaitingStoreConfirm(input: {
       reporter_phone: (row.reporter_phone as string | null) ?? null,
       updated_at: (row.updated_at as string) ?? '',
     }))
-    // Defense in depth: PostgREST or-filter is broad; re-check sender auth.
-    .filter((row) => {
-      if (reporterPhoneMatches(input.waId, row.reporter_phone)) return true
-      return Boolean(storeId && row.store_id === storeId)
-    })
+    .filter((row) => Boolean(row.store_id && storeIds.includes(row.store_id)))
 
   return { ok: true, tickets }
 }
@@ -254,13 +248,21 @@ async function authorizeBoundTicket(input: {
     return { outcome: 'none' }
   }
 
-  const allowed = await senderAuthorizedForTicket({
-    waId: input.waId,
-    ticketId: ticket.id,
-    storeId: ticket.store_id,
-    reporterPhone: ticket.reporter_phone,
-    supabase: input.supabase,
-  })
+  let allowed = false
+  try {
+    allowed = await senderAuthorizedForTicket({
+      waId: input.waId,
+      ticketId: ticket.id,
+      storeId: ticket.store_id,
+      reporterPhone: ticket.reporter_phone,
+      supabase: input.supabase,
+    })
+  } catch (error) {
+    logEvent('whatsapp:store_confirm', 'warn', 'store_manager_lookup_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { outcome: 'unavailable' }
+  }
   if (!allowed) return { outcome: 'unauthorized' }
 
   if (input.requireResolved) {

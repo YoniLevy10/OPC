@@ -7,6 +7,7 @@ import {
   documentReminders,
   documentReminderStage,
   remindersFor,
+  renewDocument,
   isDocumentDueSoon,
   isDocumentOverdue,
   isHearingCalibrationType,
@@ -105,5 +106,49 @@ describe('C08 hearing calibrations', () => {
     expect(isDocumentOverdue(overdue, now)).toBe(true)
     expect(isDocumentDueSoon(overdue, now)).toBe(false)
     expect(documentNeedsReminder(overdue, now)).toBe(true)
+  })
+})
+
+describe('document renewal', () => {
+  const now = '2026-11-10T12:00:00.000Z'
+
+  it.each([
+    { sourceUrl: '', extractedExpiry: '2027-01-01' },
+    { sourceUrl: 'not a URL', extractedExpiry: '2027-01-01' },
+    { sourceUrl: 'javascript:alert(1)', extractedExpiry: '2027-01-01' },
+    { sourceUrl: 'https://user:password@example.com/new.pdf', extractedExpiry: '2027-01-01' },
+    { sourceUrl: 'https://mail.google.com/mail/u/0/#inbox/123', extractedExpiry: '2027-01-01' },
+    { sourceUrl: 'https://example.com/new.pdf', extractedExpiry: null },
+    { sourceUrl: 'https://example.com/new.pdf', extractedExpiry: '2027-02-30' },
+    { sourceUrl: 'https://example.com/new.pdf', extractedExpiry: '2026-11-09' },
+    { sourceUrl: 'https://example.com/new.pdf', extractedExpiry: '01/02/2027' },
+  ])('keeps the original active when the replacement is invalid ($sourceUrl, $extractedExpiry)', (replacement) => {
+    const original = doc()
+    const previous = { ...original }
+    expect(() => renewDocument(original, replacement, now)).toThrow()
+    expect(original).toEqual(previous)
+    expect(original.renewed).toBe(false)
+  })
+
+  it('creates a separate valid version without inheriting the old file or reminder dates', () => {
+    const original = doc({
+      storagePath: 'old.pdf', driveFileId: 'old-drive-file', computedNextCheck: '2026-11-15T00:00:00Z',
+      reminderSixAt: '2026-05-15T00:00:00Z', reminderTwoAt: '2026-09-15T00:00:00Z',
+    })
+    const result = renewDocument(original, { sourceUrl: ' https://example.com/new.pdf ', extractedExpiry: '2027-11-10' }, now)
+    expect(original.renewed).toBe(false)
+    expect(result.closed.renewed).toBe(true)
+    expect(result.next).toMatchObject({
+      sourceUrl: 'https://example.com/new.pdf', extractedExpiry: '2027-11-10T00:00:00.000Z',
+      version: 2, previousId: original.id, renewed: false, intakeStatus: 'ingested',
+      storagePath: null, driveFileId: null, computedNextCheck: null, reminderSixAt: null, reminderTwoAt: null,
+    })
+    expect(remindersFor(result.next).map((row) => row.at.slice(0, 10))).toEqual(['2027-05-10', '2027-09-10'])
+  })
+
+  it('does not renew an already retired version again', () => {
+    expect(() => renewDocument(doc({ renewed: true }), {
+      sourceUrl: 'https://example.com/new.pdf', extractedExpiry: '2027-11-10',
+    }, now)).toThrow('כבר חודש')
   })
 })

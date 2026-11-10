@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
+import { canReadTicket } from '@/lib/auth/types'
+import { storeProductRoles } from '@/lib/auth/roles'
 import { getById } from '@/modules/tickets/service'
 import { StatusLabel } from '@/components/ui/signal'
 import { Panel, KeyValue } from '@/components/ui/primitives'
@@ -34,7 +36,15 @@ export default async function StoreTicketPage({
   } catch {
     ticket = null
   }
-  if (!ticket) notFound()
+  if (!ticket || (actor && !canReadTicket(actor, ticket))) notFound()
+
+  const canConfirm = actor
+    ? actor.memberships.some((membership) =>
+        storeProductRoles().includes(membership.role) &&
+        membership.organization_id === ticket.organization_id &&
+        membership.store_id === ticket.store_id,
+      )
+    : shouldAllowDemoEntry()
 
   const etaLabel = formatRepairEtaHe(ticket.repair_eta_at)
   const holdLabel =
@@ -72,18 +82,27 @@ export default async function StoreTicketPage({
       </Panel>
       </PhoneFold>
 
-      {ticket.status === 'resolved' ? (
+      {ticket.status === 'engaged' ? (
+        <Panel elevated>
+          <p className="t-body text-ink">ארי אישר את העבודה. מנהל החנות מתאם את ההגעה ישירות עם איש המקצוע.</p>
+          <p className="t-meta mt-2 text-ink-2">התקלה נשארת פתוחה עד ביצוע העבודה ואישור התיקון בחנות.</p>
+        </Panel>
+      ) : null}
+
+      {canConfirm && ticket.status === 'resolved' ? (
         <StoreWaPrimaryNotice
           storeCode={ticket.stores?.code ?? '172'}
           mode="confirm"
         />
       ) : null}
 
-      <StoreConfirmButton
-        ticketId={ticket.id}
-        initialStatus={ticket.status}
-        qualityHoldUntil={ticket.quality_hold_until ?? null}
-      />
+      {canConfirm ? (
+        <StoreConfirmButton
+          ticketId={ticket.id}
+          initialStatus={ticket.status}
+          qualityHoldUntil={ticket.quality_hold_until ?? null}
+        />
+      ) : null}
 
       <Button asChild variant="ghost" size="touch" className="self-start">
         <Link href="/store">חזרה לרשימה</Link>

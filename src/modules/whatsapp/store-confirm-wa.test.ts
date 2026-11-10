@@ -1,9 +1,10 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import {
   memReset,
   memCreate,
   memAddMessage,
   memGet,
+  memFindStoreById,
   memLinkStorePhone,
   DEMO_TECH_ID,
   MEM_COUNTRY_ID,
@@ -36,6 +37,8 @@ async function seedResolved(opts: {
   description: string
 }) {
   const store = israelStoresAsRows().find((s) => s.code === opts.storeCode)!
+  const directory = memFindStoreById(store.id)!
+  directory.manager_phone = opts.waId
   const created = memCreate({
     store,
     description: opts.description,
@@ -68,9 +71,16 @@ async function seedResolved(opts: {
 }
 
 describe('store confirm via WhatsApp (C02 hardening)', () => {
+  const originalPhones = israelStoresAsRows().map((row) => ({ id: row.id, phone: memFindStoreById(row.id)?.manager_phone ?? null }))
   beforeEach(() => {
     process.env.MAINTAINOS_FORCE_MEMORY = '1'
     memReset()
+  })
+  afterEach(() => {
+    for (const original of originalPhones) {
+      const store = memFindStoreById(original.id)
+      if (store) store.manager_phone = original.phone
+    }
   })
 
   it('closes a resolved ticket when the store taps אשר תיקון', async () => {

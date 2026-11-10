@@ -22,7 +22,7 @@ export function StoreConfirmButton({
   const [holdPending, setHoldPending] = useState(false)
   const [holdUntil, setHoldUntil] = useState(qualityHoldUntil ?? null)
 
-  if (status !== 'resolved' && !done && !holdPending) return null
+  if (status !== 'resolved' && status !== 'engaged' && !done && !holdPending) return null
 
   async function confirm() {
     setBusy(true)
@@ -80,7 +80,8 @@ export function StoreConfirmButton({
   return (
     <div className="space-y-3">
       <Notice tone="progress">
-        גיבוי באתר: אשרו שהבעיה נפתרה. עדיף לאשר בוואטסאפ (כפתור או «מאשר»).
+        רק לאחר ביצוע העבודה ובדיקת התיקון בחנות, אשרו שהתקלה נפתרה.
+        אישור הזמנת העבודה של ארי אינו סוגר את התקלה.
       </Notice>
       {error ? <Notice tone="critical">{error}</Notice> : null}
       <form

@@ -61,13 +61,20 @@ describe('POST /api/tickets/[id]/confirm authorization', () => {
   })
 
   it.each<MemberRole>([
-    'store_employee', 'store_manager', 'global_admin', 'global_maintenance',
-    'country_manager', 'regional_manager',
+    'store_employee', 'store_manager',
   ])('allows %s within the ticket scope', async (role) => {
     mocks.requireActor.mockResolvedValue(actor(role))
     const response = await confirm()
     expect(response.status).toBe(200)
     expect(mocks.confirmStoreFix).toHaveBeenCalledExactlyOnceWith({ ticketId: 'ticket', actorLabel: 'Manager' })
+  })
+
+  it.each<MemberRole>([
+    'global_admin', 'global_maintenance', 'country_manager', 'regional_manager',
+  ])('does not let %s substitute for the store feedback', async (role) => {
+    mocks.requireActor.mockResolvedValue(actor(role))
+    expect((await confirm()).status).toBe(403)
+    expect(mocks.confirmStoreFix).not.toHaveBeenCalled()
   })
 
   it.each([

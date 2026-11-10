@@ -14,15 +14,12 @@ import {
   cancelEngagement,
 } from '@/modules/engagements/service'
 import { notifyReporter } from '@/modules/notifications/lifecycle-notify'
-import {
-  isQualityHoldActive,
-  formatQualityHoldHe,
-} from '@/modules/tickets/quality-hold'
+import { formatQualityHoldHe } from '@/modules/tickets/quality-hold'
 
 /**
  * Store staff confirms the fix.
- * B03: stamps store_confirmed_* immediately, but final close waits for
- * quality hold (30 days) unless Ari overrides via updateStatus.
+ * V2.1: store feedback closes the named fix immediately. Any existing
+ * quality-window dates remain historical follow-up metadata, not a close gate.
  */
 export async function confirmStoreFix(input: {
   ticketId: string
@@ -90,16 +87,6 @@ export async function confirmStoreFix(input: {
   await appendEvent(input.ticketId, 'store_confirmed', null, { by: actorLabel })
 
   const holdUntil = (row.quality_hold_until as string | null) ?? null
-  if (isQualityHoldActive(holdUntil, new Date(now))) {
-    return {
-      id: row.id,
-      status: 'resolved',
-      store_confirmed_at: now,
-      quality_hold_until: holdUntil,
-      pending_final_close: true,
-    }
-  }
-
   const closed = await updateStatus(input.ticketId, 'closed')
   const detail = await getById(closed.id)
   if (detail) await notifyReporter(detail, 'closed')
@@ -109,6 +96,7 @@ export async function confirmStoreFix(input: {
     status: closed.status,
     store_confirmed_at: now,
     quality_hold_until: holdUntil,
+    pending_final_close: false,
   }
 }
 
@@ -139,16 +127,6 @@ async function confirmStoreFixMemoryFallback(
   ticket.updated_at = now
   memAddEvent(ticket.id, 'store_confirmed', { by: actorLabel }, null)
 
-  if (isQualityHoldActive(ticket.quality_hold_until, new Date(now))) {
-    return {
-      id: ticket.id,
-      status: 'resolved',
-      store_confirmed_at: now,
-      quality_hold_until: ticket.quality_hold_until ?? null,
-      pending_final_close: true,
-    }
-  }
-
   const closed = await updateStatus(ticket.id, 'closed')
   const detail = await getById(closed.id)
   if (detail) await notifyReporter(detail, 'closed')
@@ -157,6 +135,7 @@ async function confirmStoreFixMemoryFallback(
     status: closed.status,
     store_confirmed_at: now,
     quality_hold_until: ticket.quality_hold_until ?? null,
+    pending_final_close: false,
   }
 }
 

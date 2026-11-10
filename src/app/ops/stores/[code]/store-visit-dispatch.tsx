@@ -1,33 +1,17 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { Truck } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/ui/primitives'
-import { useToast } from '@/components/ui/toast'
-import {
-  VisitConfirmSheet,
-  buildVisitIdempotencyKey,
-  scheduledAtToIso,
-  useSubmitGuard,
-  type VisitResult,
-} from '@/app/ops/tickets/visit-confirm-sheet'
-import { approveVisitCommitments } from '@/app/ops/tickets/visit-approval-actions'
+import { VisitPlanSheet } from '@/app/ops/tickets/visit-plan-sheet'
+import type { VisitPlanTicket } from '@/modules/visits/plan'
 
 type TicketOpt = {
   id: string
   label: string
   title: string
-  spendBlock?: string | null
   category?: string | null
-}
-type VendorOpt = {
-  id: string
-  name: string
-  specialties?: string
-  coverage?: string[] | null
-  phone?: string | null
 }
 
 export function StoreVisitDispatch({
@@ -36,232 +20,65 @@ export function StoreVisitDispatch({
   city,
   region,
   tickets,
-  vendors,
 }: {
   storeId: string
   storeCode: string
   city?: string | null
   region?: string | null
   tickets: TicketOpt[]
-  vendors: VendorOpt[]
 }) {
-  const router = useRouter()
-  const toast = useToast()
-  const [, startTransition] = useTransition()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState(false)
-  const [vendorId, setVendorId] = useState(vendors[0]?.id ?? '')
-  const [notes, setNotes] = useState('')
-  const [scheduledAt, setScheduledAt] = useState('')
-  const [result, setResult] = useState<VisitResult | null>(null)
-  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
-  const { busy, run } = useSubmitGuard()
-
-  const selectedList = useMemo(
-    () => tickets.filter((t) => selected.has(t.id)),
-    [tickets, selected],
+  const [snapshot, setSnapshot] = useState<VisitPlanTicket[] | null>(null)
+  const [session, setSession] = useState(0)
+  const selectedTickets = useMemo(
+    () => snapshot ?? tickets.filter((ticket) => selected.has(ticket.id))
+      .map((ticket) => ({ ...ticket, storeId, storeCode, city, region })),
+    [snapshot, tickets, selected, storeId, storeCode, city, region],
   )
 
   function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
+    setSelected((current) => {
+      const next = new Set(current)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
   }
 
-  function openSheet() {
-    if (selectedList.length === 0) return
-    setResult(null)
-    setIdempotencyKey(
-      buildVisitIdempotencyKey({
-        storeId,
-        vendorId: vendorId || vendors[0]?.id || '',
-        ticketIds: selectedList.map((t) => t.id),
-      }),
-    )
-    setOpen(true)
-  }
-
-  async function postVisit(opts?: {
-    retryFailedOnly?: boolean
-    retryTicketIds?: string[]
-  }) {
-    if (selectedList.length === 0 || !vendorId) return
-    const key =
-      idempotencyKey ??
-      buildVisitIdempotencyKey({
-        storeId,
-        vendorId,
-        ticketIds: selectedList.map((t) => t.id),
-      })
-    setIdempotencyKey(key)
-
-    await run(async () => {
-      const res = await fetch('/api/ops/visits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          storeId,
-          ticketIds: selectedList.map((t) => t.id),
-          vendorId,
-          notes: notes.trim() || undefined,
-          scheduledAt: scheduledAtToIso(scheduledAt),
-          idempotencyKey: key,
-          retryFailedOnly: opts?.retryFailedOnly ?? false,
-          retryTicketIds: opts?.retryTicketIds,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok && res.status !== 207) {
-        toast.push({
-          title:
-            typeof data.error === 'string'
-              ? data.error
-              : res.status === 400
-                ? 'בקשה לא תקינה — בדקו מזהי חנות/תקלה/ספק'
-                : 'שיגור הביקור נכשל',
-          tone: 'critical',
-        })
-        return
-      }
-      const visit = data.visit as VisitResult | undefined
-      if (!visit?.items) {
-        toast.push({ title: 'תשובה לא תקינה מהשרת', tone: 'critical' })
-        return
-      }
-      setResult(visit)
-      const failed = visit.items.filter((i) => i.can_retry).length
-      if (failed === 0 && visit.status === 'dispatched') {
-        toast.push({
-          title: `ביקור שובץ לחנות #${storeCode}`,
-          tone: 'success',
-        })
-        setSelected(new Set())
-        startTransition(() => router.refresh())
-      } else if (failed > 0) {
-        toast.push({
-          title: `שיגור חלקי · ${failed} נכשלו`,
-          tone: 'critical',
-        })
-        startTransition(() => router.refresh())
-      } else {
-        startTransition(() => router.refresh())
-      }
-    })
-  }
-
-  async function approveAndSend(ticketIds: string[]) {
-    const vendorName = vendors.find((row) => row.id === vendorId)?.name ?? ''
-    let approved = false
-    await run(async () => {
-      try {
-        await approveVisitCommitments(ticketIds, vendorName)
-        approved = true
-      } catch (error) {
-        toast.push({
-          title: error instanceof Error ? error.message : 'האישור נכשל',
-          tone: 'critical',
-        })
-      }
-    })
-    if (approved) {
-      await postVisit({ retryFailedOnly: true, retryTicketIds: ticketIds })
-    }
-  }
-
   return (
     <Panel elevated>
-      <p className="t-section mb-1 text-ink">שיגור ביקור משולב</p>
-      <p className="t-caption mb-3 text-ink-3">
-        סמנו תקלות בחנות זו ושלחו ביקור אחד לספק
-      </p>
+      <p className="t-section mb-1 text-ink">תכנון ביקור</p>
+      <p className="t-caption mb-3 text-ink-3">סמנו תקלות. המערכת תרכז אותן לפי המקצוע והמיקום לפני בחירת איש מקצוע.</p>
       <ul className="mb-3 space-y-2">
-        {tickets.map((t) => (
-          <li key={t.id}>
+        {tickets.map((ticket) => (
+          <li key={ticket.id}>
             <label className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1.5 hover:bg-surface-sunken/50">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 accent-[var(--tenant)]"
-                checked={selected.has(t.id)}
-                onChange={() => toggle(t.id)}
-              />
+              <input type="checkbox" aria-label={`בחירה לביקור ${ticket.label}`} className="mt-1 h-5 w-5 accent-[var(--tenant)]" checked={selected.has(ticket.id)} onChange={() => toggle(ticket.id)} />
               <span className="min-w-0">
-                <span className="t-caption t-num font-semibold text-ink">
-                  {t.label}
-                </span>
-                <span className="t-body block line-clamp-1 text-ink-2">
-                  {t.title}
-                </span>
-                {t.spendBlock ? (
-                  <span className="t-caption block text-[var(--signal-critical)]">
-                    {t.spendBlock}
-                  </span>
-                ) : null}
+                <span className="t-caption t-num font-semibold text-ink">{ticket.label}</span>
+                <span className="t-body block line-clamp-1 text-ink-2">{ticket.title}</span>
               </span>
             </label>
           </li>
         ))}
       </ul>
-      {vendors.length === 0 ? (
-        <p className="t-body mb-2 text-[var(--signal-warning)]" role="status">
-          אין ספקים פעילים לשיגור — הוסיפו ספק במאגר
-        </p>
-      ) : null}
-      <Button
-        type="button"
-        variant="primary"
-        size="touch"
-        className="w-full"
-        disabled={selectedList.length === 0 || vendors.length === 0}
-        onClick={openSheet}
-      >
-        <Truck className="h-4 w-4" aria-hidden />
-        שיגור ביקור ({selectedList.length})
+      <Button type="button" variant="primary" size="touch" className="w-full" disabled={selectedTickets.length === 0} onClick={() => { setSnapshot(selectedTickets); setOpen(true) }}>
+        <ClipboardList className="h-4 w-4" aria-hidden />
+        תכנון ביקור ({selectedTickets.length})
       </Button>
-
-      <VisitConfirmSheet
+      <VisitPlanSheet
+        key={session}
         open={open}
-        onOpenChange={(next) => {
-          setOpen(next)
-          if (!next) setResult(null)
+        tickets={selectedTickets}
+        onDismiss={({ complete, hasApprovals }) => {
+          setOpen(false)
+          if (complete) {
+            setSelected(new Set())
+            setSnapshot(null)
+            setSession((current) => current + 1)
+          } else if (!hasApprovals) setSnapshot(null)
         }}
-        title={`ביקור · חנות #${storeCode}`}
-        storeLabel={`חנות #${storeCode}`}
-        tickets={selectedList}
-        vendors={vendors}
-        city={city}
-        region={region}
-        category={selectedList[0]?.category}
-        vendorId={vendorId}
-        onVendorIdChange={(id) => {
-          setVendorId(id)
-          setIdempotencyKey(
-            buildVisitIdempotencyKey({
-              storeId,
-              vendorId: id,
-              ticketIds: selectedList.map((t) => t.id),
-            }),
-          )
-        }}
-        notes={notes}
-        onNotesChange={setNotes}
-        scheduledAt={scheduledAt}
-        onScheduledAtChange={setScheduledAt}
-        busy={busy}
-        canSubmit={selectedList.length > 0}
-        result={result}
-        onSubmit={() => void postVisit()}
-        onRetryFailed={() => void postVisit({ retryFailedOnly: true })}
-        onRetryTicket={(ticketId) =>
-          void postVisit({
-            retryFailedOnly: true,
-            retryTicketIds: [ticketId],
-          })
-        }
-        onApprove={(ticketIds) => void approveAndSend(ticketIds)}
       />
     </Panel>
   )

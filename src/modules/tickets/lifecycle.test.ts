@@ -42,9 +42,13 @@ async function seed(status: TicketStatus = 'new') {
         proofAlreadyAttached: true,
       })
     } else if (next === 'closed') {
-      // Expire quality hold so seed can reach closed without Ari override.
+      // Seed prior store feedback and expire its hold before final closure.
       const mem = memGet(current.id)
-      if (mem) mem.quality_hold_until = new Date(Date.now() - 1000).toISOString()
+      if (mem) {
+        mem.quality_hold_until = new Date(Date.now() - 1000).toISOString()
+        mem.store_confirmed_at = new Date().toISOString()
+        mem.store_confirmed_by = 'מנהל חנות בדיקה'
+      }
       current = await updateStatus(current.id, next)
     } else {
       current = await updateStatus(current.id, next)

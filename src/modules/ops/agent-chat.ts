@@ -265,6 +265,7 @@ export async function loadOpsSnapshot(actor: Actor | null, locale: Locale = 'he'
     resolvedAt: ticket.resolved_at,
     firstResponseAt: ticket.first_response_at,
     regionId: ticket.region_id,
+    city: ticket.stores?.city,
     urgent: ticketIsUrgent(ticket),
     dispatched: ticket.status === 'waiting_vendor' || ticket.status === 'engaged',
   }))

@@ -176,6 +176,7 @@ export type DocumentReminder = {
 
 /** Two reminders on every dated document: half a year before, then two months before. */
 export function documentReminders(expiryIso: string): DocumentReminder[] {
+  if (Number.isNaN(new Date(expiryIso).getTime())) return []
   return [
     { months: 6, label: 'חצי שנה לפני', at: shiftMonthsUtc(expiryIso, -6) },
     { months: 2, label: 'חודשיים לפני', at: shiftMonthsUtc(expiryIso, -2) },
@@ -221,7 +222,41 @@ function shiftMonthsUtc(iso: string, months: number): string {
   return date.toISOString()
 }
 
-/** A renewal closes only after a new file is attached and marked ingested. */
+/** Validate a file link's syntax; accessibility and file contents need separate verification. */
+function renewalFileUrl(value: string): string {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    throw new Error('נדרש קישור תקין למסמך המעודכן')
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+    throw new Error('נדרש קישור HTTP או HTTPS למסמך המעודכן')
+  }
+  if (/^(mail\.google\.com)$/i.test(url.hostname) || /^\/mail(?:\/|$)/i.test(url.pathname) && url.hostname === 'google.com') {
+    throw new Error('נדרש קישור למסמך עצמו, ולא להודעת הדואר')
+  }
+  return url.href
+}
+
+function renewalExpiry(value: string | null, now: string): string {
+  const expiry = value?.trim() ?? ''
+  const day = expiry.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))?$/.test(expiry)) {
+    throw new Error('נדרש תאריך תוקף תקין למסמך המעודכן')
+  }
+  const midnight = new Date(`${day}T00:00:00.000Z`)
+  const date = new Date(expiry)
+  if (
+    Number.isNaN(date.getTime()) || Number.isNaN(midnight.getTime()) ||
+    midnight.toISOString().slice(0, 10) !== day || date.getTime() <= new Date(now).getTime()
+  ) {
+    throw new Error('תוקף המסמך המעודכן חייב להיות תאריך תקין בעתיד')
+  }
+  return date.toISOString()
+}
+
+/** Only a valid replacement link and future expiry retire the previous version. */
 export function renewDocument(
   current: StoreDocument,
   nextFile: { sourceUrl: string; extractedExpiry: string | null },
@@ -230,14 +265,22 @@ export function renewDocument(
   if (!nextFile.sourceUrl.trim()) {
     throw new Error('חידוש נסגר רק אחרי צירוף מסמך מעודכן')
   }
+  if (current.renewed) throw new Error('המסמך כבר חודש')
+  const sourceUrl = renewalFileUrl(nextFile.sourceUrl)
+  const extractedExpiry = renewalExpiry(nextFile.extractedExpiry, now)
   const closed: StoreDocument = { ...current, renewed: true }
   const next: StoreDocument = {
     ...current,
     id: `${current.id}-v${current.version + 1}`,
-    sourceUrl: nextFile.sourceUrl,
-    extractedExpiry: nextFile.extractedExpiry,
-    intakeStatus: nextFile.extractedExpiry ? 'ingested' : 'needs_review',
-    intakeReason: nextFile.extractedExpiry ? null : 'תאריך התוקף לא ברור',
+    sourceUrl,
+    extractedExpiry,
+    computedNextCheck: null,
+    storagePath: null,
+    driveFileId: null,
+    reminderSixAt: null,
+    reminderTwoAt: null,
+    intakeStatus: 'ingested',
+    intakeReason: null,
     version: current.version + 1,
     previousId: current.id,
     renewed: false,

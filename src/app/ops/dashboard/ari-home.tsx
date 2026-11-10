@@ -27,6 +27,7 @@ function StoreFolder({
   onToggle,
   ticketCost,
   storeCost,
+  costsAvailable,
 }: {
   store: AriHomeStore
   tone: 'now' | 'quiet'
@@ -34,6 +35,7 @@ function StoreFolder({
   onToggle: () => void
   ticketCost: Record<string, string>
   storeCost: Record<string, string>
+  costsAvailable: boolean
 }) {
   const p = usePhrase()
   const openHere = store.categories.reduce(
@@ -78,7 +80,7 @@ function StoreFolder({
 
       {open ? (
         <div className="border-t border-border">
-          <div className="px-4 py-4">
+          {costsAvailable ? <div className="px-4 py-4">
             <p className="t-caption text-ink-3">{p('נרשם')}</p>
             {range ? (
               <p className="t-title t-num mt-1 text-ink">{range}</p>
@@ -88,7 +90,7 @@ function StoreFolder({
             <p className="t-meta mt-1 text-ink-2">
               {p('רק סכום שנרשם על התקלות האלה')}
             </p>
-          </div>
+          </div> : null}
           {store.categories.map((category) => (
             <div key={category.key} className="border-t border-border first:border-t-0">
               <p className="t-caption px-4 pt-3 text-ink-3">{category.label}</p>
@@ -164,6 +166,8 @@ export function AriHomeBoard({
   storeCost = {},
   recordedSummary = null,
   notice,
+  dataIncomplete = false,
+  costsAvailable = true,
 }: {
   model: AriHomeModel
   stats: AriHomeStats
@@ -171,6 +175,8 @@ export function AriHomeBoard({
   storeCost?: Record<string, string>
   recordedSummary?: string | null
   notice: string | null
+  dataIncomplete?: boolean
+  costsAvailable?: boolean
 }) {
   const p = usePhrase()
   const nowStores = model.stores.filter(storeNeedsDecision)
@@ -192,7 +198,7 @@ export function AriHomeBoard({
     },
     {
       href: '/ops/tickets?view=resolved',
-      label: p('נסגרו היום'),
+      label: p('טופלו היום'),
       value: stats.closedToday,
       accent: false,
     },
@@ -203,8 +209,8 @@ export function AriHomeBoard({
       accent: stats.overdue > 0,
     },
     {
-      href: '/ops/tickets?view=urgent',
-      label: p('מחכות לאישור'),
+      href: '#decisions',
+      label: p('הוצאות לבדיקה'),
       value: stats.awaitingApproval,
       accent: stats.awaitingApproval > 0,
     },
@@ -231,7 +237,7 @@ export function AriHomeBoard({
                 metric.accent ? 'text-[var(--tenant)]' : 'text-ink',
               )}
             >
-              {metric.value}
+              {dataIncomplete ? '—' : metric.value}
             </span>
             <span className="t-body mt-3 block text-ink-2">{metric.label}</span>
           </Link>
@@ -245,9 +251,12 @@ export function AriHomeBoard({
         </div>
       ) : null}
 
-      {model.stores.length === 0 ? (
+      <details className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+      <summary className="t-section cursor-pointer text-ink">{p('תקלות לפי חנות')}</summary>
+      <div className="mt-4">
+      {model.stores.length === 0 && !dataIncomplete ? (
         <p className="t-title rounded-[var(--radius-md)] bg-surface-sunken px-4 py-8 text-center text-ink-2">
-          {p('הכל שקט')}
+          {p('אין תקלות פתוחות ברשימה')}
         </p>
       ) : (
         <>
@@ -255,7 +264,7 @@ export function AriHomeBoard({
             <section>
               <header className="mb-3 flex items-end justify-between gap-3">
                 <div>
-                  <h2 className="t-section text-ink">{p('עכשיו')}</h2>
+                  <h2 className="t-section text-ink">{p('דחופות או באיחור')}</h2>
                   <span aria-hidden className="clay-rule" />
                 </div>
                 <span className="t-meta t-num text-ink-3">{nowStores.length}</span>
@@ -270,20 +279,21 @@ export function AriHomeBoard({
                     onToggle={() => setOpenStore(openStore === store.id ? null : store.id)}
                     ticketCost={ticketCost}
                     storeCost={storeCost}
+                    costsAvailable={costsAvailable}
                   />
                 ))}
               </div>
             </section>
-          ) : (
+          ) : !dataIncomplete ? (
             <p className="t-body rounded-[var(--radius-md)] bg-surface-sunken px-4 py-4 text-ink-2">
-              {p('הכל שקט')}
+              {p('אין תקלות דחופות ברשימה')}
             </p>
-          )}
+          ) : null}
 
           {quietStores.length > 0 ? (
             <section>
               <header className="mb-3 flex items-end justify-between gap-3">
-                <h2 className="t-section text-ink-2">{p('שקט')}</h2>
+                <h2 className="t-section text-ink-2">{p('יתר החנויות')}</h2>
                 <span className="t-meta t-num text-ink-3">{quietStores.length}</span>
               </header>
               <div className="flex flex-col gap-2">
@@ -296,6 +306,7 @@ export function AriHomeBoard({
                     onToggle={() => setOpenStore(openStore === store.id ? null : store.id)}
                     ticketCost={ticketCost}
                     storeCost={storeCost}
+                    costsAvailable={costsAvailable}
                   />
                 ))}
               </div>
@@ -312,6 +323,8 @@ export function AriHomeBoard({
             </Link>
           </div>
         ) : null}
+      </div>
+      </details>
     </div>
   )
 }

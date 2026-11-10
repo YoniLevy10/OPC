@@ -1,4 +1,4 @@
-/** B03 — 30-day quality hold after resolve, before final close. */
+/** Legacy 30-day follow-up metadata. V2.1 does not delay store-confirmed closure. */
 
 export const QUALITY_HOLD_DAYS = 30
 
@@ -24,15 +24,15 @@ export type QualityCloseCandidate = {
   quality_hold_until?: string | null
 }
 
-/** Store already confirmed, and the 30-day hold has ended. */
+/** Reconcile a legacy resolved ticket once the store has confirmed it. */
 export function eligibleForQualityClose(
   ticket: QualityCloseCandidate,
-  now: Date = new Date(),
+  _now: Date = new Date(),
 ): boolean {
+  void _now // Retained for callers using the legacy time-based helper signature.
   if (ticket.status !== 'resolved') return false
   if (!ticket.store_confirmed_at) return false
-  if (!ticket.quality_hold_until) return false
-  return !isQualityHoldActive(ticket.quality_hold_until, now)
+  return true
 }
 
 export function isQualityHoldActive(
@@ -52,7 +52,7 @@ export function formatQualityHoldHe(
   if (!holdUntil) return null
   const until = typeof holdUntil === 'string' ? new Date(holdUntil) : holdUntil
   if (Number.isNaN(until.getTime())) return null
-  if (until.getTime() <= now.getTime()) return 'החזקת האיכות הסתיימה — ניתן לסגור סופית'
+  if (until.getTime() <= now.getTime()) return 'תקופת המעקב אחרי התיקון הסתיימה'
   const daysLeft = Math.max(
     1,
     Math.ceil((until.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)),
@@ -61,5 +61,5 @@ export function formatQualityHoldHe(
     day: 'numeric',
     month: 'short',
   })
-  return `החזקת איכות · נותרו ${daysLeft} ימים (עד ${dateLabel})`
+  return `מעקב אחרי התיקון · נותרו ${daysLeft} ימים (עד ${dateLabel}); אישור החנות סוגר את התקלה מיד`
 }

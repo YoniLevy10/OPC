@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { createStore172Ticket, DEMO_TECH_ID, patchTicket, authHeaders, HQ_ADMIN_ID } from './helpers/api'
+import { TEST_ACTOR_COOKIE } from '../src/lib/auth/demo-session'
 
 test.describe('Pilot scenarios (memory backend)', () => {
+  test.beforeEach(async ({ context, baseURL }) => {
+    await context.addCookies([{ name: TEST_ACTOR_COOKIE, value: HQ_ADMIN_ID, url: baseURL! }])
+  })
   test('2 — public web report creates ticket', async ({ page }) => {
     await page.goto('/report?store=172', { waitUntil: 'domcontentloaded' })
     await page.getByLabel('תיאור התקלה').fill('בדיקת פיילוט — דליפת מים ליד הדלפק')
@@ -9,25 +13,22 @@ test.describe('Pilot scenarios (memory backend)', () => {
     await expect(page.getByText(/הדיווח התקבל/i)).toBeVisible({ timeout: 15_000 })
   })
 
-  test('3 — HQ locks Midrag engagement (אשר עסקה)', async ({ page, request }) => {
+  test('3 — Ari plans the visit and approves agreed contact and price', async ({ page, request }) => {
     const { ticketId } = await createStore172Ticket(request)
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(`/ops/tickets/${ticketId}`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading').first()).toBeVisible()
-    // Ticket detail uses EngagementPanel (Midrag) — not the legacy "שייך טכנאי" sheet.
-    const markUrgent = page.getByRole('button', { name: 'סמן כדחוף' })
-    if ((await markUrgent.count()) > 0) {
-      await markUrgent.click()
-      await expect(page.getByRole('button', { name: 'אשר עסקה' })).toBeVisible({
-        timeout: 10_000,
-      })
-    }
-    await page.getByLabel('שם אחרי השיחה').fill('טכנאי דמו')
-    await page.getByLabel('טלפון').fill('0501234567')
-    await page.getByLabel('מחיר שסוכם').fill('450')
-    await page.getByRole('button', { name: 'אשר עסקה' }).click()
+    await page.getByRole('button', { name: 'תכנון ביקור', exact: true }).click()
+    const plan = page.getByRole('dialog', { name: 'תכנון ביקור', exact: true })
+    await expect(plan.getByRole('link', { name: /חיפוש במידרג/ })).toHaveAttribute('href', /serviceId=284&cityId=1243/)
+    await plan.getByLabel('שם איש המקצוע', { exact: true }).fill('טכנאי דמו')
+    await plan.getByLabel('טלפון איש המקצוע', { exact: true }).fill('0501234567')
+    await plan.getByLabel('מחיר שסוכם לכל הביקור (₪)', { exact: true }).fill('450')
+    await plan.getByRole('button', { name: 'אשר טיפול והעבר לחנות', exact: true }).click()
+    await expect(plan.getByText('ארי אישר את הטיפול', { exact: true })).toBeVisible()
+    await plan.getByRole('button', { name: 'סגור', exact: true }).click()
     await expect(
-      page.getByText(/ארי יצא|המחיר נעול|מנהל החנות מתאם/i).first(),
+      page.getByText('הטיפול אושר. מנהל החנות מתאם.', { exact: true }),
     ).toBeVisible({ timeout: 15_000 })
   })
 

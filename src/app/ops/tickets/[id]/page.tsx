@@ -52,9 +52,8 @@ import { PhoneFold as TicketFold, PhoneFoldStack as TicketFoldStack } from '@/co
 import { formatQualityHoldHe, isQualityHoldActive } from '@/modules/tickets/quality-hold'
 import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
 import { ticketDecision } from '@/modules/decisions/queue'
-import { lockedEngagementFor } from '@/modules/engagements/service'
-import { loadMidragResults } from '@/modules/vendors/midrag/live-results'
-import { recommendBundles, type BundleFault } from '@/modules/whatsapp/agent/bundle'
+import { getEngagementHandoffs, lockedEngagementFor } from '@/modules/engagements/service'
+import { buildVisitPlan, isVisitPlannableStatus, type VisitPlanTicket } from '@/modules/visits/plan'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 
 export const dynamic = 'force-dynamic'
@@ -130,56 +129,42 @@ export default async function TicketDetailPage({
   const etaLabel = formatRepairEtaHe(ticket.repair_eta_at)
   const prevention = suggestPrevention(hits)
   const urgent = ticketIsUrgent(ticket)
-  const locked = await lockedEngagementFor(ticket.id).catch(() => null)
-  const midrag =
-    urgent && ticket.status !== 'engaged'
-      ? await loadMidragResults({
-          category: ticket.category,
-          city: ticket.stores?.city ?? null,
-        }).catch(() => null)
-      : null
-  const openForBundle = (history.tickets ?? []).filter((row) => row.id !== ticket.id)
-  const bundleCards = recommendBundles({
-    open: [
-      {
-        id: ticket.id,
-        storeId: ticket.store_id,
-        storeName,
-        category: ticket.category,
-        priority: ticket.priority,
-        status: ticket.status,
-        summary: ticket.description,
-        createdAt: ticket.created_at,
-        regionId: ticket.region_id,
-        urgent,
-      },
-      ...openForBundle.map(
-        (row): BundleFault => ({
-          id: row.id,
-          storeId: row.store_id,
-          storeName: row.stores?.name || row.stores?.code || 'סניף',
-          category: row.category,
-          priority: row.priority,
-          status: row.status,
-          summary: row.title || row.description,
-          createdAt: row.created_at,
-          regionId: row.region_id,
-          urgent: ticketIsUrgent(row),
-        }),
-      ),
-    ],
-  })
-  const companionIds =
-    bundleCards.find((card) => card.kind === 'urgent' && card.ticketIds[0] === ticket.id)
-      ?.ticketIds.slice(1) ?? []
-  const companions = companionIds.map((id) => {
-    const row = openForBundle.find((item) => item.id === id)
-    return {
-      id,
-      storeName: row?.stores?.name || storeName,
-      summary: row?.title || row?.description || 'תקלה',
-    }
-  })
+  const existingLock = await lockedEngagementFor(ticket.id).catch(() => null)
+  const locked = existingLock ? {
+    ...existingLock,
+    handoffs: await getEngagementHandoffs(ticket.id).catch(() => []),
+  } : null
+  const planTicket: VisitPlanTicket = {
+    id: ticket.id,
+    label: ticket.display_number || (ticket.number != null ? `OC-${ticket.number}` : ticket.id.slice(0, 8)),
+    title: ticket.title || ticket.description,
+    storeId: ticket.store_id,
+    storeCode: storeCode || '',
+    city: ticket.stores?.city,
+    region: ticket.region_id,
+    category: ticket.category,
+  }
+  const companions = (history.tickets ?? [])
+    .filter((row) => row.id !== ticket.id &&
+      isVisitPlannableStatus(row.status) &&
+      (!actor || actorCanAccessTicket(actor, row)))
+    .map((row): VisitPlanTicket => ({
+      id: row.id,
+      label: row.display_number || (row.number != null ? `OC-${row.number}` : row.id.slice(0, 8)),
+      title: row.title || row.description,
+      storeId: row.store_id,
+      storeCode: row.stores?.code || '',
+      city: row.stores?.city,
+      region: row.region_id,
+      category: row.category,
+    }))
+    .filter((row) => {
+      const plan = buildVisitPlan([planTicket, row])
+      return plan.length === 1 && plan[0].ready
+    })
+  const canApprove = Boolean(actor?.memberships.some((membership) =>
+    membership.role === 'global_admin' || membership.role === 'global_maintenance')) ||
+    (!actor && shouldAllowDemoEntry())
   const tx = (key: MessageKey, vars?: Record<string, string | number>) =>
     translate(locale, key, vars)
   const categoryKey = `category.${ticket.category}` as MessageKey
@@ -371,14 +356,12 @@ export default async function TicketDetailPage({
 
         <div id="ticket-actions">
           <EngagementPanel
-            ticketId={ticket.id}
+            ticket={planTicket}
             urgent={urgent}
             status={ticket.status}
             locked={locked}
-            pros={midrag?.pros ?? []}
-            searchUrl={midrag?.searchUrl ?? 'https://www.midrag.co.il/Search/InSector'}
-            fallback={midrag?.fallback ?? true}
             companions={companions}
+            canApprove={canApprove}
           />
         </div>
       </div>

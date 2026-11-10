@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const db = vi.hoisted(() => ({
+  ticketStatus: 'engaged',
+  holdUntil: null as string | null,
   rows: [] as { id: string; status: string; store_confirmed_at: string | null }[],
   updateError: null as { message: string } | null,
   update: vi.fn(),
@@ -21,7 +23,7 @@ vi.mock('@/lib/supabase/system', () => ({
     from: () => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({ data: { id: 'lead', status: 'engaged' }, error: null }),
+          maybeSingle: async () => ({ data: { id: 'lead', status: db.ticketStatus, quality_hold_until: db.holdUntil }, error: null }),
         }),
         in: async (_column: string, ids: string[]) => {
           db.memberIds(ids)
@@ -57,6 +59,8 @@ import { confirmStoreFix } from './store-confirm'
 describe('store feedback persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    db.ticketStatus = 'engaged'
+    db.holdUntil = null
     db.updateError = null
     db.rows = [
       { id: 'lead', status: 'closed', store_confirmed_at: '2026-11-10T11:00:00Z' },
@@ -101,5 +105,15 @@ describe('store feedback persistence', () => {
     await expect(confirmStoreFix({ ticketId: 'lead' })).rejects.toThrow('feedback write failed')
     expect(db.closeTicket).not.toHaveBeenCalled()
     expect(db.closeVisit).not.toHaveBeenCalled()
+  })
+
+  it('closes a persisted resolved repair immediately after feedback despite a future follow-up date', async () => {
+    db.ticketStatus = 'resolved'
+    db.holdUntil = '2099-12-31T12:00:00Z'
+    const result = await confirmStoreFix({ ticketId: 'lead', actorLabel: 'manager' })
+    expect(db.closeTicket).toHaveBeenCalledExactlyOnceWith('lead', 'closed')
+    expect(result.status).toBe('closed')
+    expect(result.pending_final_close).toBe(false)
+    expect(result.quality_hold_until).toBe(db.holdUntil)
   })
 })

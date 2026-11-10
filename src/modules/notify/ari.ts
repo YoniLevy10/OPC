@@ -15,10 +15,18 @@ import {
 } from '@/modules/whatsapp/templates'
 
 function failedSend(err: unknown): SendWhatsAppResult {
+  const error = err instanceof Error ? err.message : String(err)
   logEvent('notify:phone', 'warn', 'whatsapp_failed', {
-    error: err instanceof Error ? err.message : String(err),
+    error,
   })
-  return { ok: false, dryRun: false, waMessageId: null }
+  return { ok: false, dryRun: false, waMessageId: null, error }
+}
+
+export type PhoneNotificationResult = {
+  to: string
+  status: 'sent' | 'failed' | 'dry_run'
+  messageId: string | null
+  error: string | null
 }
 
 export async function notifyPhone(
@@ -26,9 +34,11 @@ export async function notifyPhone(
   message: string,
   meta?: Record<string, unknown>,
   forceDryRun = false,
-) {
+): Promise<PhoneNotificationResult> {
   const text = message.trim()
-  if (!text || !to.trim()) return
+  if (!text || !to.trim()) {
+    return { to, status: 'failed', messageId: null, error: 'missing_recipient_or_message' }
+  }
   const dry = forceDryRun || process.env.MAINTAINOS_FORCE_MEMORY === '1'
   // SMS disabled for pilot cost — WhatsApp / ops web only.
   let whatsapp = await sendWhatsAppText({
@@ -66,21 +76,29 @@ export async function notifyPhone(
       dryRun: template.dryRun,
       error: template.error ?? null,
     })
-    if (template.ok) whatsapp = template
+    whatsapp = template
   }
 
-  logEvent('notify:phone', 'info', 'sent', {
+  const status = whatsapp.dryRun ? 'dry_run' : whatsapp.ok && whatsapp.waMessageId ? 'sent' : 'failed'
+  logEvent('notify:phone', status === 'failed' ? 'warn' : 'info', status, {
     ...meta,
     sms: false,
     whatsapp: whatsapp.ok,
     outsideWindow,
   })
+  return {
+    to,
+    status,
+    messageId: whatsapp.waMessageId,
+    error: status === 'failed' ? whatsapp.error ?? (whatsapp.skippedByPolicy ? 'cost_policy' : whatsapp.ok ? 'missing_provider_message_id' : 'send_failed') : null,
+  }
 }
 
 /** Tell desk notify phones. Decisions stay in /ops/approvals. */
 export async function notifyAri(message: string, meta?: Record<string, unknown>) {
   const forceDryRun = meta?.dryRun === true
-  await Promise.all(
+  const outcomes = await Promise.all(
     deskNotifyPhones().map((phone) => notifyPhone(phone, message, meta, forceDryRun)),
   )
+  return { ok: outcomes.length > 0 && outcomes.every((result) => result.status === 'sent'), outcomes }
 }

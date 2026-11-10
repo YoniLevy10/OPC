@@ -3,7 +3,7 @@ import {
   authErrorResponse,
   requireActor,
 } from '@/lib/auth/request-actor'
-import { AuthError, canMutateHqTicket, type Actor } from '@/lib/auth/types'
+import { AuthError, type Actor } from '@/lib/auth/types'
 import { storeProductRoles } from '@/lib/auth/roles'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { confirmStoreFix } from '@/modules/tickets/store-confirm'
@@ -14,7 +14,9 @@ export const runtime = 'nodejs'
 
 /**
  * Store confirms a resolved ticket → auto-close.
- * Allowed for demo entry without login (meeting demo) or authenticated store/HQ.
+ * Store feedback belongs to the responsible store. HQ approval of work is
+ * separate and cannot manufacture the store's confirmation.
+ * Explicit anonymous meeting demos retain their existing test entry.
  */
 export async function POST(
   request: Request,
@@ -42,7 +44,6 @@ export async function POST(
     }
     if (
       actor &&
-      !canMutateHqTicket(actor, ticket) &&
       !actor.memberships.some(
         (membership) =>
           storeProductRoles().includes(membership.role) &&

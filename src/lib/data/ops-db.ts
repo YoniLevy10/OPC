@@ -111,12 +111,17 @@ function loadDevLedgerSnapshot(): boolean {
   return true
 }
 
-export async function hydrateOpsLedger(): Promise<void> {
-  if (!(await supabaseReady())) {
-    loadDevLedgerSnapshot()
-    return
-  }
+export type OpsLedgerHydration =
+  | { ok: true; backend: 'memory' | 'supabase' }
+  | { ok: false; error: string }
+
+/** Callers that present an empty state must check ok before calling it quiet. */
+export async function hydrateOpsLedger(): Promise<OpsLedgerHydration> {
   try {
+    if (!(await supabaseReady())) {
+      loadDevLedgerSnapshot()
+      return { ok: true, backend: 'memory' }
+    }
     const supabase = createSystemClient('ops_ledger_read')
     const [files, documents, spends, tasks] = await Promise.all([
       supabase.from('ingested_files').select('*').order('created_at', { ascending: false }),
@@ -124,8 +129,8 @@ export async function hydrateOpsLedger(): Promise<void> {
       supabase.from('spend_requests').select('*').order('created_at', { ascending: false }),
       supabase.from('ops_tasks').select('*').order('created_at', { ascending: false }),
     ])
-    if ([files.error, documents.error, spends.error, tasks.error].some(skipped)) return
-    if (files.error || documents.error || spends.error || tasks.error) return
+    const readError = files.error || documents.error || spends.error || tasks.error
+    if (readError) return { ok: false, error: readError.message }
     const sync = await supabase.from('drive_sync_state').select('*').eq('id', 'default').maybeSingle()
     if (!sync.error && sync.data) {
       setDriveSync({
@@ -219,8 +224,14 @@ export async function hydrateOpsLedger(): Promise<void> {
         createdAt: String(row.created_at),
       })),
     })
+    return { ok: true, backend: 'supabase' }
   } catch (err) {
-    if (!skipped(err)) throw err
+    if (skipped(err)) {
+      return { ok: false, error: err instanceof Error ? err.message : 'טעינת נתוני התפעול נכשלה' }
+    }
+    // Preserve the existing abort semantics for write workflows that do not
+    // consume a status result; a failed read must not become stale-ledger writes.
+    throw err
   }
 }
 

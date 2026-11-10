@@ -10,7 +10,7 @@ import { computeDashboardKpis } from '@/modules/ops/dashboard-kpis'
 import { ariGreeting, buildAriHome } from '@/modules/ops/ari-home'
 import { listTickets } from '@/modules/tickets/service'
 import { hydrateOpsLedger } from '@/lib/data/ops-db'
-import { listSpends } from '@/lib/data/ops-ledger'
+import { listSpends, listTasks } from '@/lib/data/ops-ledger'
 import { formatRecordedAmount, recordedTicketAmount } from '@/modules/recommendations/estimate'
 import { OPEN_TICKET_STATUSES } from '@/modules/tickets/constants'
 import type { QueueTicket } from '@/modules/tickets/queue'
@@ -18,8 +18,10 @@ import { DashboardSoftRefresh } from './dashboard-soft-refresh'
 import { AriHomeBoard } from './ari-home'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
-import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import { listStores } from '@/modules/stores/service'
+import { ledgerDecisions } from '@/modules/decisions/from-ledger'
+import { buildHomeDecisions, scopeHomeStores } from '@/modules/ops/home-decisions'
+import { HomeDecisions } from './home-decisions'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +34,6 @@ export default async function OpsDashboardPage({
   if (!actor && !shouldAllowDemoEntry()) {
     redirect('/login')
   }
-  await hydrateOpsLedger()
   const locale = await getLocale()
   const p = (text: string) => phrase(locale, text)
   const noticeCode = (await searchParams).notice
@@ -40,19 +41,32 @@ export default async function OpsDashboardPage({
     (membership) => membership.role === 'global_admin' || membership.role === 'global_maintenance',
   ) ?? false
 
-  const [openResult, doneResult, storeResult] = await Promise.all([
+  const [openResult, doneResult, storeResult, ledgerResult] = await Promise.all([
     listTickets({
       limit: 150,
       statuses: [...OPEN_TICKET_STATUSES],
-    }).catch(() => ({ tickets: [], backend: 'memory' as const })),
+    }).catch(() => ({ tickets: [], backend: 'memory' as const, error: 'טעינת התקלות נכשלה' })),
     listTickets({
       limit: 80,
       statuses: ['resolved', 'closed'],
-    }).catch(() => ({ tickets: [], backend: 'memory' as const })),
-    canCreateTicket
-      ? listStores().catch(() => ({ stores: [] }))
-      : Promise.resolve({ stores: [] }),
+    }).catch(() => ({ tickets: [], backend: 'memory' as const, error: 'טעינת ההיסטוריה נכשלה' })),
+    listStores().catch(() => ({ stores: [], error: 'טעינת החנויות נכשלה' })),
+    hydrateOpsLedger().catch(() => ({ ok: false as const, error: 'טעינת נתוני התפעול נכשלה' })),
   ])
+  const ticketsFailed = Boolean(openResult.error || doneResult.error)
+  const storesFailed = 'error' in storeResult
+  const homeDecisions = buildHomeDecisions({
+    actor,
+    tickets: [...openResult.tickets, ...doneResult.tickets] as unknown as QueueTicket[],
+    decisions: ledgerResult.ok ? ledgerDecisions(new Date(), locale) : [],
+    stores: storeResult.stores,
+    tasks: ledgerResult.ok ? listTasks() : [],
+    ticketsFailed,
+    ledgerFailed: !ledgerResult.ok,
+    storesFailed,
+    locale,
+  })
+  const visibleStores = scopeHomeStores(actor, storeResult.stores)
 
   const fetched = [
     ...(openResult.tickets ?? []),
@@ -72,7 +86,7 @@ export default async function OpsDashboardPage({
     openCount: kpis.open,
     locale,
   })
-  const spends = listSpends()
+  const spends = ledgerResult.ok ? listSpends() : []
   const ticketCost: Record<string, string> = {}
   const storeCost: Record<string, string> = {}
   const byStore = new Map<string, { sum: number; missing: number }>()
@@ -101,7 +115,7 @@ export default async function OpsDashboardPage({
   }
   const notice =
     noticeCode === 'sent'
-      ? p('הביקור הוזמן. המנהל עודכן בוואטסאפ.')
+      ? p('הביקור הוזמן. מצב העברת הפרטים מופיע בביקור.')
       : noticeCode === 'approved'
         ? p('ההזמנה אושרה')
         : null
@@ -116,24 +130,25 @@ export default async function OpsDashboardPage({
           title={ariGreeting()}
           actions={canCreateTicket ? (
             <Suspense fallback={null}>
-              <CreateTicketDialog stores={storeResult.stores} trigger="header" />
+              <CreateTicketDialog stores={visibleStores} trigger="header" />
             </Suspense>
           ) : undefined}
         />
+        <HomeDecisions model={homeDecisions} />
         <AriHomeBoard
           model={home}
           stats={{
             open: kpis.open,
             closedToday: home.closedToday,
             overdue: kpis.breached,
-            awaitingApproval: openTickets.filter(
-              (ticket) => ticketIsUrgent(ticket) && ticket.status !== 'engaged',
-            ).length,
+            awaitingApproval: homeDecisions.spendApprovals,
           }}
+          dataIncomplete={homeDecisions.partialFailure}
+          costsAvailable={ledgerResult.ok}
           ticketCost={ticketCost}
           storeCost={storeCost}
           recordedSummary={
-            openTickets.length === 0
+            openTickets.length === 0 || !ledgerResult.ok
               ? null
               : recordedSum <= 0
                 ? p('אין עדיין מחיר')

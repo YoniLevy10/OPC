@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   BarChart3,
-  Bell,
   CheckSquare,
   ClipboardCheck,
   Ellipsis,
@@ -100,12 +99,6 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
         label: 'משימות',
         icon: CheckSquare,
         match: '/ops/tasks',
-      },
-      {
-        href: '/ops/alerts',
-        label: 'מה דורש פעולה',
-        icon: Bell,
-        match: '/ops/alerts',
       },
       { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
       {

@@ -40,7 +40,7 @@ describe('store confirm close', () => {
     resetEngagementsForTests()
   })
 
-  it('stamps confirm but holds final close during quality window', async () => {
+  it('closes immediately on store feedback even during the quality window', async () => {
     const store = israelStoresAsRows().find((s) => s.code === '6006')!
     const created = memCreate({
       store,
@@ -58,10 +58,11 @@ describe('store confirm close', () => {
       ticketId: created.id,
       actorLabel: 'מנהל חנות',
     })
-    expect(result.status).toBe('resolved')
-    expect(result.pending_final_close).toBe(true)
+    expect(result.status).toBe('closed')
+    expect(result.pending_final_close).toBe(false)
     expect(result.store_confirmed_at).toBeTruthy()
-    expect(memGet(created.id)?.status).toBe('resolved')
+    expect(memGet(created.id)?.status).toBe('closed')
+    expect(memGet(created.id)?.quality_hold_until).toBeTruthy()
   })
 
   it('closes after quality hold has ended', async () => {
@@ -133,8 +134,8 @@ describe('store confirm close', () => {
   it.each([
     { storeCode: '6006', first: 'lead' },
     { storeCode: '6006', first: 'side' },
-    { storeCode: '6029', first: 'lead' },
-    { storeCode: '6029', first: 'side' },
+    { storeCode: '6004', first: 'lead' },
+    { storeCode: '6004', first: 'side' },
   ])('confirms only the named ticket in a bundle ($storeCode, $first first)', async ({ storeCode, first }) => {
     const stores = israelStoresAsRows()
     const lead = memCreate({
@@ -145,9 +146,9 @@ describe('store confirm close', () => {
     })
     const side = memCreate({
       store: stores.find((store) => store.code === storeCode)!,
-      description: 'ניקיון',
+      description: 'ניקוי מסנן מזגן',
       priority: 'low',
-      category: 'cleaning',
+      category: 'hvac',
     })
     const visit = await lockEngagement({
       ticketId: lead.id,

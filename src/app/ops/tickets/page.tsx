@@ -34,14 +34,13 @@ import { Tx } from '@/components/i18n/tx'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
 import { translate } from '@/lib/i18n/messages'
-import { listVendors } from '@/modules/vendors/service'
-import { listOutcomes, spendForTicket } from '@/lib/data/ops-ledger'
+import { listOutcomes } from '@/lib/data/ops-ledger'
 import { hydrateOpsLedger } from '@/lib/data/ops-db'
 import { listProfessionals } from '@/modules/professionals/service'
 import { recommendBundles, type BundleFault } from '@/modules/whatsapp/agent/bundle'
 import { presentRecommendations } from '@/modules/recommendations/present'
 import { TicketStoreGroups } from './ticket-store-groups'
-import { executionBlockReason } from '@/modules/spend/policy'
+import { isVisitPlannableStatus } from '@/modules/visits/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,7 +69,8 @@ function toFault(ticket: QueueTicket): BundleFault {
     slaResolveBy: ticket.sla_resolve_by,
     resolvedAt: ticket.resolved_at,
     firstResponseAt: ticket.first_response_at,
-    dispatched: ticket.status === 'waiting_vendor',
+    dispatched: ticket.status === 'waiting_vendor' || ticket.status === 'engaged',
+    city: ticket.stores?.city,
   }
 }
 
@@ -114,7 +114,7 @@ export default async function TicketsPage({
       ? ['resolved', 'closed']
       : [...OPEN_TICKET_STATUSES]
 
-  const [ticketResult, techRows, storesResult, vendorsResult] = await Promise.all([
+  const [ticketResult, techRows, storesResult] = await Promise.all([
     listTickets({
       limit: FETCH_LIMIT,
       storeCode,
@@ -128,7 +128,6 @@ export default async function TicketsPage({
     })),
     listInternalTechnicians().catch(() => []),
     listStores().catch(() => ({ stores: [], backend: 'memory' as const })),
-    listVendors().catch(() => ({ vendors: [], backend: 'memory' as const })),
   ])
 
   const fetched = (ticketResult.tickets ?? []) as unknown as QueueTicket[]
@@ -147,7 +146,7 @@ export default async function TicketsPage({
   )
   const canDispatchVisit = Boolean(
     actor?.memberships.some((m) =>
-      ['global_admin', 'global_maintenance', 'country_manager'].includes(m.role),
+      ['global_admin', 'global_maintenance'].includes(m.role),
     ),
   )
   const listError =
@@ -224,16 +223,6 @@ export default async function TicketsPage({
     code: s.code,
     name: s.name,
   }))
-  const vendorOptions = (vendorsResult.vendors ?? [])
-    .filter((v) => v.active !== false)
-    .map((v) => ({
-      id: v.id,
-      name: v.name,
-      specialties: v.specialties,
-      coverage: v.coverage_regions,
-      phone: v.contact_phone,
-    }))
-
   const tabActive =
     view === 'attention' ||
     view === 'urgent' ||
@@ -300,7 +289,7 @@ export default async function TicketsPage({
 
         {canDispatchVisit && view !== 'resolved' ? (
           <VisitQueueShell
-            tickets={rows.map((t) => ({
+            tickets={rows.filter((ticket) => isVisitPlannableStatus(ticket.status)).map((t) => ({
               id: t.id,
               storeCode: t.stores?.code ?? '',
               storeId: t.store_id ?? '',
@@ -308,17 +297,9 @@ export default async function TicketsPage({
                 t.display_number ||
                 (t.number != null ? `OC-${t.number}` : t.id.slice(0, 8)),
               title: t.title || t.description,
-              spendBlock: executionBlockReason(spendForTicket(t.id)),
               category: t.category,
               city: t.stores?.city ?? null,
               region: t.region_id,
-            }))}
-            vendors={vendorOptions}
-            professionals={pros.professionals.map((person) => ({
-              id: person.id,
-              full_name: person.full_name,
-              phone: person.phone,
-              trade: person.trade,
             }))}
             storeFilter={storeCode}
           >
@@ -343,7 +324,7 @@ export default async function TicketsPage({
                         technicians,
                         locale,
                       )}
-                      selectable
+                      selectable={isVisitPlannableStatus(t.status)}
                       canOverrideResolve={canOverrideResolve}
                     />
                   )}
@@ -397,32 +378,20 @@ export default async function TicketsPage({
               {filtered.length}
             </p>
             <div className="flex gap-2">
-              <Button
-                asChild
-                variant="secondary"
-                size="sm"
-                className={current <= 1 ? 'pointer-events-none opacity-40' : ''}
-              >
-                <Link
-                  href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}page=${current - 1}`}
-                >
-                  הקודם
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="secondary"
-                size="sm"
-                className={
-                  current >= totalPages ? 'pointer-events-none opacity-40' : ''
-                }
-              >
-                <Link
-                  href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}page=${current + 1}`}
-                >
-                  הבא
-                </Link>
-              </Button>
+              {current <= 1 ? (
+                <Button variant="secondary" size="sm" disabled>הקודם</Button>
+              ) : (
+                <Button asChild variant="secondary" size="sm">
+                  <Link href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}page=${current - 1}`}>הקודם</Link>
+                </Button>
+              )}
+              {current >= totalPages ? (
+                <Button variant="secondary" size="sm" disabled>הבא</Button>
+              ) : (
+                <Button asChild variant="secondary" size="sm">
+                  <Link href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}page=${current + 1}`}>הבא</Link>
+                </Button>
+              )}
             </div>
           </nav>
         ) : null}

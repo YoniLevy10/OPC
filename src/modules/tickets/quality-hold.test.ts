@@ -4,7 +4,7 @@ import { eligibleForQualityClose } from './quality-hold'
 const now = new Date('2026-11-02T12:00:00.000Z')
 
 describe('eligibleForQualityClose', () => {
-  it('closes only a confirmed ticket whose hold has ended', () => {
+  it('reconciles a confirmed legacy repair whose follow-up period has ended', () => {
     expect(
       eligibleForQualityClose(
         {
@@ -17,7 +17,7 @@ describe('eligibleForQualityClose', () => {
     ).toBe(true)
   })
 
-  it('waits while the hold is still active', () => {
+  it('does not delay a store-confirmed repair while follow-up metadata is active', () => {
     expect(
       eligibleForQualityClose(
         {
@@ -27,7 +27,7 @@ describe('eligibleForQualityClose', () => {
         },
         now,
       ),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it('does not close without a store confirmation', () => {
