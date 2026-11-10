@@ -70,6 +70,7 @@ MAINTAINOS_FORCE_MEMORY=1
 
 ## מסמכים
 
+- [`docs/OPC_V2_1_STATUS.md`](docs/OPC_V2_1_STATUS.md) — תמונת מצב קצרה של 13 היכולות, העיצוב, חסמי הפריסה והבדיקות שנותרו
 - [`docs/OPC_SPEC_V2_1.md`](docs/OPC_SPEC_V2_1.md) — אפיון OPC המחייב, גרסה 2.1: אחריות, תהליכים ותנאי מוכנות
 - [`docs/OPC_GAP_ANALYSIS_V2_1.md`](docs/OPC_GAP_ANALYSIS_V2_1.md) — 89 דרישות מול MaxStudy והמימוש, סטטוס ראיות, פערים ותוכנית השלמה
 - [`docs/OPC_ARI_ALIGNMENT.md`](docs/OPC_ARI_ALIGNMENT.md) — יעד 13 היכולות מול ארי, מיפוי מול הקוד, תהליך אחיד, סדר עבודה ובדיקות קבלה (10.11.2026)
