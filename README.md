@@ -70,6 +70,7 @@ MAINTAINOS_FORCE_MEMORY=1
 
 ## מסמכים
 
+- [`docs/OPC_ARI_ALIGNMENT.md`](docs/OPC_ARI_ALIGNMENT.md) — יעד 13 היכולות מול ארי, מיפוי מול הקוד, תהליך אחיד, סדר עבודה ובדיקות קבלה (10.11.2026)
 - [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) — בידול, ליבה אחידה, Digital Twin, פילטר פיצ׳רים
 - [`docs/MILO_REBRAND.md`](docs/MILO_REBRAND.md) — מיתוג פנימי וספר אנשי מקצוע
 - [`docs/FIGMA_REDESIGN_PLAN.md`](docs/FIGMA_REDESIGN_PLAN.md) — תוכנית עיצוב Figma (Alive Ops)
