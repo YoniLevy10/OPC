@@ -66,6 +66,8 @@ describe('send019Sms', () => {
     'SMS_019_PASSWORD',
     'SMS_019_DRY_RUN',
     'SMS_019_TEST',
+    'MAINTAINOS_FORCE_MEMORY',
+    'MAINTAINOS_ALLOW_TEST_AUTH',
   ] as const
 
   beforeEach(() => {
@@ -111,6 +113,21 @@ describe('send019Sms', () => {
       to: '972548102688',
       message: 'שיוך חדש · תקלה OC-1',
     })
+    expect(r.ok).toBe(true)
+    expect(r.dryRun).toBe(true)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('dry-runs when FORCE_MEMORY even if SMS is enabled', async () => {
+    process.env.SMS_019_ENABLED = '1'
+    process.env.SMS_019_USERNAME = 'u'
+    process.env.SMS_019_SENDER = 'opc'
+    process.env.SMS_019_TOKEN = 'tok'
+    process.env.MAINTAINOS_FORCE_MEMORY = '1'
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const r = await send019Sms({ to: '0548102688', message: 'hi' })
     expect(r.ok).toBe(true)
     expect(r.dryRun).toBe(true)
     expect(fetchSpy).not.toHaveBeenCalled()

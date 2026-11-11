@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { listTasks, resetOpsLedger } from '@/lib/data/ops-ledger'
 import { memListTickets } from '@/lib/data/memory-store'
-import { actForAri } from './agent-actions'
+import { actForAri, parseDueAt, parseRepeatDays } from './agent-actions'
 
 process.env.MAINTAINOS_FORCE_MEMORY = '1'
 
@@ -35,6 +35,20 @@ describe('actForAri', () => {
     expect(again?.links[0]?.label).toBe('למשימה')
   })
 
+  it('writes a recurring maintenance task with due + repeatDays', async () => {
+    const reply = await actForAri({
+      message: 'תפתח משימה כיול אודיומטר בחדרה כל 30 ימים ל-2026-12-01',
+    })
+    expect(reply?.reply).toContain('רשמתי משימה')
+    expect(reply?.reply).toContain('חוזר כל 30 ימים')
+    expect(reply?.reply).toContain('2026-12-01')
+    const task = listTasks().find((row) => row.title.includes('אודיומטר'))
+    expect(task?.storeCode).toBe('6005')
+    expect(task?.storeId).toBeTruthy()
+    expect(task?.repeatDays).toBe(30)
+    expect(task?.dueAt?.startsWith('2026-12-01')).toBe(true)
+  })
+
   it('opens a fault at the store he names', async () => {
     const before = memListTickets().length
     const reply = await actForAri({
@@ -48,6 +62,19 @@ describe('actForAri', () => {
     expect(reply?.links[0]?.href).toMatch(/^\/ops\/tickets\//)
     expect(reply?.links[0]?.label).toMatch(/^OC-/)
     expect(memListTickets().length).toBe(before + 1)
+    const created = memListTickets()[0]
+    expect(created?.category).toBe('plumbing')
+    expect(created?.priority).toBe('high')
+  })
+
+  it('classifies HVAC urgency from the fault text', async () => {
+    await actForAri({
+      message: 'תפתח תקלה בחדרה המזגן לא מקרר',
+      open: [],
+    })
+    const created = memListTickets()[0]
+    expect(created?.category).toBe('hvac')
+    expect(created?.priority).toBe('high')
   })
 
   it('uses the store already in the conversation and does not open the same fault twice', async () => {
@@ -83,5 +110,21 @@ describe('actForAri', () => {
     expect(reply?.reply).toContain('המדפסת')
     expect(reply?.reply).toContain('חיפה הרצל')
     expect(reply?.links[0]?.label).toBe('למשימה')
+  })
+})
+
+describe('parseDueAt / parseRepeatDays', () => {
+  it('reads tomorrow and day offsets', () => {
+    const now = new Date('2026-11-11T12:00:00.000Z')
+    expect(parseDueAt('מחר', now)?.startsWith('2026-11-12')).toBe(true)
+    expect(parseDueAt('בעוד 3 ימים', now)?.startsWith('2026-11-14')).toBe(true)
+    expect(parseDueAt('ל-2026-12-01')?.startsWith('2026-12-01')).toBe(true)
+  })
+
+  it('reads Agent A cadence presets', () => {
+    expect(parseRepeatDays('כל 30 ימים')).toBe(30)
+    expect(parseRepeatDays('כל שנה')).toBe(365)
+    expect(parseRepeatDays('כל חודש')).toBe(30)
+    expect(parseRepeatDays('חוזר כל 90 ימים')).toBe(90)
   })
 })

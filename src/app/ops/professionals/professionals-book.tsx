@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react'
 import { MessageCircle, Pencil, Phone, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
-import { BottomSheet } from '@/components/ui/overlay'
+import { PhoneList, PhoneSheet } from '@/components/mobile'
 import { useToast } from '@/components/ui/toast'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import type { Professional } from '@/modules/professionals/types'
@@ -196,14 +196,14 @@ export function ProfessionalsBook({
 
   return (
     <>
-      <ul className="divide-y divide-border">
+      <PhoneList>
         {professionals.map((person) => {
           const tel = dialHref(person.phone)
           const whatsapp = whatsAppHref(person.phone)
           const busy = pending || busyId === person.id
           const { rating } = parsePersonalRating(person.notes)
           return (
-            <li
+            <div
               key={person.id}
               className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
             >
@@ -286,12 +286,12 @@ export function ProfessionalsBook({
                   </Button>
                 </div>
               </div>
-            </li>
+            </div>
           )
         })}
-      </ul>
+      </PhoneList>
 
-      <BottomSheet
+      <PhoneSheet
         open={editing != null}
         onOpenChange={(open) => {
           if (!open) setEditing(null)
@@ -373,7 +373,7 @@ export function ProfessionalsBook({
             {deleting ? tx('מוחק…') : tx('מחיקת איש המקצוע')}
           </Button>
         </div>
-      </BottomSheet>
+      </PhoneSheet>
     </>
   )
 }

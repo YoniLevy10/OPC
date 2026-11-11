@@ -11,7 +11,8 @@ import {
   Panel,
   PanelHeader,
 } from '@/components/ui/primitives'
-import { AdminRow, AdminRowList } from '@/components/ui/admin-row'
+import { PhoneList } from '@/components/mobile'
+import { AdminRow } from '@/components/ui/admin-row'
 import { BarcodeScannerModal } from '@/components/assets/barcode-scanner'
 import { findAssetByCode } from '@/modules/assets/barcode'
 import { assetWhatsAppPrefill } from '@/modules/assets/service'
@@ -223,7 +224,7 @@ export function StoreAssetsPanel({
           <EmptyState title="אין נכסים" description="הוסיפו ציוד לחנות — יופיע בטופס דיווח." />
         ) : (
           <>
-            <AdminRowList className="md:hidden">
+            <PhoneList className="md:hidden">
               {assets.map((a) => (
                 <AdminRow
                   key={a.id}
@@ -246,34 +247,32 @@ export function StoreAssetsPanel({
                   }
                 />
               ))}
-            </AdminRowList>
-            <ul className="hidden divide-y divide-border md:block">
+            </PhoneList>
+            <PhoneList className="hidden md:block">
               {assets.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-3 py-2">
-                  <div>
-                    <span className="t-body-strong t-num text-ink">{a.code}</span>
-                    <span className="t-body ms-2 text-ink-2">{a.name}</span>
-                    {a.barcode ? (
-                      <p className="t-caption t-num text-ink-3" dir="ltr">
-                        barcode {a.barcode}
-                      </p>
-                    ) : null}
-                    <p className="t-caption t-num text-ink-3" dir="ltr">
-                      {assetWhatsAppPrefill(storeCode, a.code)}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void onDelete(a.id)}
-                  >
-                    מחיקה
-                  </Button>
-                </li>
+                <AdminRow
+                  key={a.id}
+                  leading={a.code}
+                  title={a.name}
+                  subtitle={
+                    a.barcode
+                      ? `${a.barcode} · ${assetWhatsAppPrefill(storeCode, a.code)}`
+                      : assetWhatsAppPrefill(storeCode, a.code)
+                  }
+                  trailing={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => void onDelete(a.id)}
+                    >
+                      מחיקה
+                    </Button>
+                  }
+                />
               ))}
-            </ul>
+            </PhoneList>
           </>
         )}
       </div>

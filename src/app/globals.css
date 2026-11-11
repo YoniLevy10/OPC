@@ -86,6 +86,14 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
+  /* === phone-kit tokens === */
+  --phone-tab-h: var(--bottomnav-h);
+  --phone-dock-h: var(--hq-actions-dock-h);
+  --phone-pad-b: calc(
+    var(--phone-tab-h) + var(--bottomnav-gap) + var(--safe-b)
+  );
+  /* === end phone-kit === */
+
   --background: var(--canvas);
   --foreground: var(--ink);
   color-scheme: light;
@@ -724,6 +732,71 @@ body:has([role='dialog']) .hq-ticket-dock {
     z-index: auto;
   }
 }
+
+/* === phone-kit tokens === */
+.phone-shell {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.phone-pad-tab {
+  padding-bottom: calc(var(--phone-pad-b) + 16px);
+  scroll-padding-bottom: calc(var(--phone-pad-b) + 16px);
+}
+
+.phone-pad-dock {
+  padding-bottom: calc(var(--phone-dock-h) + var(--safe-b) + 16px);
+  scroll-padding-bottom: calc(var(--phone-dock-h) + var(--safe-b) + 16px);
+}
+
+.phone-pad-tab.phone-pad-dock {
+  padding-bottom: calc(
+    var(--phone-dock-h) + var(--phone-tab-h) + var(--bottomnav-gap) + var(--safe-b) + 16px
+  );
+  scroll-padding-bottom: calc(
+    var(--phone-dock-h) + var(--phone-tab-h) + var(--bottomnav-gap) + var(--safe-b) + 16px
+  );
+}
+
+.phone-action-dock--flush {
+  bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.phone-action-dock--above-tab {
+  bottom: calc(var(--phone-tab-h) + var(--bottomnav-gap) + var(--safe-b));
+}
+
+body:has([role='dialog']) .phone-action-dock {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .phone-shell {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .phone-pad-tab,
+  .phone-pad-dock,
+  .phone-pad-tab.phone-pad-dock {
+    padding-bottom: 32px;
+    scroll-padding-bottom: 32px;
+  }
+  .phone-action-dock {
+    position: static;
+    border-top: none;
+    padding-bottom: 0;
+  }
+  .phone-action-dock--above-tab,
+  .phone-action-dock--flush {
+    bottom: auto;
+  }
+}
+/* === end phone-kit === */
 
 .dvh-screen {
   min-height: 100vh;

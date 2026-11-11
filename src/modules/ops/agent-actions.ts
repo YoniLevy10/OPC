@@ -2,7 +2,8 @@ import { persistOpsLedger } from '@/lib/data/ops-db'
 import { addDocument, addTask, listTasks } from '@/lib/data/ops-ledger'
 import { expiryFromText } from '@/modules/drive/import'
 import { ISRAEL_STORES, israelStoreId, type IsraelStoreSeed } from '@/modules/stores/israel-stores'
-import type { TicketPriority } from '@/modules/tickets/constants'
+import { classifyFaultText } from '@/modules/tickets/classify'
+import { normalizeTicketCategory } from '@/modules/tickets/constants'
 import { repairRangeLine } from '@/modules/recommendations/estimate'
 import {
   createTicket,
@@ -123,21 +124,28 @@ export async function actForAri(input: {
     if (existing) {
       return say(`המשימה כבר רשומה: ${existing.title}.`, taskLink(existing.id))
     }
+    const dueAt = parseDueAt(message)
+    const repeatDays = parseRepeatDays(message)
     const created = addTask({
       title: title.slice(0, 200),
       storeId: store ? israelStoreId(store.stableKey ?? store.code) : null,
       storeCode: store?.code ?? null,
       assignee: null,
-      dueAt: null,
+      dueAt,
       ticketId: null,
       documentId: null,
       spendId: null,
       needsClarification: false,
       clarification: null,
+      repeatDays,
     })
     await persistOpsLedger().catch(() => undefined)
-    const reply = store ? `רשמתי משימה: ${title}. בסניף ${store.name}.` : `רשמתי משימה: ${title}.`
-    return say(reply, taskLink(created.id))
+    const bits = [
+      store ? `רשמתי משימה: ${title}. בסניף ${store.name}.` : `רשמתי משימה: ${title}.`,
+      dueAt ? `לתאריך ${dueAt.slice(0, 10)}.` : '',
+      repeatDays ? `חוזר כל ${repeatDays} ימים.` : '',
+    ].filter(Boolean)
+    return say(bits.join(' '), taskLink(created.id))
   }
 
   if (!store) {
@@ -161,22 +169,26 @@ export async function actForAri(input: {
   }
 
   try {
-    const category = guessCategory(`${message} ${description}`)
+    const classified = classifyFaultText(`${message} ${description}`)
+    const category = normalizeTicketCategory(classified.category)
     const created = await createTicket({
       storeCode: store.code,
       description,
       title: description.slice(0, 80),
       category,
-      priority: guessPriority(message),
+      priority: classified.priority,
       source: input.source ?? 'web_fallback',
       reporterName: 'ארי',
       language: 'he',
     })
     const number = created.display_number || formatDisplayNumber(created.number) || ''
     const label = number ? `${number}. ` : ''
-    const next = /נזיל|חשמל|מזגן|מיזוג|אבטחה|מצלמ|דלת/.test(message)
-      ? 'הצעד הוא לאשר איש מקצוע ומחיר.'
-      : 'היא נשארת בתור לשילוב ביקור.'
+    const next =
+      classified.priority === 'critical' || classified.priority === 'high'
+        ? 'הצעד הוא לאשר איש מקצוע ומחיר.'
+        : /נזיל|חשמל|מזגן|מיזוג|אבטחה|מצלמ|דלת/.test(message)
+          ? 'הצעד הוא לאשר איש מקצוע ומחיר.'
+          : 'היא נשארת בתור לשילוב ביקור.'
     return say(`פתחתי תקלה ב${store.name}: ${description}. ${label}${next} ${repairRangeLine(category)}`, {
       href: `/ops/tickets/${created.id}`,
       label: number || 'לתקלה',
@@ -220,6 +232,11 @@ function unique(stores: IsraelStoreSeed[]): IsraelStoreSeed[] {
 function cleanBody(message: string, storeName: string | null): string {
   let body = message.replace(CREATE_TASK, ' ').replace(CREATE_TICKET, ' ')
   body = body.replace(/על זה|את זה|בסניף הזה|בכל זאת|עוד אחת/g, ' ')
+  body = body
+    .replace(/מחר/g, ' ')
+    .replace(/בעוד\s+\d+\s*(?:ימים|יום|שבועות|שבוע)/g, ' ')
+    .replace(/(?:חוזר\s+)?כל\s+(?:\d+\s*ימים|\d+\s*יום|שנה|חודש|90|30|365)/g, ' ')
+    .replace(/לתאריך\s+\S+/g, ' ')
   if (storeName) body = body.replace(storeName, ' ')
   for (const store of ISRAEL_STORES) {
     if (store.city.length >= 3 && body.includes(store.city)) body = body.replace(store.city, ' ')
@@ -230,6 +247,8 @@ function cleanBody(message: string, storeName: string | null): string {
   return body
     .replace(/בסניף|סניף/g, ' ')
     .replace(/(?:^|\s)[בלמ](?=\s|$)/g, ' ')
+    .replace(/(20\d{2})[-/.](\d{2})[-/.](\d{2})/g, ' ')
+    .replace(/(\d{1,2})[./](\d{1,2})[./](20\d{2})/g, ' ')
     .replace(/[,\s:\-–]+/g, ' ')
     .trim()
 }
@@ -244,18 +263,35 @@ function sharesWords(summary: string, description: string): boolean {
   return words.some((word) => summary.includes(word))
 }
 
-function guessPriority(text: string): TicketPriority {
-  if (/קריטי/.test(text)) return 'critical'
-  if (/דחוף/.test(text)) return 'high'
-  return 'medium'
+/** Parse due date from Ari's Hebrew / ISO phrasing (UTC midnight). */
+export function parseDueAt(text: string, now = new Date()): string | null {
+  const dated = expiryFromText(text)
+  if (dated) return dated
+  const utcDay = (offsetDays: number) => {
+    const due = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offsetDays),
+    )
+    return due.toISOString()
+  }
+  if (/מחר/.test(text)) return utcDay(1)
+  const days = text.match(/בעוד\s+(\d+)\s*ימ/)
+  if (days) return utcDay(Number(days[1]))
+  const weeks = text.match(/בעוד\s+(\d+)\s*שבוע/)
+  if (weeks) return utcDay(Number(weeks[1]) * 7)
+  return null
 }
 
-function guessCategory(text: string): string {
-  if (/נזיל|אינסטל|ברז|כיור/.test(text)) return 'plumbing'
-  if (/מזגן|מיזוג|קירור/.test(text)) return 'hvac'
-  if (/חשמל/.test(text)) return 'electrical'
-  if (/מנעול|אבטחה|דלת|מצלמ/.test(text)) return 'security'
-  if (/מדפס|קופה|מחשב|רשת/.test(text)) return 'it'
-  if (/ניקיון/.test(text)) return 'cleaning'
-  return 'other'
+/** Parse repeat cadence aligned with Agent A presets (30 / 90 / 365). */
+export function parseRepeatDays(text: string): number | null {
+  if (/כל\s*שנה|שנתי/.test(text)) return 365
+  if (/כל\s*חודש|חודשי/.test(text)) return 30
+  const numbered = text.match(/(?:חוזר\s+)?כל\s+(\d+)\s*ימ/)
+  if (numbered) {
+    const days = Number(numbered[1])
+    return Number.isFinite(days) && days > 0 ? days : null
+  }
+  if (/כל\s*365/.test(text)) return 365
+  if (/כל\s*90/.test(text)) return 90
+  if (/כל\s*30/.test(text)) return 30
+  return null
 }

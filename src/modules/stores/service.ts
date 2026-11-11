@@ -13,7 +13,30 @@ import {
 import { AuthError, type Actor } from '@/lib/auth/types'
 import { actorIsGlobalAdmin } from '@/lib/auth/roles'
 import type { StoreRow } from '@/modules/stores/data'
-import { canonicalStoreCode } from '@/modules/stores/israel-stores'
+import {
+  canonicalStoreCode,
+  IL_REGION_IDS,
+  type IsraelStoreSeed,
+} from '@/modules/stores/israel-stores'
+import { replaceStoreManager } from '@/modules/stores/replace-manager'
+
+function resolveDbRegionId(region?: string | null): string {
+  if (!region?.trim()) return IL_REGION_IDS.TA
+  const raw = region.trim()
+  if (raw.length > 8) return raw
+  const upper = raw.toUpperCase() as IsraelStoreSeed['region']
+  if (upper in IL_REGION_IDS) return IL_REGION_IDS[upper]
+  const SLUG: Record<string, IsraelStoreSeed['region']> = {
+    ta: 'TA',
+    ctr: 'CTR',
+    jlm: 'JLM',
+    hfa: 'HFA',
+    n: 'N',
+    s: 'S',
+  }
+  const code = SLUG[raw.toLowerCase()] ?? 'TA'
+  return IL_REGION_IDS[code]
+}
 
 export type StoreRecord = StoreRow & {
   organization_id?: string
@@ -24,7 +47,10 @@ export type StoreRecord = StoreRow & {
 export function requireStoresMutate(actor: Actor) {
   const ok =
     actorIsGlobalAdmin(actor) ||
-    actor.memberships.some((m) => m.role === 'country_manager')
+    actor.memberships.some(
+      (m) =>
+        m.role === 'global_maintenance' || m.role === 'country_manager',
+    )
   if (!ok) {
     throw new AuthError('אין הרשאת ניהול חנויות', 403)
   }
@@ -105,6 +131,12 @@ export type CreateStoreInput = {
   region_id?: string
   country_id?: string
   organization_id?: string
+  /** Area / district manager (מנהל מחוז). */
+  area_manager?: string | null
+  /** Store manager — required for WA identity on new stores. */
+  manager_name?: string | null
+  manager_name_en?: string | null
+  manager_phone?: string | null
 }
 
 export async function createStore(input: CreateStoreInput): Promise<StoreRecord> {
@@ -115,8 +147,19 @@ export async function createStore(input: CreateStoreInput): Promise<StoreRecord>
   }
   if (!name) throw new Error('שם חנות חובה')
 
+  const managerName = input.manager_name?.trim() || null
+  const managerPhone = input.manager_phone?.trim() || null
+  if (!managerName || managerName.length < 2) {
+    throw new Error('חסר שם מנהל/ת חנות')
+  }
+  if (!managerPhone) {
+    throw new Error('חסר טלפון מנהל/ת חנות — נדרש לזיהוי בוואטסאפ')
+  }
+
+  const areaManager = input.area_manager?.trim() || null
+
   if (!(await supabaseReady())) {
-    return toRecord(
+    const created = toRecord(
       memCreateStore({
         code,
         name,
@@ -125,18 +168,24 @@ export async function createStore(input: CreateStoreInput): Promise<StoreRecord>
         region_id: input.region_id ?? 'ta',
         country_id: input.country_id ?? MEM_COUNTRY_ID,
         organization_id: input.organization_id ?? MEM_ORG_ID,
+        manager_name: managerName,
+        manager_name_en: input.manager_name_en,
+        manager_phone: managerPhone,
+        area_manager: areaManager,
       }),
     )
+    return replaceStoreManager({
+      storeId: created.id,
+      managerName,
+      managerPhone,
+      managerNameEn: input.manager_name_en,
+    })
   }
 
   const supabase = createSystemClient('stores_create')
   const organizationId = input.organization_id ?? MEM_ORG_ID
   const countryId = input.country_id ?? MEM_COUNTRY_ID
-  // Seed IL Tel Aviv region — used when UI omits region (memory uses short codes).
-  const regionId =
-    input.region_id && input.region_id.length > 8
-      ? input.region_id
-      : '33333333-3333-3333-3333-333333333301'
+  const regionId = resolveDbRegionId(input.region_id)
 
   const { data, error } = await supabase
     .from('stores')
@@ -149,11 +198,22 @@ export async function createStore(input: CreateStoreInput): Promise<StoreRecord>
       country_id: countryId,
       organization_id: organizationId,
       is_active: true,
+      area_manager: areaManager,
+      manager_name: managerName,
+      manager_name_en: input.manager_name_en?.trim() || null,
+      manager_phone: managerPhone,
     })
     .select(STORE_COLUMNS)
     .single()
   if (error) throw new Error(error.message)
-  return data as StoreRecord
+
+  // Sync store_phones so WA intake auto-links this manager to the new store.
+  return replaceStoreManager({
+    storeId: (data as StoreRecord).id,
+    managerName,
+    managerPhone,
+    managerNameEn: input.manager_name_en,
+  })
 }
 
 export type UpdateStoreInput = {

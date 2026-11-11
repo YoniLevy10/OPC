@@ -3,12 +3,18 @@ import type { BundleCard } from '@/modules/whatsapp/agent/bundle'
 import type { StoreDocument } from '@/modules/documents/rules'
 import {
   answerFromSnapshot,
+  briefForAri,
   duePapersFrom,
   repeatGearFrom,
   type GearAsset,
   type GearTicket,
   type OpsSnapshot,
 } from './agent-chat'
+import {
+  ariSystemPrompt,
+  listOpenByStoreText,
+  summarizeDuePapersText,
+} from './agent-tools'
 
 function card(partial: Partial<BundleCard>): BundleCard {
   return {
@@ -249,6 +255,63 @@ function fault(partial: Partial<GearTicket>): GearTicket {
     ...partial,
   }
 }
+
+describe('briefForAri / ari tools helpers', () => {
+  it('grounds the model brief in facts and one next step', () => {
+    const brief = briefForAri({
+      ...snapshot,
+      open: snapshot.open.map((fault) =>
+        fault.id === 'c' ? { ...fault, overdue: true, verb: 'לשייך' } : fault,
+      ),
+      papers: [{ storeName: 'דיזנגוף', label: 'כיבוי אש', overdue: true }],
+    })
+    expect(brief).toContain('עובדות')
+    expect(brief).toContain('צעד הבא')
+    expect(brief).toContain('חיפה')
+    expect(brief).toContain('/ops/tickets/')
+    expect(brief).toContain('כיבוי אש')
+  })
+
+  it('keeps an ops-manager system prompt with tool names', () => {
+    expect(ariSystemPrompt('he')).toContain('צעד הבא')
+    expect(ariSystemPrompt('he')).toContain('summarize_due_papers')
+    expect(ariSystemPrompt('en')).toContain('list_open_by_store')
+  })
+
+  it('summarizes due papers from the snapshot instead of a stub', () => {
+    const summary = summarizeDuePapersText(
+      [
+        { storeName: 'דיזנגוף', label: 'כיבוי אש', overdue: true },
+        { storeName: 'חיפה', label: 'טימפנומטר', overdue: false },
+      ],
+      'he',
+    )
+    expect(summary.count).toBe(2)
+    expect(summary.message).toContain('כיבוי אש')
+    expect(summary.message).toContain('באיחור')
+    expect(summary.message).toContain('/ops/documents')
+    expect(summary.message).not.toContain('ברשימת העובדות')
+  })
+
+  it('lists open faults for a store with queue path hints', () => {
+    const summary = listOpenByStoreText(
+      [
+        {
+          id: 'a',
+          storeName: 'חדרה',
+          summary: 'נזילה בברז',
+          displayNumber: 'OC-12',
+        },
+      ],
+      'חדרה',
+      'he',
+    )
+    expect(summary.ok).toBe(true)
+    expect(summary.message).toContain('OC-12')
+    expect(summary.message).toContain('/ops/tickets/a')
+    expect(summary.message).toMatch(/\/ops\/tickets\?store=/)
+  })
+})
 
 describe('repeatGearFrom', () => {
   it('counts two faults on the same asset and keeps a recorded price', () => {

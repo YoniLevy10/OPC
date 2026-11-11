@@ -46,7 +46,7 @@ export default async function AssetsPage() {
 
   return (
     <OpsAppShell>
-      <div className="flex flex-col gap-5 stagger">
+      <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <OpsPageHero
           title="ציוד וחלקים"
           status="למעלה הציוד בסניף. למטה החלקים במחסן."

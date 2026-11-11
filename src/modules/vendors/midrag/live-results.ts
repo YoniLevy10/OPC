@@ -16,17 +16,38 @@ export type MidragPro = {
   profileUrl: string
 }
 
+/** Why live Midrag pros are / aren't available. */
+export type MidragReason =
+  | 'ok'
+  | 'unmapped'
+  | 'fetch_failed'
+  | 'empty'
+  | 'stale'
+
 export type MidragLiveResult = {
   pros: MidragPro[]
   searchUrl: string
-  /** True when the page could not be read. The UI falls back to the link. */
+  /** True when the UI should treat the Midrag link as the primary path. */
   fallback: boolean
+  reason: MidragReason
+  /** Pros came from last-good cache (error or per-key throttle). */
+  stale?: boolean
 }
 
 const TTL_MS = 15 * 60 * 1000
+/** Gap between network fetches for the *same* cache key — not global. */
 const MIN_GAP_MS = 1500
-const cache = new Map<string, { at: number; pros: MidragPro[] }>()
-let lastFetchAt = 0
+
+type CacheEntry = { at: number; pros: MidragPro[] }
+
+const cache = new Map<string, CacheEntry>()
+const lastFetchByKey = new Map<string, number>()
+
+/** Test-only: clear in-memory cache + per-key throttle clocks. */
+export function __resetMidragLiveCacheForTests() {
+  cache.clear()
+  lastFetchByKey.clear()
+}
 
 function decodeAttr(value: string): string {
   return value
@@ -92,6 +113,45 @@ export function parseMidragResultsHtml(html: string): MidragPro[] {
   return pros
 }
 
+function resultFromCache(
+  hit: CacheEntry,
+  searchUrl: string,
+  reason: MidragReason,
+  stale: boolean,
+): MidragLiveResult {
+  const empty = hit.pros.length === 0
+  return {
+    pros: hit.pros,
+    searchUrl,
+    fallback: empty,
+    reason: empty && reason === 'stale' ? 'empty' : reason,
+    stale: stale && !empty ? true : undefined,
+  }
+}
+
+async function fetchMidragHtml(searchUrl: string): Promise<string> {
+  const init: RequestInit = {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (compatible; MaintainOS/1.0; +https://optical-center.co.il)',
+      'Accept-Language': 'he',
+    },
+    signal: AbortSignal.timeout(8000),
+    cache: 'no-store',
+  }
+  const once = async () => {
+    const response = await fetch(searchUrl, init)
+    if (!response.ok) throw new Error(`midrag_http_${response.status}`)
+    return response.text()
+  }
+  try {
+    return await once()
+  } catch {
+    // One network retry before falling back to cache / fetch_failed.
+    return await once()
+  }
+}
+
 export async function loadMidragResults(input: {
   category: string
   city?: string | null
@@ -100,33 +160,77 @@ export async function loadMidragResults(input: {
   const service = midragServiceMatchForCategory(input.category)
   const city = midragCityMatchForCity(input.city)
   if (!service || !city || !searchUrl.includes('/Search/Results')) {
-    return { pros: [], searchUrl, fallback: true }
+    return {
+      pros: [],
+      searchUrl,
+      fallback: true,
+      reason: 'unmapped',
+    }
   }
+
   const key = `${service.serviceId}:${city.cityId}`
   const hit = cache.get(key)
-  if (hit && Date.now() - hit.at < TTL_MS) {
-    return { pros: hit.pros, searchUrl, fallback: hit.pros.length === 0 }
+  const now = Date.now()
+
+  if (hit && now - hit.at < TTL_MS) {
+    return {
+      pros: hit.pros,
+      searchUrl,
+      fallback: hit.pros.length === 0,
+      reason: hit.pros.length === 0 ? 'empty' : 'ok',
+    }
   }
-  if (Date.now() - lastFetchAt < MIN_GAP_MS) {
-    return { pros: hit?.pros ?? [], searchUrl, fallback: !hit?.pros.length }
+
+  const lastFetch = lastFetchByKey.get(key) ?? 0
+  if (now - lastFetch < MIN_GAP_MS) {
+    // Per-key throttle: serve last cache for *this* key; other keys still fetch.
+    if (hit) return resultFromCache(hit, searchUrl, 'stale', true)
+    return {
+      pros: [],
+      searchUrl,
+      fallback: true,
+      reason: 'fetch_failed',
+    }
   }
-  lastFetchAt = Date.now()
+
+  lastFetchByKey.set(key, now)
+
   try {
-    const response = await fetch(searchUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (compatible; MaintainOS/1.0; +https://optical-center.co.il)',
-        'Accept-Language': 'he',
-      },
-      signal: AbortSignal.timeout(8000),
-      cache: 'no-store',
-    })
-    if (!response.ok) return { pros: [], searchUrl, fallback: true }
-    const html = await response.text()
-    const pros = parseMidragResultsHtml(html)
+    const html = await fetchMidragHtml(searchUrl)
+    let pros: MidragPro[]
+    try {
+      pros = parseMidragResultsHtml(html)
+    } catch {
+      if (hit?.pros.length) return resultFromCache(hit, searchUrl, 'stale', true)
+      return {
+        pros: [],
+        searchUrl,
+        fallback: true,
+        reason: 'fetch_failed',
+      }
+    }
     cache.set(key, { at: Date.now(), pros })
-    return { pros, searchUrl, fallback: pros.length === 0 }
+    return {
+      pros,
+      searchUrl,
+      fallback: pros.length === 0,
+      reason: pros.length === 0 ? 'empty' : 'ok',
+    }
   } catch {
-    return { pros: [], searchUrl, fallback: true }
+    if (hit?.pros.length) return resultFromCache(hit, searchUrl, 'stale', true)
+    if (hit) {
+      return {
+        pros: [],
+        searchUrl,
+        fallback: true,
+        reason: 'empty',
+      }
+    }
+    return {
+      pros: [],
+      searchUrl,
+      fallback: true,
+      reason: 'fetch_failed',
+    }
   }
 }

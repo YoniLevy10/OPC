@@ -2,7 +2,7 @@
 
 הריצו **אחרי** `npm run db:migrate` על Supabase אמיתי (לא `MAINTAINOS_FORCE_MEMORY`).
 
-מדד מוכנות חי: [`/api/health/pilot`](https://optical-center-rose.vercel.app/api/health/pilot) · Runbook: [`docs/META_PILOT_HANDOFF.md`](./META_PILOT_HANDOFF.md)
+מדד מוכנות חי: [`/api/health/pilot`](https://optical-center-rose.vercel.app/api/health/pilot) · Runbook ארכיון: [`archive/2026-stabilize/META_PILOT_HANDOFF.md`](./archive/2026-stabilize/META_PILOT_HANDOFF.md)
 
 ## מחזור ראשי (ככה זה עובד בפועל)
 
@@ -45,7 +45,7 @@ Unit: `npm test -- src/modules/pro src/modules/stores/manager-identity src/modul
 
 ### צד בנייה
 - [x] מיגרציית AI Intake על Supabase
-- [ ] מיגרציית `engagement_professional_id`
+- [x] מיגרציית `engagement_professional_id`
 - [ ] `node scripts/sync-store-managers.mjs` רץ על פרוד
 - [x] `MAINTAINOS_FORCE_MEMORY` **לא** set
 - [x] bucket `ticket-media`

@@ -31,7 +31,7 @@ export default async function PrintQrBatchPage() {
   return (
     <OpsAppShell>
       <PhoneDesktopOnly title="הדפסת QR">
-      <div className="flex flex-col gap-5 stagger print:gap-0 print:p-0">
+      <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger print:gap-0 print:p-0">
         <PageToolbar backHref="/ops/stores" backLabel="חזרה" />
         <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
           <OpsPageHero

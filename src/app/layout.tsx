@@ -4,6 +4,7 @@ import { Heebo, Rubik } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme/theme-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { LocaleProvider } from '@/components/i18n/locale-provider'
+import { SwUpdateBanner } from '@/components/layout/sw-update-banner'
 import { THEME_BOOT_SCRIPT, THEME_COLOR_LIGHT } from '@/lib/theme'
 import { getLocale } from '@/lib/i18n/server'
 import { localeDir, localeHtmlLang } from '@/lib/i18n/locale'
@@ -81,7 +82,10 @@ export default async function RootLayout({
         />
         <LocaleProvider locale={locale}>
           <ThemeProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              {children}
+              <SwUpdateBanner />
+            </ToastProvider>
           </ThemeProvider>
         </LocaleProvider>
         <script

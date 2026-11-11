@@ -33,6 +33,7 @@ import {
   priorityRowClass,
 } from '@/components/ui/signal'
 import { LiveAge } from '@/components/ui/time'
+import { PhoneStack } from '@/components/mobile'
 import { cn } from '@/lib/utils'
 import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
 import { intakeStateLabel } from '@/modules/inbox/display-labels'
@@ -850,7 +851,7 @@ export function InboxClient() {
   )
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 md:gap-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden md:gap-3">
       {error ? (
         <div className="shrink-0 px-4 md:px-0">
           <ErrorState title="שגיאה" description={error} />
@@ -862,21 +863,26 @@ export function InboxClient() {
         </div>
       ) : null}
 
-      {/* Mobile: fill remaining viewport — only messages scroll */}
-      <div className="flex min-h-0 flex-1 flex-col lg:hidden">
-        {!mobileShowThread ? (
-          <div className="min-h-0 flex-1 overflow-hidden px-3 pb-1 pt-2">
-            {listPanel}
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-hidden px-0">
-            {conversationPanel}
-          </div>
-        )}
+      {/* Mobile: list → conversation via PhoneStack */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-clip lg:hidden">
+        <PhoneStack
+          className="min-h-0 flex-1"
+          showDetail={mobileShowThread}
+          list={
+            <div className="min-h-0 h-full overflow-hidden px-3 pb-1 pt-2">
+              {listPanel}
+            </div>
+          }
+          detail={
+            <div className="min-h-0 h-full overflow-hidden px-0">
+              {conversationPanel}
+            </div>
+          }
+        />
       </div>
 
       {/* Desktop: fill remaining viewport height */}
-      <div className="hidden min-h-0 w-full flex-1 gap-3 max-lg:hidden lg:grid lg:grid-cols-[minmax(220px,1fr)_minmax(360px,2fr)_minmax(220px,1fr)]">
+      <div className="hidden min-h-0 min-w-0 w-full flex-1 gap-3 max-lg:hidden lg:grid lg:grid-cols-[minmax(220px,1fr)_minmax(360px,2fr)_minmax(220px,1fr)]">
         {listPanel}
         {conversationPanel}
         {contextPanel ?? (

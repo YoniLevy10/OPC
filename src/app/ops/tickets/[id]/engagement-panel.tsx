@@ -8,11 +8,32 @@ import {
 } from '@/app/ops/tickets/engagement-actions'
 import type { Engagement } from '@/modules/engagements/service'
 import { formatIls } from '@/modules/spend/true-cost'
-import type { MidragPro } from '@/modules/vendors/midrag/live-results'
+import type {
+  MidragPro,
+  MidragReason,
+} from '@/modules/vendors/midrag/live-results'
 import type { Professional } from '@/modules/professionals/types'
 import { Button } from '@/components/ui/button'
 import { MidragSearchAction } from '@/components/ops/midrag-search-action'
+import { PhoneActionDock } from '@/components/mobile'
 import { usePhrase } from '@/components/i18n/locale-provider'
+
+/** Hebrew source for midrag.* keys (phrase() returns the key in `he`). */
+const MIDRAG_REASON_HE: Record<Exclude<MidragReason, 'ok'>, string> = {
+  unmapped: 'קטגוריה או עיר לא ממופות למידרג.',
+  fetch_failed: 'לא הצלחנו לטעון את רשימת מידרג עכשיו.',
+  empty: 'אין תוצאות חיות באזור.',
+  stale: 'מציגים רשימה שמורה — מידרג לא התעדכן עכשיו.',
+}
+
+function midragPhrase(
+  key: string,
+  he: string,
+  p: (hebrew: string, vars?: Record<string, string | number>) => string,
+) {
+  const out = p(key)
+  return out === key ? he : out
+}
 
 export type CompanionChoice = {
   id: string
@@ -29,6 +50,8 @@ export function EngagementPanel({
   pros,
   searchUrl,
   fallback,
+  reason,
+  stale = false,
   companions,
   category = 'other',
   city,
@@ -41,6 +64,9 @@ export function EngagementPanel({
   pros: MidragPro[]
   searchUrl: string
   fallback: boolean
+  /** Honest Midrag status — preferred over boolean fallback alone. */
+  reason?: MidragReason
+  stale?: boolean
   companions: CompanionChoice[]
   category?: string
   city?: string | null
@@ -53,6 +79,18 @@ export function EngagementPanel({
   const [amount, setAmount] = useState('')
   const [pickedMidrag, setPickedMidrag] = useState('')
   const [pickedBookId, setPickedBookId] = useState('')
+
+  const midragReason: MidragReason =
+    reason ??
+    (pros.length > 0
+      ? stale
+        ? 'stale'
+        : 'ok'
+      : fallback
+        ? 'fetch_failed'
+        : 'empty')
+  const noLivePros = pros.length === 0
+  const showStaleNote = Boolean(stale || midragReason === 'stale') && !noLivePros
 
   function applyBookPro(pro: Professional) {
     setPickedBookId(pro.id)
@@ -80,63 +118,79 @@ export function EngagementPanel({
 
   if (status === 'closed' || status === 'cancelled') return null
 
+  const cancelFormId = `${formId}-cancel`
+
   if (locked && status === 'engaged') {
     return (
-      <section className="grid gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-        <p className="t-body-strong text-ink">{p('ארי יצא. מנהל החנות מתאם.')}</p>
-        <p className="t-body text-ink-2">
-          {locked.professionalName} · {locked.professionalPhone} ·{' '}
-          {(locked.approvedAmount ?? 0) > 0
-            ? formatIls(locked.approvedAmount ?? 0)
-            : p('מחיר טרם סוכם')}
-        </p>
-        {locked.handoff ? (
-          <p
-            className={`t-meta ${locked.handoff.ok ? 'text-[var(--signal-resolved)]' : 'text-[var(--signal-critical)]'}`}
-          >
-            {locked.handoff.line}
+      <>
+        <section className="grid gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+          <p className="t-body-strong text-ink">{p('ארי יצא. מנהל החנות מתאם.')}</p>
+          <p className="t-body text-ink-2">
+            {locked.professionalName} · {locked.professionalPhone} ·{' '}
+            {(locked.approvedAmount ?? 0) > 0
+              ? formatIls(locked.approvedAmount ?? 0)
+              : p('מחיר טרם סוכם')}
           </p>
-        ) : null}
-        {locked.proSms ? (
-          <p
-            className={`t-meta ${locked.proSms.ok ? 'text-[var(--signal-resolved)]' : 'text-[var(--signal-critical)]'}`}
-          >
-            {locked.proSms.line}
-            {locked.proSms.portalUrl ? (
-              <>
-                {' · '}
-                <a
-                  href={locked.proSms.portalUrl}
-                  className="underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  קישור אישי
-                </a>
-              </>
-            ) : null}
+          {locked.handoff ? (
+            <p
+              className={`t-meta ${locked.handoff.ok ? 'text-[var(--signal-resolved)]' : 'text-[var(--signal-critical)]'}`}
+            >
+              {locked.handoff.line}
+            </p>
+          ) : null}
+          {locked.proSms ? (
+            <p
+              className={`t-meta ${locked.proSms.ok ? 'text-[var(--signal-resolved)]' : 'text-[var(--signal-critical)]'}`}
+            >
+              {locked.proSms.line}
+              {locked.proSms.portalUrl ? (
+                <>
+                  {' · '}
+                  <a
+                    href={locked.proSms.portalUrl}
+                    className="underline"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    קישור אישי
+                  </a>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          <p className="t-meta text-ink-3">
+            {p('המחיר נעול. שינוי דורש ביטול וחזרה לתור.')}
           </p>
-        ) : null}
-        <p className="t-meta text-ink-3">
-          {p('המחיר נעול. שינוי דורש ביטול וחזרה לתור.')}
-        </p>
-        <form action={cancelEngagementAction}>
-          <input type="hidden" name="ticketId" value={ticketId} />
-          <Button type="submit" variant="secondary" size="sm">
-            {p('בטל אישור')}
-          </Button>
-        </form>
-      </section>
+          <form id={cancelFormId} action={cancelEngagementAction} className="hidden md:block">
+            <input type="hidden" name="ticketId" value={ticketId} />
+            <Button type="submit" variant="secondary" size="sm">
+              {p('בטל אישור')}
+            </Button>
+          </form>
+        </section>
+        <PhoneActionDock label={p('פעולות תקלה')} aboveTabBar className="md:hidden">
+          <form action={cancelEngagementAction}>
+            <input type="hidden" name="ticketId" value={ticketId} />
+            <Button type="submit" variant="secondary" className="w-full">
+              {p('בטל אישור')}
+            </Button>
+          </form>
+        </PhoneActionDock>
+      </>
     )
   }
 
+  const lockFormId = `${formId}-lock`
+  const urgentFormId = `${formId}-urgent`
+
   return (
+    <>
     <section className="grid gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="t-body-strong text-ink">
           {urgent ? p('דחוף') : p('לא דחוף')}
         </p>
-        <form action={setUrgentAction}>
+        <form id={urgentFormId} action={setUrgentAction} className="max-md:hidden">
           <input type="hidden" name="ticketId" value={ticketId} />
           <input type="hidden" name="urgent" value={urgent ? '0' : '1'} />
           <Button type="submit" variant="secondary" size="sm">
@@ -146,7 +200,7 @@ export function EngagementPanel({
       </div>
 
       {urgent ? (
-        <form action={lockEngagementAction} className="grid gap-3">
+        <form id={lockFormId} action={lockEngagementAction} className="grid gap-3">
           <input type="hidden" name="ticketId" value={ticketId} />
           <input type="hidden" name="midrag" value={pickedMidrag} />
           <input type="hidden" name="professional_id" value={pickedBookId} />
@@ -194,12 +248,18 @@ export function EngagementPanel({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               asChild
-              variant="secondary"
+              variant={noLivePros ? 'primary' : 'secondary'}
               size="sm"
               className="min-w-0 flex-1 sm:flex-none"
             >
               <a href={searchUrl} target="_blank" rel="noreferrer">
-                {p('מידרג באזור')}
+                {noLivePros
+                  ? midragPhrase(
+                      'midrag.open_link',
+                      'פתח חיפוש מידרג',
+                      p,
+                    )
+                  : p('מידרג באזור')}
               </a>
             </Button>
             <MidragSearchAction
@@ -219,6 +279,15 @@ export function EngagementPanel({
                 {p('טווח מידרג הוא לא המחיר שאושר.')}{' '}
                 {p('בחירה ממלאת את השם — הטלפון אחרי השיחה.')}
               </p>
+              {showStaleNote ? (
+                <p className="t-meta text-ink-2">
+                  {midragPhrase(
+                    'midrag.stale',
+                    MIDRAG_REASON_HE.stale,
+                    p,
+                  )}
+                </p>
+              ) : null}
               <ul className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
                 {pros.map((pro) => {
                   const value = `${pro.id}::${encodeURIComponent(pro.name)}`
@@ -265,10 +334,40 @@ export function EngagementPanel({
               </ul>
             </fieldset>
           ) : (
-            <p className="t-body text-ink-2">
-              {fallback ? p('מידרג לא נפתח עכשיו. ') : p('אין תוצאות באזור. ')}
-              {p('השתמשו בחיפוש הכללי או בחיפוש לפי מקצוע.')}
-            </p>
+            <div className="grid gap-1">
+              <p className="t-body text-ink-2">
+                {midragReason === 'unmapped'
+                  ? midragPhrase(
+                      'midrag.unmapped',
+                      MIDRAG_REASON_HE.unmapped,
+                      p,
+                    )
+                  : midragReason === 'empty'
+                    ? midragPhrase(
+                        'midrag.empty',
+                        MIDRAG_REASON_HE.empty,
+                        p,
+                      )
+                    : midragReason === 'stale'
+                      ? midragPhrase(
+                          'midrag.stale',
+                          MIDRAG_REASON_HE.stale,
+                          p,
+                        )
+                      : midragPhrase(
+                          'midrag.fetch_failed',
+                          MIDRAG_REASON_HE.fetch_failed,
+                          p,
+                        )}
+              </p>
+              <p className="t-meta text-ink-3">
+                {midragPhrase(
+                  'midrag.use_link_hint',
+                  'פתחו את מידרג בקישור — הרשימה החיה לא זמינה כרגע.',
+                  p,
+                )}
+              </p>
+            </div>
           )}
 
           {companions.length > 0 ? (
@@ -340,7 +439,7 @@ export function EngagementPanel({
               />
             </label>
           </div>
-          <Button type="submit" variant="primary" className="max-md:w-full">
+          <Button type="submit" variant="primary" className="hidden w-full md:inline-flex">
             אשר · WA למנהל + SMS לאיש מקצוע
           </Button>
         </form>
@@ -352,5 +451,34 @@ export function EngagementPanel({
         </p>
       )}
     </section>
+    <PhoneActionDock label={p('פעולות תקלה')} aboveTabBar className="md:hidden">
+      <div className="flex flex-col gap-2">
+        {urgent ? (
+          <>
+            <Button type="submit" form={lockFormId} variant="primary" className="w-full">
+              אשר · WA למנהל + SMS לאיש מקצוע
+            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" form={urgentFormId} variant="secondary" className="flex-1">
+                {p('סמן כלא דחוף')}
+              </Button>
+              <Button asChild variant="secondary" className="flex-1">
+                <a href="#ticket-actions">{p('ערוך שיבוץ')}</a>
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Button type="submit" form={urgentFormId} variant="primary" className="w-full">
+              {p('סמן כדחוף')}
+            </Button>
+            <Button asChild variant="secondary" className="w-full">
+              <a href="#ticket-actions">{p('פרטי תקלה')}</a>
+            </Button>
+          </>
+        )}
+      </div>
+    </PhoneActionDock>
+    </>
   )
 }

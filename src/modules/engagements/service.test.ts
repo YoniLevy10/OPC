@@ -83,6 +83,31 @@ describe('lockEngagement', () => {
     expect(memGet(side.id)?.status).toBe('new')
   })
 
+  it('still finds the lock after wiping the engagement rows (timeline fallback)', async () => {
+    const store = DEMO_STORES[0]
+    if (!store) throw new Error('missing demo store')
+    const ticket = memCreate({
+      store,
+      description: 'בדיקת fallback מטיימליין',
+      priority: 'high',
+      category: 'hvac',
+    })
+    await lockEngagement({
+      ticketId: ticket.id,
+      professionalName: 'טכנאי דמו',
+      professionalPhone: '0501234567',
+      approvedAmount: 320,
+      approvedBy: 'ארי',
+    })
+    resetEngagementsForTests()
+    const { lockedEngagementFor } = await import('./service')
+    const recovered = await lockedEngagementFor(ticket.id)
+    expect(recovered?.professionalName).toBe('טכנאי דמו')
+    expect(recovered?.professionalPhone).toBe('0501234567')
+    expect(recovered?.approvedAmount).toBe(320)
+    expect(recovered?.status).toBe('locked')
+  })
+
   it('allows an ad-hoc professional without a price and omits the price line', async () => {
     const store = DEMO_STORES[0]
     if (!store) throw new Error('missing demo store')

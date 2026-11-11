@@ -112,7 +112,7 @@ export function StatusHealthPanel() {
   const openSteps = pilot?.nextSteps ?? []
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex w-full max-w-full flex-col gap-4 overflow-x-clip">
       <div className="flex justify-end">
         <Button
           type="button"

@@ -2,7 +2,7 @@
    Static icons, brand art, and the offline page only.
    Document navigations and API responses are never written to Cache Storage,
    so one person's signed-in shell cannot be replayed for another session. */
-const CACHE = 'maintainos-static-v9'
+const CACHE = 'maintainos-static-v10'
 
 const PRECACHE = [
   '/offline.html',
@@ -34,7 +34,10 @@ self.addEventListener('install', (event) => {
           }
         }),
       )
-      await self.skipWaiting()
+      // First install only — later updates wait for SwUpdateBanner → SKIP_WAITING.
+      if (!self.registration.active) {
+        await self.skipWaiting()
+      }
     })(),
   )
 })
@@ -49,6 +52,12 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim()
     })(),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 function isStaticAsset(pathname) {

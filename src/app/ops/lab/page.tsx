@@ -12,7 +12,7 @@ export default function LabPage() {
   return (
     <OpsAppShell>
       <PhoneDesktopOnly title="מעבדה">
-      <div className="mx-auto flex max-w-3xl flex-col gap-5 stagger">
+      <div className="mx-auto flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger md:max-w-3xl">
         <OpsPageHero
           title="מעבדה"
           status="כלי בדיקה והדגמה פנימיים"

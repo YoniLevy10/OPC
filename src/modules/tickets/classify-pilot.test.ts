@@ -14,10 +14,18 @@ describe('Critical classification examples', () => {
       category: 'electrical',
       priority: 'medium',
     })
+    expect(classifyFaultText('נורה לא עובדת במחסן')).toEqual({
+      category: 'electrical',
+      priority: 'medium',
+    })
   })
 
   it('loose door handle stays off the urgent queue', () => {
     expect(classifyFaultText('ידית הדלת רופפת')).toEqual({
+      category: 'security',
+      priority: 'medium',
+    })
+    expect(classifyFaultText('ידית הדלת לא עובדת')).toEqual({
       category: 'security',
       priority: 'medium',
     })

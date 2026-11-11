@@ -6,7 +6,7 @@ import { Check, Play, Upload } from 'lucide-react'
 import { useOnline } from '@/hooks/use-online'
 import { Button } from '@/components/ui/button'
 import { Textarea, Field } from '@/components/ui/input'
-import { BottomSheet } from '@/components/ui/overlay'
+import { PhoneSheet } from '@/components/mobile'
 import { ErrorState, Notice } from '@/components/ui/primitives'
 import { useToast } from '@/components/ui/toast'
 import { nextStatusActions } from '@/modules/tickets/tech'
@@ -240,7 +240,7 @@ export function TechTicketActions({
         </Button>
       ) : null}
 
-      <BottomSheet
+      <PhoneSheet
         open={sheetOpen}
         onOpenChange={(open) => {
           if (busy) return
@@ -318,7 +318,7 @@ export function TechTicketActions({
             {phaseLabel ?? TECH_COMPLETION.submitLabel}
           </Button>
         </div>
-      </BottomSheet>
+      </PhoneSheet>
     </div>
   )
 }

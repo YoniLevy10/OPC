@@ -280,7 +280,7 @@ export default async function TicketDetailPage({
 
   return (
     <OpsAppShell>
-      <div className="ari-home mx-auto flex min-w-0 w-full max-w-2xl flex-col gap-3 overflow-x-clip pb-actions-hq md:max-w-4xl md:gap-5 md:pb-0">
+      <div className="ari-home mx-auto flex min-w-0 w-full max-w-2xl flex-col gap-3 overflow-x-clip phone-pad-tab phone-pad-dock md:max-w-4xl md:gap-5 md:!pb-0">
         <PageToolbar backHref="/ops/tickets" backLabel="חזרה" showRefresh />
 
         <OpsPageHero
@@ -316,7 +316,7 @@ export default async function TicketDetailPage({
         />
 
         {verb === 'לאשר' ? (
-          <div className="flex items-center justify-end px-1">
+          <div className="hidden items-center justify-end px-1 md:flex">
             <Button asChild variant="primary" size="sm">
               <Link href="#ticket-actions">לאשר</Link>
             </Button>
@@ -442,6 +442,8 @@ export default async function TicketDetailPage({
             pros={midrag?.pros ?? []}
             searchUrl={midrag?.searchUrl ?? 'https://www.midrag.co.il/Search/InSector'}
             fallback={midrag?.fallback ?? true}
+            reason={midrag?.reason}
+            stale={midrag?.stale}
             companions={companions}
             category={ticket.category || 'other'}
             city={ticket.stores?.city ?? null}

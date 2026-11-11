@@ -11,7 +11,7 @@ export default function SimulatorPage() {
   return (
     <OpsAppShell>
       <PhoneDesktopOnly title="סימולטור">
-      <div className="flex flex-col gap-5 stagger">
+      <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <PageToolbar backHref="/ops/lab" backLabel="חזרה" showRefresh />
         <OpsPageHero
           title="סימולטור WhatsApp"

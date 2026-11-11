@@ -16,7 +16,7 @@ export default async function ActivityPage() {
 
   return (
     <OpsAppShell>
-      <div className="flex flex-col gap-5 stagger">
+      <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <OpsPageHero
           title="היסטוריה"
           status={

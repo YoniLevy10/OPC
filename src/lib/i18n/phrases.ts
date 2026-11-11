@@ -1264,6 +1264,180 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'No connection to the assistant right now',
     fr: 'Pas de connexion à l’assistant pour le moment',
   },
+  // Agent A — recurring maintenance (tasks.* / repeat.*)
+  'tasks.preventiveTitle': {
+    en: 'Preventive maintenance',
+    fr: 'Maintenance préventive',
+  },
+  'tasks.preventiveHint': {
+    en: 'A repeating maintenance task — e.g. fire-safety check or equipment calibration. Completing it opens the next instance on the cadence.',
+    fr: 'Tâche de maintenance récurrente — p. ex. contrôle incendie ou étalonnage. La terminer ouvre la prochaine occurrence selon le cycle.',
+  },
+  'tasks.titleHint': {
+    en: 'e.g. fire-safety check · audiometer calibration',
+    fr: 'p. ex. contrôle incendie · étalonnage audiomètre',
+  },
+  'tasks.pickStore': {
+    en: 'Choose a store',
+    fr: 'Choisir un magasin',
+  },
+  'tasks.cadenceLabel': {
+    en: 'Repeat cadence',
+    fr: 'Cadence de répétition',
+  },
+  'tasks.cadenceHint': {
+    en: '30 days · 90 days · yearly — or a custom day count',
+    fr: '30 jours · 90 jours · annuel — ou un nombre de jours personnalisé',
+  },
+  'tasks.addPreventive': {
+    en: 'Add maintenance task',
+    fr: 'Ajouter une tâche de maintenance',
+  },
+  'tasks.nextInstanceLink': {
+    en: 'Go to next task',
+    fr: 'Aller à la prochaine tâche',
+  },
+  'repeat.everyDays': {
+    en: 'Repeats every {days} days',
+    fr: 'Se répète tous les {days} jours',
+  },
+  'repeat.nextOpenedFor': {
+    en: 'Next opened for {date}',
+    fr: 'Prochaine ouverte pour le {date}',
+  },
+  'repeat.nextOpened': {
+    en: 'Next cycle instance opened',
+    fr: 'Prochaine occurrence du cycle ouverte',
+  },
+  'repeat.preset30': { en: 'Every 30 days', fr: 'Tous les 30 jours' },
+  'repeat.preset90': { en: 'Every 90 days', fr: 'Tous les 90 jours' },
+  'repeat.preset365': { en: 'Yearly (365)', fr: 'Annuel (365)' },
+  'repeat.none': { en: 'No repeat', fr: 'Sans répétition' },
+  // Agent B — classify + bundle recommendations (bundle.* / recommend.*)
+  'recommend.whyCombine': {
+    en: 'Why combine — one visit for this store',
+    fr: 'Pourquoi regrouper — une visite pour ce magasin',
+  },
+  'bundle.ctaSameStore': {
+    en: 'Combine into one same-store visit',
+    fr: 'Regrouper en une seule visite magasin',
+  },
+  'bundle.oneVisitStore': {
+    en: 'One visit at this store',
+    fr: 'Une visite dans ce magasin',
+  },
+  'recommend.openBundle': {
+    en: 'Open bundle suggestion',
+    fr: 'Ouvrir la suggestion de regroupement',
+  },
+
+  // Agent C — Midrag L6 honest fallback (midrag.*)
+  'midrag.ok': {
+    en: 'Live Midrag list',
+    fr: 'Liste Midrag en direct',
+  },
+  'midrag.unmapped': {
+    en: 'Category or city is not mapped to Midrag.',
+    fr: 'Catégorie ou ville non associée à Midrag.',
+  },
+  'midrag.fetch_failed': {
+    en: 'Could not load the Midrag list right now.',
+    fr: 'Impossible de charger la liste Midrag pour le moment.',
+  },
+  'midrag.empty': {
+    en: 'No live results in the area.',
+    fr: 'Aucun résultat en direct dans la zone.',
+  },
+  'midrag.stale': {
+    en: 'Showing a saved list — Midrag did not refresh just now.',
+    fr: 'Liste enregistrée affichée — Midrag ne s’est pas actualisé.',
+  },
+  'midrag.open_link': {
+    en: 'Open Midrag search',
+    fr: 'Ouvrir la recherche Midrag',
+  },
+  'midrag.use_link_hint': {
+    en: 'Open Midrag via the link — the live list is unavailable right now.',
+    fr: 'Ouvrez Midrag via le lien — la liste en direct est indisponible.',
+  },
+
+  // Agent D — Ari L9 tools / brief (agent.* / ari.*)
+  'agent.papersNone': {
+    en: 'No document is overdue or due this month.',
+    fr: 'Aucun document en retard ou à échéance ce mois-ci.',
+  },
+  'agent.papersNoneStore': {
+    en: 'No document is overdue or due this month at {store}.',
+    fr: 'Aucun document en retard ou à échéance ce mois-ci à {store}.',
+  },
+  'agent.paperLate': {
+    en: '{label} at {store} is already overdue.',
+    fr: '{label} au magasin {store} est déjà en retard.',
+  },
+  'agent.paperSoon': {
+    en: '{label} at {store} is due within a month.',
+    fr: '{label} au magasin {store} arrive à échéance dans moins d’un mois.',
+  },
+  'agent.papersMore': {
+    en: 'And {count} more.',
+    fr: 'Et {count} de plus.',
+  },
+  'agent.papersLead': {
+    en: 'Documents due for renewal:',
+    fr: 'Documents à renouveler :',
+  },
+  'agent.papersLeadStore': {
+    en: 'Documents due for renewal at {store}:',
+    fr: 'Documents à renouveler à {store} :',
+  },
+  'agent.papersPath': {
+    en: 'Documents: /ops/documents',
+    fr: 'Documents : /ops/documents',
+  },
+  'agent.documentsLink': {
+    en: 'Documents',
+    fr: 'Documents',
+  },
+  'agent.whichStoreOpen': {
+    en: 'Which store? Write the name or store code.',
+    fr: 'Quel magasin ? Indiquez le nom ou le code.',
+  },
+  'agent.openNoneStore': {
+    en: 'No open faults at {store}. Queue: {path}',
+    fr: 'Aucune panne ouverte à {store}. File : {path}',
+  },
+  'agent.openLead': {
+    en: '{store}: {count} open.',
+    fr: '{store} : {count} ouvertes.',
+  },
+  'agent.openMore': {
+    en: 'And {count} more.',
+    fr: 'Et {count} de plus.',
+  },
+  'agent.openQueuePath': {
+    en: 'Store queue: {path}',
+    fr: 'File magasin : {path}',
+  },
+  'agent.queueLink': {
+    en: 'Store queue',
+    fr: 'File magasin',
+  },
+  'agent.taskDue': {
+    en: 'Due {due}.',
+    fr: 'Pour le {due}.',
+  },
+  'agent.taskRepeat': {
+    en: 'Repeats every {days} days.',
+    fr: 'Se répète tous les {days} jours.',
+  },
+  'ari.nextStepLead': {
+    en: 'Next step',
+    fr: 'Prochaine étape',
+  },
+  'ari.factsOnly': {
+    en: 'Facts only — do not invent',
+    fr: 'Faits uniquement — n’inventez pas',
+  },
 }
 
 export function phrase(

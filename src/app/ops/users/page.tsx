@@ -15,7 +15,7 @@ export default async function UsersPage() {
 
   return (
     <OpsAppShell>
-      <div className="flex flex-col gap-5 stagger">
+      <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <OpsPageHero
           title="משתמשים"
           status="HQ לארי · חנות וטכנאי לשטח"

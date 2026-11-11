@@ -2,14 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ClipboardList, PlusCircle } from 'lucide-react'
 import { LocaleSwitcher } from '@/components/i18n/locale-switcher'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import { LogoutButton } from '@/components/auth/logout-button'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { BrandMark } from '@/components/brand/brand-mark'
-import { SkipLink } from '@/components/layout/skip-link'
-import { LiveSync } from '@/components/layout/live-sync'
-import { cn } from '@/lib/utils'
+import { PhoneShell, PhoneTabBar } from '@/components/mobile'
 
 export function StoreShell({
   children,
@@ -23,70 +22,96 @@ export function StoreShell({
   const pathname = usePathname() ?? ''
   const p = usePhrase()
 
-  const links = [
-    { href: '/store', label: p('התקלות שלי'), match: '/store' },
+  const tabs = [
+    {
+      href: '/store',
+      label: p('התקלות שלי'),
+      icon: ClipboardList,
+      match: '/store',
+    },
     {
       href: '/store/report',
       label: p('דיווח גיבוי'),
+      icon: PlusCircle,
       match: '/store/report',
     },
   ]
 
+  // Exact match for home so /store/tickets/* does not light up "report"
+  const tabItems = tabs.map((item) => ({
+    ...item,
+    match: item.href === '/store' ? '__store_home__' : item.match,
+  }))
+  const activePath =
+    pathname === '/store' || pathname.startsWith('/store/tickets')
+      ? '__store_home__'
+      : pathname
+
   return (
-    <div className="ops-atmosphere dvh-screen text-ink">
-      <SkipLink />
-      <LiveSync />
-      <header className="apple-glass safe-pt sticky top-0 z-20 border-b border-border bg-background">
-        <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <BrandMark size={32} className="rounded-[var(--radius-md)]" alt="" />
-            <div className="min-w-0">
-              <p className="t-body-strong truncate text-ink">{p('Optical Center · חנות')}</p>
-              {storeName ? (
-                <p className="t-caption truncate text-ink-3">
-                  {storeName}
-                  {storeCode ? ` · #${storeCode}` : ''}
+    <PhoneShell
+      padForTabBar
+      enablePullToRefresh
+      mainClassName="max-w-lg"
+      header={
+        <header className="apple-glass safe-pt sticky top-0 z-20 shrink-0 border-b border-border bg-background md:static">
+          <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <BrandMark size={32} className="rounded-[var(--radius-md)]" alt="" />
+              <div className="min-w-0">
+                <p className="t-body-strong truncate text-ink">
+                  {p('Optical Center · חנות')}
                 </p>
-              ) : null}
+                {storeName ? (
+                  <p className="t-caption truncate text-ink-3">
+                    {storeName}
+                    {storeCode ? ` · #${storeCode}` : ''}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <LocaleSwitcher />
+              <ThemeToggle compact />
+              <LogoutButton size="sm" variant="secondary" />
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <LocaleSwitcher />
-            <ThemeToggle compact />
-            <LogoutButton size="sm" variant="secondary" />
-          </div>
-        </div>
-        <nav aria-label={p('ניווט חנות')} className="flex px-2">
-          {links.map((item) => {
-            const active =
-              item.href === '/store'
-                ? pathname === '/store'
-                : pathname === item.match || pathname.startsWith(`${item.match}/`)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'press-scale t-control mx-1 mb-2 flex-1 rounded-md py-2.5 text-center transition-colors',
-                  active
-                    ? 'bg-tenant-soft font-medium text-tenant'
-                    : 'text-ink-3 hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] hover:text-ink',
-                )}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-      </header>
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="safe-pb scroll-edge-fade mx-auto max-w-lg px-4 py-5 outline-none"
-      >
-        {children}
-      </main>
-    </div>
+          {/* Desktop / larger: keep segmented links in header */}
+          <nav
+            aria-label={p('ניווט חנות')}
+            className="mx-auto hidden max-w-lg gap-2 px-4 pb-3 md:flex"
+          >
+            {tabs.map((item) => {
+              const active =
+                item.href === '/store'
+                  ? pathname === '/store' || pathname.startsWith('/store/tickets')
+                  : pathname === item.match || pathname.startsWith(`${item.match}/`)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={
+                    active
+                      ? 't-control flex-1 rounded-md bg-tenant-soft py-2.5 text-center font-medium text-tenant'
+                      : 't-control flex-1 rounded-md py-2.5 text-center text-ink-3'
+                  }
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+        </header>
+      }
+      tabBar={
+        <PhoneTabBar
+          pathname={activePath}
+          ariaLabel={p('ניווט חנות')}
+          items={tabItems}
+        />
+      }
+    >
+      {children}
+    </PhoneShell>
   )
 }

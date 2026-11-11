@@ -6,6 +6,7 @@ import type { TicketStatus } from '@/modules/tickets/constants'
 import { Button } from '@/components/ui/button'
 import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
 import { OperationalRow, Dot } from '@/components/ui/operational-row'
+import { PhoneSwipeRow } from '@/components/mobile'
 import { StatusLabel } from '@/components/ui/signal'
 import { cn } from '@/lib/utils'
 import { plainOpenForHe, plainStatus } from '@/components/ops/plain-labels'
@@ -43,11 +44,12 @@ export function TicketQueueItem({
   const needsApproval =
     ticketIsUrgent(ticket) && ticket.status !== 'engaged'
   const title = ticket.title || ticket.description
+  const href = `/ops/tickets/${ticket.id}`
 
   if (!open) {
     return (
       <OperationalRow
-        href={`/ops/tickets/${ticket.id}`}
+        href={href}
         priority={ticket.priority}
         leading={
           <span className="inline-flex items-center gap-2">
@@ -70,7 +72,7 @@ export function TicketQueueItem({
     )
   }
 
-  return (
+  const row = (
     <article
       className={cn(
         'border-b border-border bg-surface last:border-b-0',
@@ -92,10 +94,7 @@ export function TicketQueueItem({
           </label>
         ) : null}
 
-        <Link
-          href={`/ops/tickets/${ticket.id}`}
-          className="min-w-0 flex-1 space-y-1"
-        >
+        <Link href={href} className="min-w-0 flex-1 space-y-1">
           <p className="t-body line-clamp-2 text-ink">{title}</p>
           <p className="t-meta text-ink-3">
             <span
@@ -125,15 +124,38 @@ export function TicketQueueItem({
           <TicketQueueNoteButton ticketId={ticket.id} ticketTitle={title} />
           {needsApproval ? (
             <Button asChild variant="primary" size="sm">
-              <Link href={`/ops/tickets/${ticket.id}`}>{actionLabel}</Link>
+              <Link href={href}>{actionLabel}</Link>
             </Button>
           ) : (
             <Button asChild variant="secondary" size="sm">
-              <Link href={`/ops/tickets/${ticket.id}`}>{p('לטפל')}</Link>
+              <Link href={href}>{p('לטפל')}</Link>
             </Button>
           )}
         </div>
       </div>
     </article>
+  )
+
+  return (
+    <PhoneSwipeRow
+      actions={
+        <div className="flex h-full w-full">
+          <Link
+            href={href}
+            className="flex flex-1 items-center justify-center bg-[var(--tenant)] px-2 text-center text-sm font-medium text-white"
+          >
+            {needsApproval ? actionLabel : p('לטפל')}
+          </Link>
+          <Link
+            href={`${href}#ticket-actions`}
+            className="flex flex-1 items-center justify-center bg-ink px-2 text-center text-sm font-medium text-canvas"
+          >
+            {p('שיבוץ')}
+          </Link>
+        </div>
+      }
+    >
+      {row}
+    </PhoneSwipeRow>
   )
 }

@@ -64,7 +64,7 @@ export function WhatsAppTemplatesClient() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex w-full max-w-full flex-col gap-4 overflow-x-clip">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="t-meta">
           תבניות Meta Utility לשליחה מחוץ לחלון 24 השעות. שם Meta חייב להתאים

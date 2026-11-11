@@ -29,19 +29,19 @@
       "url": "/ops/dashboard?source=pwa"
     },
     {
-      "name": "משימות",
-      "short_name": "משימות",
-      "url": "/ops/tasks"
-    },
-    {
-      "name": "WhatsApp",
-      "short_name": "WhatsApp",
-      "url": "/ops/inbox"
+      "name": "תקלות",
+      "short_name": "תקלות",
+      "url": "/ops/tickets"
     },
     {
       "name": "חנויות",
       "short_name": "חנויות",
       "url": "/ops/stores"
+    },
+    {
+      "name": "WhatsApp",
+      "short_name": "WhatsApp",
+      "url": "/ops/inbox"
     }
   ],
   "icons": [

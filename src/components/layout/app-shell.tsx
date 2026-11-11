@@ -29,6 +29,7 @@ import {
 import type { NavTool } from '@/lib/auth/nav-access'
 import { ALL_NAV_TOOLS } from '@/lib/auth/nav-access'
 import { SideDrawer } from '@/components/ui/overlay'
+import { PhoneTabBar } from '@/components/mobile'
 import { LogoutButton } from '@/components/auth/logout-button'
 import { BrandMark } from '@/components/brand/brand-mark'
 import { LiveSync } from '@/components/layout/live-sync'
@@ -57,6 +58,7 @@ type NavItem = {
   match: string
 }
 
+/** Mobile tab bar — daily Ari loop. Documents/reports live in More. */
 const PRIMARY: NavItem[] = [
   {
     href: '/ops/dashboard',
@@ -65,25 +67,13 @@ const PRIMARY: NavItem[] = [
     match: '/ops/dashboard',
   },
   { href: '/ops/tickets', label: 'תקלות', icon: Inbox, match: '/ops/tickets' },
-  {
-    href: '/ops/documents',
-    label: 'מסמכים',
-    icon: FileText,
-    match: '/ops/documents',
-  },
-  {
-    href: '/ops/reports',
-    label: 'דוחות',
-    icon: BarChart3,
-    match: '/ops/reports',
-  },
+  { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
 ]
 
 const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'תפעול',
     items: [
-      { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
       {
         href: '/ops/inbox',
         label: 'WhatsApp',
@@ -95,6 +85,18 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
         label: 'בעלי מקצוע',
         icon: Truck,
         match: '/ops/professionals',
+      },
+      {
+        href: '/ops/documents',
+        label: 'מסמכים',
+        icon: FileText,
+        match: '/ops/documents',
+      },
+      {
+        href: '/ops/reports',
+        label: 'דוחות',
+        icon: BarChart3,
+        match: '/ops/reports',
       },
       {
         href: '/ops/activity',
@@ -157,6 +159,8 @@ function filterToolGroups(tools: NavTool[]) {
   const allowed = new Set(tools.map((t) => t.href))
   // Always keep core operational links that live outside ALL_NAV_TOOLS.
   allowed.add('/ops/stores')
+  allowed.add('/ops/documents')
+  allowed.add('/ops/reports')
   return TOOL_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => allowed.has(item.href)),
@@ -490,8 +494,7 @@ export function AppShell({
         className={cn(
           'flex min-h-0 min-w-0 flex-1 flex-col md:ps-[var(--nav-w)]',
           fillMain ? 'md:flex md:min-h-0' : 'md:block',
-          !fillMain &&
-            'max-md:pb-[calc(var(--bottomnav-h)+var(--bottomnav-gap)+var(--safe-b))]',
+          !fillMain && 'max-md:phone-pad-tab',
         )}
       >
         <PullToRefresh
@@ -509,7 +512,7 @@ export function AppShell({
               navHidden && 'md:max-w-none',
               fillMain
                 ? 'ops-main-fill min-h-0 flex-1 px-0 md:px-8'
-                : 'scroll-edge-fade min-h-0 flex-1 overflow-x-clip overflow-y-auto overscroll-x-none overscroll-y-auto px-4 pt-5 pb-nav md:overflow-visible md:pt-7 md:[mask-image:none] md:[-webkit-mask-image:none]',
+                : 'scroll-edge-fade min-h-0 flex-1 overflow-x-clip overflow-y-auto overscroll-x-none overscroll-y-auto px-4 pt-5 pb-nav phone-pad-tab md:overflow-visible md:pt-7 md:[mask-image:none] md:[-webkit-mask-image:none]',
             )}
           >
             <div className="mb-4 hidden items-center justify-between md:flex">
@@ -534,57 +537,35 @@ export function AppShell({
       </div>
 
       {/* ---------- Mobile bottom navigation ---------- */}
-      <nav
-        aria-label={p('ניווט תחתון')}
-        className="phone-tabbar fixed inset-x-3 z-30 md:hidden"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--bottomnav-gap))' }}
-      >
-        <ul
-          className="apple-glass flex overflow-hidden rounded-[28px]"
-          style={{ height: 'var(--bottomnav-h)' }}
-        >
-          {PRIMARY.map((item) => {
-            const active = isActive(pathname, item.match)
-            const Icon = item.icon
-            return (
-              <li key={item.href} className="flex-1">
-                <Link
-                  href={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  aria-label={noticeLabel(
-                    item.href,
-                    HREF_KEY[item.href] ? t(HREF_KEY[item.href]) : item.label,
-                    alertCount(item.href, notices),
-                    t,
-                  )}
-                  className={cn(
-                    'press-scale flex h-full flex-col items-center justify-center gap-1 transition-colors duration-[var(--dur-1)]',
-                    active ? 'nav-pill-active' : 'text-ink-3',
-                  )}
-                >
-                  <Icon className="h-6 w-6" aria-hidden />
-                  <span className="t-caption">
-                    <NavText href={item.href} fallback={item.label} />
-                  </span>
-                </Link>
-              </li>
-            )
-          })}
-          <li className="flex-1">
-            <button
-              type="button"
-              aria-expanded={menuOpen}
-              aria-haspopup="dialog"
-              aria-label={t('nav.more')}
-              onClick={() => setMenuOpen(true)}
-              className="flex h-full w-full flex-col items-center justify-center gap-1 text-ink-3 transition-colors duration-[var(--dur-1)]"
-            >
-              <Ellipsis className="h-6 w-6" aria-hidden />
-              <span className="t-caption">{t('nav.more')}</span>
-            </button>
-          </li>
-        </ul>
-      </nav>
+      <PhoneTabBar
+        pathname={pathname}
+        ariaLabel={p('ניווט תחתון')}
+        items={PRIMARY.map((item) => ({
+          href: item.href,
+          label: HREF_KEY[item.href] ? t(HREF_KEY[item.href]) : item.label,
+          icon: item.icon,
+          match: item.match,
+          ariaLabel: noticeLabel(
+            item.href,
+            HREF_KEY[item.href] ? t(HREF_KEY[item.href]) : item.label,
+            alertCount(item.href, notices),
+            t,
+          ),
+        }))}
+        trailing={
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-haspopup="dialog"
+            aria-label={t('nav.more')}
+            onClick={() => setMenuOpen(true)}
+            className="flex h-full w-full flex-col items-center justify-center gap-1 text-ink-3 transition-colors duration-[var(--dur-1)]"
+          >
+            <Ellipsis className="h-6 w-6" aria-hidden />
+            <span className="t-caption">{t('nav.more')}</span>
+          </button>
+        }
+      />
 
       <SideDrawer open={menuOpen} onOpenChange={setMenuOpen} title={t('nav.menu')}>
         <div className="mb-3 flex items-center justify-between px-3">

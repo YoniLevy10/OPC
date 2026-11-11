@@ -10,7 +10,7 @@ import { StatusLabel } from '@/components/ui/signal'
 import { EmptyState, Panel } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { OpsPageHero } from '@/components/ops/ops-page-hero'
-import { OperationalRow, RowList, Dot } from '@/components/ui/operational-row'
+import { PhoneList, PhoneRow, PhoneDot } from '@/components/mobile'
 import type { QueueTicket } from '@/modules/tickets/queue'
 import { StoreWaPrimaryNotice } from './wa-primary-notice'
 
@@ -70,9 +70,9 @@ export default async function StoreHomePage() {
             className="py-12"
           />
         ) : (
-          <RowList>
+          <PhoneList>
             {mine.slice(0, 30).map((t) => (
-              <OperationalRow
+              <PhoneRow
                 key={t.id}
                 href={`/store/tickets/${t.id}`}
                 priority={t.priority}
@@ -87,7 +87,7 @@ export default async function StoreHomePage() {
                     <StatusLabel status={t.status} />
                     {t.status === 'resolved' ? (
                       <>
-                        <Dot />
+                        <PhoneDot />
                         <span className="t-meta text-[var(--signal-warning)]">
                           נדרש אישור
                         </span>
@@ -97,7 +97,7 @@ export default async function StoreHomePage() {
                 }
               />
             ))}
-          </RowList>
+          </PhoneList>
         )}
       </Panel>
     </div>

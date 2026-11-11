@@ -9,11 +9,11 @@
 
 ## עקרונות פיילוט
 
-- ערוץ דיווח: **WhatsApp**
-- זיהוי חנות: **QR + NFC + קוד מספרי** (למשל `172`)
+- ערוץ דיווח: **WhatsApp** (מנהלי חנויות מזוהים לפי טלפון)
+- QR: **חירום / גיבוי** בלבד
 - מספר WhatsApp **לכל מדינה** (לא לכל חנות)
 - שפה: **עברית**
-- צוות תחזוקה פנימי של הרשת
+- שיוך: מאגר אנשי מקצוע (+ מידרג כ־bootstrap)
 - מיתוג ציבורי: OPC
 
 ## Stack
@@ -32,10 +32,10 @@ npm run dev
 
 ## סקריפט דמו (E2E)
 
-1. `/ops/simulator` — שלחו `STORE_172` ואז `המזגן הראשי לא עובד`
-2. `/ops/tickets` — פתחו את התקלה, שייכו טכנאי
+1. `/ops/simulator` — שלחו `STORE_172` ואז `המזגן הראשי לא עובד` (דמו / FORCE_MEMORY)
+2. `/ops/tickets` — פתחו את התקלה, סמנו דחוף, אשרו איש מקצוע
 3. או לחצו **תקלת הדגמה לטכנאי** (יוצר + משייך)
-4. `/tech` — התחילו טיפול → סיום עם הערה
+4. `/tech` — התחילו טיפול → סיום עם הערה (נתיב משני)
 
 API מהיר:
 
@@ -56,11 +56,9 @@ curl 'localhost:3000/api/demo/seed-ticket?assign=1'
 מיגרציות ב־`supabase/migrations/`.
 
 ```bash
-# דורש סיסמת DB מ־Supabase Dashboard → Database settings
 SUPABASE_DB_PASSWORD=... node scripts/apply-migrations.mjs
+npm run db:sync-managers
 ```
-
-או להריץ את קבצי ה־SQL ב־SQL Editor לפי סדר השם.
 
 אופציונלי לכפות זיכרון גם כשיש DB:
 
@@ -68,21 +66,19 @@ SUPABASE_DB_PASSWORD=... node scripts/apply-migrations.mjs
 MAINTAINOS_FORCE_MEMORY=1
 ```
 
-## מסמכים
+## מסמכים (חיים)
 
-- [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) — בידול, ליבה אחידה, Digital Twin, פילטר פיצ׳רים
-- [`docs/MILO_REBRAND.md`](docs/MILO_REBRAND.md) — מיתוג פנימי וספר אנשי מקצוע
-- [`docs/FIGMA_REDESIGN_PLAN.md`](docs/FIGMA_REDESIGN_PLAN.md) — תוכנית עיצוב Figma (Alive Ops)
-- [`docs/ARI_MEETING_BRIEF.md`](docs/ARI_MEETING_BRIEF.md) — בריף פגישת פיילוט: התנגדויות → הוכחות
-- [`docs/CORE_FEATURES_ROADMAP.md`](docs/CORE_FEATURES_ROADMAP.md) — חיזוק ליבה + פיצ׳רים (בלי Zapier)
-- [`docs/OPTICAL_CENTER_ARCHITECTURE_RESEARCH.md`](docs/OPTICAL_CENTER_ARCHITECTURE_RESEARCH.md)
+- [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) — בידול ופילטר פיצ׳רים
+- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — מערכת עיצוב
+- [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) — החלטות מוצר
+- [`docs/ROLES_AND_ACCESS.md`](docs/ROLES_AND_ACCESS.md) — תפקידים
+- [`docs/PILOT_SCENARIOS.md`](docs/PILOT_SCENARIOS.md) — תרחישי פיילוט
+- [`docs/NETWORK_LAUNCH_CHECKLIST.md`](docs/NETWORK_LAUNCH_CHECKLIST.md) — השקת רשת
+- [`docs/CORE_FEATURES_ROADMAP.md`](docs/CORE_FEATURES_ROADMAP.md) — ליבה + post-core
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 - [`docs/SECURITY.md`](docs/SECURITY.md)
 - [`docs/MESSAGING_COST_POLICY.md`](docs/MESSAGING_COST_POLICY.md)
-- [`docs/VERCEL_AI_WHATSAPP.md`](docs/VERCEL_AI_WHATSAPP.md) — Vercel AI SDK + AI Gateway לבוט WhatsApp
-- [`docs/BAMAKOR_AI_WHATSAPP_COMPAT.md`](docs/BAMAKOR_AI_WHATSAPP_COMPAT.md) — התאמה ל־Bamakor (דיירים)
-- [`docs/WHATSAPP_AI_INTAKE_PLAN.md`](docs/WHATSAPP_AI_INTAKE_PLAN.md)
+- [`docs/VERCEL_AI_WHATSAPP.md`](docs/VERCEL_AI_WHATSAPP.md)
+- [`docs/WHATSAPP_PHONE_CONNECT_PLAN.md`](docs/WHATSAPP_PHONE_CONNECT_PLAN.md)
 
-## סקריפט דמו
-
-ראה גם `scripts/e2e-demo.mjs` ו־`npm test` (כולל demo-flow).
+ארכיון תוכניות/QA ישנים: [`docs/archive/2026-stabilize/`](docs/archive/2026-stabilize/).

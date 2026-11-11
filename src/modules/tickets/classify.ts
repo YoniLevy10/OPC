@@ -7,7 +7,7 @@ export type FaultClassification = {
 
 /**
  * Conservative keyword rules for Israel pilot.
- * Prefer false-high over missing a genuine safety-critical fault.
+ * Escalate real hazards; keep routine fixes (bulb, door handle) off the urgent queue.
  */
 export function classifyFaultText(text: string): FaultClassification {
   const t = text.trim().toLowerCase()
@@ -17,7 +17,7 @@ export function classifyFaultText(text: string): FaultClassification {
     /עשן|שריפה|אש\b|להבה|ניצוצ|ניצוצות|smoke|fire|spark|sparks|flames?|fum[ée]e|incendie|\bfeu\b|flamme|[ée]tincelle|odeur\s+de\s+br[uû]l|fil\s+d[ée]nud/.test(
       t,
     ) ||
-    /ריח\s*שרוף|שרוף|burning\s*smell|electrical\s*smell|חוט\s*חשוף|exposed\s*wir/.test(
+    /ריח\s*שרוף|burning\s*smell|electrical\s*smell|חוט\s*חשוף|exposed\s*wir/.test(
       t,
     ) ||
     /(מים|נזיל|eau|fuite).{0,30}(חשמל|לוח|שקע|ארון|[ée]lectr)|(חשמל|לוח|שקע|[ée]lectr).{0,30}(מים|נזיל|eau|fuite)|water\s+near\s+electr/i.test(
@@ -25,6 +25,14 @@ export function classifyFaultText(text: string): FaultClassification {
     )
   ) {
     return { category: 'electrical_hazard', priority: 'critical' }
+  }
+
+  // Routine fixes — never high from generic “broken / urgent” words
+  if (/נורה|bulb|ampoule/.test(t)) {
+    return { category: 'electrical', priority: 'medium' }
+  }
+  if (/ידית/.test(t) && /דלת|door|porte|handle/.test(t)) {
+    return { category: 'security', priority: 'medium' }
   }
 
   const urgent =
@@ -38,7 +46,7 @@ export function classifyFaultText(text: string): FaultClassification {
   ) {
     return { category: 'hvac', priority: urgent ? 'high' : 'medium' }
   }
-  if (/חשמל|קצר|נפילת\s*מתח|לוח\s*חשמל|תאורה|נורה|electric|[ée]lectricit|[ée]clairage/.test(t)) {
+  if (/חשמל|קצר|נפילת\s*מתח|לוח\s*חשמל|תאורה|electric|[ée]lectricit|[ée]clairage/.test(t)) {
     return { category: 'electrical', priority: urgent ? 'high' : 'medium' }
   }
   if (/מים|נזילה|אינסטל|סתימה|שירותים|כיור|plumbing|leak|fuite|plomberie|\beau\b/.test(t)) {

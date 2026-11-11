@@ -34,6 +34,9 @@ export default defineConfig({
       ...process.env,
       MAINTAINOS_FORCE_MEMORY: '1',
       MAINTAINOS_ALLOW_TEST_AUTH: '1',
+      // Never send real 019 SMS / redirected personal SMS during e2e.
+      SMS_019_ENABLED: '0',
+      SMS_019_DRY_RUN: '1',
       PORT: String(PORT),
     },
   },

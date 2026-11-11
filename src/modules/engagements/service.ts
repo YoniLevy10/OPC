@@ -46,17 +46,46 @@ export type Engagement = {
   proSms?: { ok: boolean; line: string; portalUrl?: string }
 }
 
-const memory: Engagement[] = []
-const handoffSent = new Map<string, { ok: boolean; line: string }>()
+/**
+ * Process-wide store (globalThis) — same pattern as memory-store tickets.
+ * Plain module `const` breaks under Next.js server-action vs RSC module
+ * duplication: lock writes to one instance, page read sees an empty other.
+ */
+type EngagementMem = {
+  rows: Engagement[]
+  handoffSent: Map<string, { ok: boolean; line: string }>
+}
+
+function engagementStore(): EngagementMem {
+  const g = globalThis as typeof globalThis & {
+    __maintainosEngagements?: EngagementMem
+  }
+  if (!g.__maintainosEngagements) {
+    g.__maintainosEngagements = {
+      rows: [],
+      handoffSent: new Map(),
+    }
+  }
+  return g.__maintainosEngagements
+}
+
+function memoryRows(): Engagement[] {
+  return engagementStore().rows
+}
+
+function handoffSentMap(): Map<string, { ok: boolean; line: string }> {
+  return engagementStore().handoffSent
+}
 
 export function resetEngagementsForTests() {
-  memory.splice(0, memory.length)
-  handoffSent.clear()
+  const store = engagementStore()
+  store.rows.splice(0, store.rows.length)
+  store.handoffSent.clear()
 }
 
 /** Drops the process cache only. A successful send still lives on the ticket. */
 export function clearHandoffCacheForTests() {
-  handoffSent.clear()
+  handoffSentMap().clear()
 }
 
 const WAITING = new Set(['new', 'triaged', 'awaiting_info', 'assigned'])
@@ -92,18 +121,56 @@ export async function listEngagements(organizationId?: string): Promise<Engageme
     const { data, error } = await query
     if (!error && data) return data.map((row) => rowToEngagement(row))
   }
-  return [...memory].sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
+  return [...memoryRows()].sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
+}
+
+/** Rebuild a locked engagement from the ticket timeline when the engagements row is missing. */
+async function engagementFromTicketEvents(
+  ticketId: string,
+): Promise<Engagement | null> {
+  const ticket = await getById(ticketId)
+  if (!ticket || ticket.status !== 'engaged') return null
+  for (const event of [...ticket.events].reverse()) {
+    if (event.event_type !== 'engagement_locked') continue
+    const payload = (event.payload ?? {}) as Record<string, unknown>
+    const phone = String(payload.professionalPhone ?? '').trim()
+    const name = String(payload.professionalName ?? '').trim()
+    if (!name || phone.replace(/\D/g, '').length < 9) continue
+    const bundled = Array.isArray(payload.bundled)
+      ? payload.bundled.map(String).filter(Boolean)
+      : []
+    return {
+      id: String(payload.engagementId ?? event.id),
+      organizationId: ticket.organization_id,
+      storeId: ticket.store_id,
+      storeCode: ticket.stores?.code ?? '',
+      storeName: ticket.stores?.name ?? '',
+      ticketId: ticket.id,
+      bundledTicketIds: bundled,
+      midragSpId: null,
+      professionalId: null,
+      professionalName: name,
+      professionalPhone: phone,
+      approvedAmount: Number(payload.approvedAmount ?? 0) || 0,
+      approvedBy: String(payload.approvedBy ?? ''),
+      approvedAt: event.created_at,
+      status: 'locked',
+      closedAt: null,
+    }
+  }
+  return null
 }
 
 export async function lockedEngagementFor(ticketId: string): Promise<Engagement | null> {
   const rows = await listEngagements()
-  return (
+  const found =
     rows.find(
       (row) =>
         row.status === 'locked' &&
         (row.ticketId === ticketId || row.bundledTicketIds.includes(ticketId)),
     ) ?? null
-  )
+  if (found) return found
+  return engagementFromTicketEvents(ticketId)
 }
 
 export async function findTicketAwaitingAri(): Promise<TicketDetail | null> {
@@ -285,11 +352,11 @@ async function tellStore(input: {
   body: string
   idempotencyKey: string
 }): Promise<StoreHandoff> {
-  const cached = handoffSent.get(input.idempotencyKey)
+  const cached = handoffSentMap().get(input.idempotencyKey)
   if (cached?.ok) return cached
   const prior = await persistedSuccessfulHandoff(input.ticketId, input.idempotencyKey)
   if (prior) {
-    handoffSent.set(input.idempotencyKey, prior)
+    handoffSentMap().set(input.idempotencyKey, prior)
     return prior
   }
 
@@ -352,7 +419,7 @@ async function tellStore(input: {
     line: result.line,
     idempotencyKey: input.idempotencyKey,
   })
-  if (delivered) handoffSent.set(input.idempotencyKey, result)
+  if (delivered) handoffSentMap().set(input.idempotencyKey, result)
   return result
 }
 
@@ -455,7 +522,7 @@ export async function lockEngagement(input: {
     if (error || !data) throw new Error(error?.message || 'נעילת המחיר נכשלה')
     Object.assign(engagement, rowToEngagement(data))
   } else {
-    memory.unshift(engagement)
+    memoryRows().unshift(engagement)
   }
 
   const ids = [engagement.ticketId, ...engagement.bundledTicketIds]

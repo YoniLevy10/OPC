@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addTask, listTasks, setTaskStatus } from '@/lib/data/ops-ledger'
+import { israelStoreId } from '@/modules/stores/israel-stores'
 import { readTaskStatus, taskStatusMoves } from './status'
 
 describe('readTaskStatus', () => {
@@ -16,12 +17,15 @@ describe('readTaskStatus', () => {
 
 describe('recurring maintenance', () => {
   it('opens the next task when a repeating one is done', () => {
+    const storeCode = '172'
+    const storeId = israelStoreId(storeCode)
+    const dueAt = new Date().toISOString()
     const task = addTask({
       title: 'בדיקת כיבוי אש',
-      storeId: null,
-      storeCode: '172',
+      storeId,
+      storeCode,
       assignee: null,
-      dueAt: new Date().toISOString(),
+      dueAt,
       ticketId: null,
       documentId: null,
       spendId: null,
@@ -33,13 +37,43 @@ describe('recurring maintenance', () => {
     const open = listTasks().filter((row) => row.title === 'בדיקת כיבוי אש' && !row.done)
     expect(open).toHaveLength(1)
     expect(open[0]?.repeatDays).toBe(30)
+    expect(open[0]?.storeId).toBe(storeId)
+    expect(open[0]?.storeCode).toBe(storeCode)
     expect(task.status).toBe('done')
     expect(task.nextOpened).toBe(true)
     expect(open[0]?.status).toBe('open')
     expect(open[0]?.nextOpened).toBe(false)
+    const nextDue = open[0]?.dueAt ? new Date(open[0].dueAt).getTime() : NaN
+    const expected = new Date()
+    expected.setDate(expected.getDate() + 30)
+    expect(Math.abs(nextDue - expected.getTime())).toBeLessThan(60_000)
     // Re-saving a completed recurring task must not open another successor.
     setTaskStatus(task.id, 'done')
     expect(listTasks().filter((row) => row.title === 'בדיקת כיבוי אש' && !row.done)).toHaveLength(1)
+  })
+
+  it('carries storeId into the next calibration cycle instance', () => {
+    const storeCode = '6018'
+    const storeId = israelStoreId(storeCode)
+    const task = addTask({
+      title: 'כיול אודיומטר',
+      storeId,
+      storeCode,
+      assignee: 'ארי',
+      dueAt: new Date().toISOString(),
+      ticketId: null,
+      documentId: null,
+      spendId: null,
+      needsClarification: false,
+      clarification: null,
+      repeatDays: 365,
+    })
+    setTaskStatus(task.id, 'done')
+    const next = listTasks().find((row) => row.title === 'כיול אודיומטר' && !row.done)
+    expect(next?.storeId).toBe(storeId)
+    expect(next?.storeCode).toBe(storeCode)
+    expect(next?.repeatDays).toBe(365)
+    expect(task.nextOpened).toBe(true)
   })
 })
 

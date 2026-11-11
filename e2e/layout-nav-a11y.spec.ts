@@ -37,14 +37,13 @@ test.describe('Navigation & layout', () => {
     const bottomNav = page.getByRole('navigation', { name: 'ניווט תחתון' })
     await expect(bottomNav.getByText('סקירה')).toBeVisible()
     await expect(bottomNav.getByText('תקלות')).toBeVisible()
-    await expect(bottomNav.getByText('מסמכים')).toBeVisible()
-    await expect(bottomNav.getByText('דוחות')).toBeVisible()
-    // WhatsApp stays under More. The bottom bar is the four work areas.
+    await expect(bottomNav.getByText('חנויות')).toBeVisible()
+    // Documents/reports/WhatsApp live under More — daily loop is the three tabs + More.
     await bottomNav.getByRole('button', { name: 'עוד' }).click()
     const more = page.getByRole('dialog')
-    await expect(more.getByRole('link', { name: 'משימות' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'חנויות' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'אנשי מקצוע' })).toBeVisible()
+    await expect(more.getByRole('link', { name: 'מסמכים' })).toBeVisible()
+    await expect(more.getByRole('link', { name: 'דוחות' })).toBeVisible()
+    await expect(more.getByRole('link', { name: 'בעלי מקצוע' })).toBeVisible()
     await expect(
       more.getByRole('link', { name: 'WhatsApp', exact: true }),
     ).toBeVisible()

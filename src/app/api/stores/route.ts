@@ -21,6 +21,10 @@ const createSchema = z.object({
   region_id: z.string().max(64).optional(),
   country_id: z.string().uuid().optional(),
   organization_id: z.string().uuid().optional(),
+  area_manager: z.string().min(2).max(80),
+  manager_name: z.string().min(2).max(80),
+  manager_name_en: z.string().max(80).nullable().optional(),
+  manager_phone: z.string().min(9).max(20),
 })
 
 export async function GET(request: Request) {

@@ -65,7 +65,7 @@ export function SimulatorForm() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid w-full max-w-full gap-4 overflow-x-clip lg:grid-cols-2">
       <Panel>
         <form
           className="flex flex-col gap-4"

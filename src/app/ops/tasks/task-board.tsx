@@ -22,10 +22,10 @@ export function TaskBoard({ tasks, now = new Date() }: { tasks: OpsTask[]; now?:
       <PhoneFoldStack>
       <div className="store-stack">
         {open.map((task) => (
-          <TaskCard key={task.id} task={task} now={now} />
+          <TaskCard key={task.id} task={task} tasks={tasks} now={now} />
         ))}
         {done.map((task) => (
-          <TaskCard key={task.id} task={task} now={now} />
+          <TaskCard key={task.id} task={task} tasks={tasks} now={now} />
         ))}
       </div>
       </PhoneFoldStack>
@@ -33,11 +33,13 @@ export function TaskBoard({ tasks, now = new Date() }: { tasks: OpsTask[]; now?:
   )
 }
 
-function TaskCard({ task, now }: { task: OpsTask; now: Date }) {
+function TaskCard({ task, tasks, now }: { task: OpsTask; tasks: OpsTask[]; now: Date }) {
   const status = readTaskStatus(task)
   const store = ISRAEL_STORES.find((row) => row.code === task.storeCode)
   const overdue = status !== 'done' && task.dueAt != null && new Date(task.dueAt).getTime() < now.getTime()
   const moves = taskStatusMoves(status)
+  const repeatDays = task.repeatDays && task.repeatDays > 0 ? task.repeatDays : null
+  const next = findNextInstance(task, tasks)
 
   return (
     <article
@@ -66,12 +68,31 @@ function TaskCard({ task, now }: { task: OpsTask; now: Date }) {
         <span aria-hidden className="clay-rule hidden md:block" />
         <p className="t-meta text-ink-2">
           <StatusChip status={status} overdue={overdue} />
+          {repeatDays ? (
+            <>
+              {' · '}
+              <span className="inline-flex rounded-full border border-border px-2 py-0.5 text-ink">
+                חוזר כל {repeatDays} ימים
+              </span>
+            </>
+          ) : null}
           <span className="hidden md:inline">
             {' · '}
             {formatDue(task.dueAt)}
             {overdue ? ' · באיחור' : ''}
           </span>
         </p>
+        {status === 'done' && task.nextOpened && next ? (
+          <p className="t-meta text-ink">
+            נפתח הבא ל־{formatDueDate(next.dueAt)}
+            {' · '}
+            <Link href={`#task-${next.id}`} className="underline">
+              למשימה הבאה
+            </Link>
+          </p>
+        ) : status === 'done' && task.nextOpened ? (
+          <p className="t-meta text-ink">נפתח המופע הבא במחזור</p>
+        ) : null}
         {task.clarification ? <p className="t-meta text-ink">{task.clarification}</p> : null}
         {task.spendId ? (
           <Link href="/ops/approvals" className="t-meta text-ink underline">
@@ -93,6 +114,22 @@ function TaskCard({ task, now }: { task: OpsTask; now: Date }) {
       </PhoneFold>
     </article>
   )
+}
+
+function findNextInstance(task: OpsTask, tasks: OpsTask[]): OpsTask | null {
+  if (!task.nextOpened || !task.repeatDays) return null
+  const created = new Date(task.createdAt).getTime()
+  const siblings = tasks.filter((row) => {
+    if (row.id === task.id) return false
+    if (row.title !== task.title) return false
+    if (readTaskStatus(row) === 'done') return false
+    if ((row.repeatDays ?? null) !== (task.repeatDays ?? null)) return false
+    if ((row.storeCode || '') !== (task.storeCode || '')) return false
+    if ((row.storeId || '') !== (task.storeId || '')) return false
+    return new Date(row.createdAt).getTime() >= created
+  })
+  siblings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  return siblings[0] ?? null
 }
 
 function StatusChip({ status, overdue }: { status: TaskStatus; overdue: boolean }) {
@@ -134,5 +171,16 @@ function formatDue(iso: string | null): string {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  })
+}
+
+function formatDueDate(iso: string | null): string {
+  if (!iso) return 'בלי מועד'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return 'בלי מועד'
+  return date.toLocaleDateString('he-IL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   })
 }

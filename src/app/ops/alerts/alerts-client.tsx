@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { he } from 'date-fns/locale'
@@ -16,6 +15,7 @@ import type {
 } from '@/modules/alerts/types'
 import { filterAlerts, splitAlertBuckets } from '@/modules/alerts/types'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
+import { PhoneList, PhoneRow } from '@/components/mobile'
 
 const BUCKETS: { key: AlertBucket | 'open'; label: string }[] = [
   { key: 'open', label: 'פעולות פתוחות' },
@@ -103,25 +103,36 @@ export function AlertsClient({
     })
   }, [filtered])
 
+  function alertPriority(
+    severity: OpsAlert['severity'],
+  ): 'critical' | 'high' | 'medium' | 'low' | null {
+    if (severity === 'critical') return 'critical'
+    if (severity === 'high') return 'high'
+    if (severity === 'medium') return 'medium'
+    if (severity === 'low') return 'low'
+    return null
+  }
+
   function alertRow(alert: OpsAlert, withStore = false) {
-    const late = alert.reasons.some((reason) => reason.includes('איחור') || reason.includes('SLA'))
+    const late = alert.reasons.some((reason) =>
+      reason.includes('איחור') || reason.includes('SLA'),
+    )
+    const meta = [
+      withStore && alert.storeName ? alert.storeName : null,
+      late ? 'באיחור' : null,
+      alert.nextAction,
+    ]
+      .filter(Boolean)
+      .join(' · ')
     return (
-      <li key={alert.id}>
-        <Link
-          href={alert.href}
-          className="flex min-h-12 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-sunken/40"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="t-body-strong block truncate text-ink">{alert.title}</span>
-            <span className="t-meta block truncate text-ink-2">
-              {withStore && alert.storeName ? `${alert.storeName} · ` : ''}
-              {late ? 'באיחור · ' : ''}
-              {alert.nextAction}
-            </span>
-          </span>
-          <span className="t-meta t-num shrink-0 text-ink-3">{fmtWhen(alert.at)}</span>
-        </Link>
-      </li>
+      <PhoneRow
+        key={alert.id}
+        href={alert.href}
+        priority={alertPriority(alert.severity)}
+        leading={fmtWhen(alert.at)}
+        title={alert.title}
+        subtitle={meta || undefined}
+      />
     )
   }
 
@@ -244,15 +255,15 @@ export function AlertsClient({
                 title={group.name}
                 summary={`${group.alerts.length} · ${group.hottest}`}
               >
-                <ul className="divide-y divide-border">
+                <PhoneList>
                   {group.alerts.map((alert) => alertRow(alert))}
-                </ul>
+                </PhoneList>
               </PhoneFold>
             ))}
           </div>
-          <ul className="hidden divide-y divide-border md:block">
+          <PhoneList className="hidden md:block">
             {filtered.map((alert) => alertRow(alert, true))}
-          </ul>
+          </PhoneList>
           </>
         )}
       </Panel>
@@ -266,27 +277,28 @@ export function AlertsClient({
               : p('עדיין אין אירועים')}
           </p>
         ) : (
-          <ul className="divide-y divide-border">
-            {history.slice(0, 40).map((row) => (
-              <li key={row.id} className="px-4 py-3">
-                {row.href ? (
-                  <Link href={row.href} className="flex justify-between gap-3">
-                    <span className="t-body text-ink">{row.summary}</span>
-                    <span className="t-meta t-num shrink-0 text-ink-3">
-                      {fmtWhen(row.at)}
-                    </span>
-                  </Link>
-                ) : (
-                  <div className="flex justify-between gap-3">
-                    <span className="t-body text-ink">{row.summary}</span>
-                    <span className="t-meta t-num shrink-0 text-ink-3">
-                      {fmtWhen(row.at)}
-                    </span>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <PhoneList>
+            {history.slice(0, 40).map((row) =>
+              row.href ? (
+                <PhoneRow
+                  key={row.id}
+                  href={row.href}
+                  leading={fmtWhen(row.at)}
+                  title={row.summary}
+                />
+              ) : (
+                <div
+                  key={row.id}
+                  className="flex min-h-12 items-center justify-between gap-3 px-4 py-3"
+                >
+                  <span className="t-body text-ink">{row.summary}</span>
+                  <span className="t-meta t-num shrink-0 text-ink-3">
+                    {fmtWhen(row.at)}
+                  </span>
+                </div>
+              ),
+            )}
+          </PhoneList>
         )}
       </Panel>
       </PhoneFold>

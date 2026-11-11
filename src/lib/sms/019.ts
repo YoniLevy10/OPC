@@ -125,11 +125,23 @@ export async function send019Sms(input: {
     return { ok: false, skipped: 'empty_message' }
   }
 
-  if (process.env.SMS_019_DRY_RUN === '1') {
+  // Never bill/spam during local demo, Playwright, or test-auth sessions —
+  // even if SMS_019_ENABLED=1 and OUTBOUND_REDIRECT points at a personal phone.
+  const forceDryRun =
+    process.env.SMS_019_DRY_RUN === '1' ||
+    process.env.MAINTAINOS_FORCE_MEMORY === '1' ||
+    process.env.MAINTAINOS_ALLOW_TEST_AUTH === '1'
+  if (forceDryRun) {
     logEvent('sms:019', 'info', 'dry_run', {
       ...input.meta,
       phone,
       messageLen: message.length,
+      reason:
+        process.env.SMS_019_DRY_RUN === '1'
+          ? 'SMS_019_DRY_RUN'
+          : process.env.MAINTAINOS_FORCE_MEMORY === '1'
+            ? 'FORCE_MEMORY'
+            : 'ALLOW_TEST_AUTH',
     })
     return { ok: true, dryRun: true, detail: 'dry_run' }
   }

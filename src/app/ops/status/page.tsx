@@ -9,7 +9,7 @@ export default function OpsStatusPage() {
   return (
     <OpsAppShell>
       <PhoneDesktopOnly title="סטטוס מערכת">
-      <div className="mx-auto flex max-w-2xl flex-col gap-5 stagger">
+      <div className="mx-auto flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger md:max-w-2xl">
         <OpsPageHero
           title="סטטוס מערכת"
           status="בריאות השירותים בזמן אמת"

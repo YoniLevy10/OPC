@@ -6,6 +6,7 @@ import { LiveSync } from '@/components/layout/live-sync'
 import { PullToRefresh } from '@/components/layout/pull-to-refresh'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { BrandMark } from '@/components/brand/brand-mark'
+import { PhoneActionDock } from '@/components/mobile'
 import { cn } from '@/lib/utils'
 import { LocaleSwitcher } from '@/components/i18n/locale-switcher'
 import { usePhrase } from '@/components/i18n/locale-provider'
@@ -17,7 +18,7 @@ import { LogoutButton } from '@/components/auth/logout-button'
  *
  *  - no HQ navigation of any kind
  *  - no bottom tab bar (there is only one destination — the job list)
- *  - the primary action is sticky at the thumb, not buried in a sidebar
+ *  - the primary action is sticky at the thumb via PhoneActionDock
  */
 export function TechShell({
   children,
@@ -47,7 +48,7 @@ export function TechShell({
       tabIndex={-1}
       className={cn(
         'mx-auto w-full max-w-xl px-4 pt-5 outline-none',
-        actions ? 'pb-actions scroll-pb-actions' : 'pb-8',
+        actions ? 'phone-pad-dock' : 'pb-8',
       )}
     >
       {children}
@@ -55,7 +56,7 @@ export function TechShell({
   )
 
   return (
-    <div className="ops-atmosphere dvh-screen text-ink">
+    <div className="ops-atmosphere phone-shell dvh-screen text-ink">
       <SkipLink />
       <LiveSync />
       <header className="apple-glass safe-pt sticky top-0 z-20 border-b border-border bg-background">
@@ -83,13 +84,9 @@ export function TechShell({
       {enablePullToRefresh ? <PullToRefresh>{body}</PullToRefresh> : body}
 
       {actions ? (
-        <div
-          aria-label={p('פעולות עבודה')}
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-        >
-          <div className="safe-x mx-auto w-full max-w-xl py-3">{actions}</div>
-        </div>
+        <PhoneActionDock label={p('פעולות עבודה')} aboveTabBar={false}>
+          {actions}
+        </PhoneActionDock>
       ) : null}
     </div>
   )

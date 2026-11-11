@@ -438,6 +438,7 @@ async function tryModelReply(
       summary: fault.summary,
       displayNumber: fault.displayNumber ?? null,
     })),
+    papers: snapshot.papers ?? [],
     source,
     collectLink: (link) => links.push(link),
   })
@@ -680,17 +681,33 @@ function storeMentioned(text: string, name: string): boolean {
     .some((part) => text.includes(part))
 }
 
-function briefForAri(snapshot: OpsSnapshot): string {
+/** Compact ops brief for the model — facts only, one next step. */
+export function briefForAri(snapshot: OpsSnapshot): string {
   const stores = storePictures(snapshot)
+  const top = stores[0]
   const lines = stores.slice(0, 8).map((store) => {
     const faults = store.faults
       .slice(0, 4)
-      .map((fault) => faultSentence(fault))
+      .map((fault) => {
+        const path = fault.id ? ` [/ops/tickets/${fault.id}]` : ''
+        return `${faultSentence(fault)}${path}`
+      })
       .join(' | ')
     return `${store.name}: ${faults}`
   })
   const aside = [papersLine(snapshot, 'he'), gearLine(snapshot, 'he')].filter(Boolean)
-  return ['עובדות:', moneyAri(snapshot) || 'אין סכום שמחכה.', ...lines, ...aside].join('\n')
+  const next = top
+    ? `צעד הבא: ${top.name} — ${top.lead.verb ?? 'לטפל'} ב«${top.lead.summary}».`
+    : (snapshot.papers ?? []).some((row) => row.overdue)
+      ? 'צעד הבא: לחדש מסמך שכבר באיחור (/ops/documents).'
+      : 'צעד הבא: אין תקלה דחופה — אפשר לבדוק מסמכים או ציוד שחוזר.'
+  return [
+    'עובדות (רק אלה אמיתיות — אל תמציא):',
+    moneyAri(snapshot) || 'אין סכום שמחכה.',
+    ...lines,
+    ...aside,
+    next,
+  ].join('\n')
 }
 
 function placeInQuestion(question: string, snapshot: OpsSnapshot): string | null {

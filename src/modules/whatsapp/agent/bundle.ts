@@ -84,6 +84,11 @@ export function categoryNoun(category: string, singular = false): string {
   return (singular ? SINGULAR : NOUN)[key] ?? (singular ? 'תקלה' : 'תקלות')
 }
 
+/** Same trade after normalize (electrical_hazard → electrical). */
+export function categoriesCanBundle(a: string, b: string): boolean {
+  return normalizeTicketCategory(a) === normalizeTicketCategory(b)
+}
+
 export function faultNeedsNow(fault: BundleFault, now = new Date()): boolean {
   if (fault.urgent === false) return false
   if (fault.urgent === true) return true
@@ -157,9 +162,47 @@ function samePlace(anchor: BundleFault, other: BundleFault): boolean {
   return Boolean(anchor.regionId && other.regionId && anchor.regionId === other.regionId)
 }
 
+function pickUrgentCompanions(fault: BundleFault, later: BundleFault[]): BundleFault[] {
+  const nearby = later.filter((other) => samePlace(fault, other))
+  const sameStore = nearby.filter((other) => other.storeId === fault.storeId)
+  const sameTrade = sameStore.filter((other) =>
+    categoriesCanBundle(fault.category, other.category),
+  )
+  // Prefer same store + same/companion trade; else any same-store; else district peers.
+  if (sameTrade.length > 0) return sameTrade
+  if (sameStore.length > 0) return sameStore
+  return nearby.filter((other) => categoriesCanBundle(fault.category, other.category))
+}
+
+function urgentSentence(
+  fault: BundleFault,
+  companions: BundleFault[],
+): string {
+  const sameStore = companions.filter((row) => row.storeId === fault.storeId)
+  const districtOnly = companions.filter((row) => row.storeId !== fault.storeId)
+  const countLabel = (n: number) =>
+    n === 1 ? 'תקלה לא דחופה אחת' : `${n} תקלות לא דחופות`
+
+  if (sameStore.length === 0 && districtOnly.length === 0) {
+    return `דחוף בסניף ${fault.storeName}. אין עכשיו תקלה לא דחופה לשלב.`
+  }
+  if (sameStore.length > 0 && districtOnly.length === 0) {
+    return `דחוף בסניף ${fault.storeName}. כדאי לאחד לביקור אחד בסניף — אפשר לסגור גם ${countLabel(sameStore.length)}.`
+  }
+  if (sameStore.length > 0) {
+    return `דחוף בסניף ${fault.storeName}. כדאי לאחד לביקור אחד בסניף — ${countLabel(sameStore.length)}. יש גם ${countLabel(districtOnly.length)} במחוז (לא באותו ביקור חנות).`
+  }
+  return `דחוף בסניף ${fault.storeName}. יש ${countLabel(districtOnly.length)} במחוז — לא באותו ביקור חנות.`
+}
+
+function bundleGroupKey(fault: BundleFault): string {
+  return `${fault.storeId}:${normalizeTicketCategory(fault.category)}`
+}
+
 /**
- * An urgent fault suggests open non-urgent faults in the same store or district.
- * Leftover non-urgent faults of the same trade at one store can still be grouped.
+ * An urgent fault suggests open non-urgent faults in the same store (preferred)
+ * or same trade in the district. Visit planning stays same-store only.
+ * Leftover non-urgent faults of the same / companion trade at one store can still be grouped.
  */
 export function recommendBundles(input: {
   open: BundleFault[]
@@ -187,15 +230,11 @@ export function recommendBundles(input: {
 
   const claimed = new Set<string>()
   for (const fault of urgent) {
-    const companions = later.filter(
-      (other) => !claimed.has(other.id) && samePlace(fault, other),
+    const companions = pickUrgentCompanions(
+      fault,
+      later.filter((other) => !claimed.has(other.id)),
     )
     for (const companion of companions) claimed.add(companion.id)
-    const count = companions.length
-    const sentence =
-      count === 0
-        ? `דחוף בסניף ${fault.storeName}. אין עכשיו תקלה לא דחופה לשלב.`
-        : `דחוף בסניף ${fault.storeName}. אפשר לסגור גם ${count === 1 ? 'תקלה לא דחופה אחת' : `${count} תקלות לא דחופות`} באותה חנות או מחוז.`
     cards.push({
       id: `urgent:${fault.id}`,
       kind: 'urgent',
@@ -203,7 +242,7 @@ export function recommendBundles(input: {
       storeName: fault.storeName,
       category: fault.category,
       ticketIds: [fault.id, ...companions.map((row) => row.id)],
-      sentence,
+      sentence: urgentSentence(fault, companions),
       costLine: null,
       professionalName: null,
       professionalId: null,
@@ -213,7 +252,7 @@ export function recommendBundles(input: {
 
   for (const fault of later) {
     if (claimed.has(fault.id)) continue
-    const key = `${fault.storeId}:${fault.category}`
+    const key = bundleGroupKey(fault)
     const list = groups.get(key) ?? []
     list.push(fault)
     groups.set(key, list)
@@ -221,7 +260,8 @@ export function recommendBundles(input: {
 
   for (const [key, members] of groups) {
     if (members.length < 2) continue
-    const [storeId, category] = key.split(':')
+    const storeId = members[0]?.storeId || key.split(':')[0] || ''
+    const category = normalizeTicketCategory(members[0]?.category || 'other')
     const storeName = members[0]?.storeName || 'הסניף'
     const newest = [...members].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -247,8 +287,8 @@ export function recommendBundles(input: {
     const pro = pickProfessional(category, professionals, outcomes)
     const noun = categoryNoun(category)
     const sentence = pro.professionalName
-      ? `${members.length} ${noun} בסניף ${storeName}. ${pro.professionalName} יכול לטפל בכולן בביקור אחד.`
-      : `${members.length} ${noun} בסניף ${storeName}. חסר איש מקצוע.`
+      ? `${members.length} ${noun} בסניף ${storeName}. כדאי לאחד לביקור אחד — ${pro.professionalName} יכול לטפל בכולן.`
+      : `${members.length} ${noun} בסניף ${storeName}. כדאי לאחד לביקור אחד — חסר איש מקצוע.`
     cards.push({
       id: `bundle:${key}`,
       kind: 'bundle',
@@ -318,7 +358,7 @@ export function intakeBundleHandoff(input: {
   const peers = input.open.filter(
     (fault) =>
       fault.storeId === input.storeId &&
-      normalizeTicketCategory(fault.category) === category &&
+      categoriesCanBundle(fault.category, category) &&
       !fault.dispatched &&
       OPEN.has(fault.status) &&
       !faultNeedsNow(fault, input.now),

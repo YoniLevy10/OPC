@@ -1044,6 +1044,10 @@ export function memCreateStore(input: {
   region_id?: string
   country_id?: string
   organization_id?: string
+  manager_name?: string | null
+  manager_name_en?: string | null
+  manager_phone?: string | null
+  area_manager?: string | null
 }): MemStore {
   const code = input.code.trim()
   if (!/^\d{1,6}$/.test(code)) {
@@ -1063,6 +1067,10 @@ export function memCreateStore(input: {
     organization_id: input.organization_id ?? MEM_ORG_ID,
     country_id: countryId,
     is_active: true,
+    manager_name: input.manager_name?.trim() || null,
+    manager_name_en: input.manager_name_en?.trim() || null,
+    manager_phone: input.manager_phone?.trim() || null,
+    area_manager: input.area_manager?.trim() || null,
   }
   MEM_STORES.push(store)
   return store

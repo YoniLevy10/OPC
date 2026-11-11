@@ -61,6 +61,7 @@ const TAB_VIEWS = new Set<QueueView>([
 ])
 
 function toFault(ticket: QueueTicket): BundleFault {
+  const row = ticket as QueueTicket & { urgent?: boolean | null }
   return {
     id: ticket.id,
     storeId: ticket.store_id || '',
@@ -73,6 +74,8 @@ function toFault(ticket: QueueTicket): BundleFault {
     slaResolveBy: ticket.sla_resolve_by,
     resolvedAt: ticket.resolved_at,
     firstResponseAt: ticket.first_response_at,
+    regionId: ticket.region_id ?? null,
+    urgent: row.urgent,
     dispatched: ticket.status === 'waiting_vendor',
   }
 }
@@ -117,22 +120,35 @@ export default async function TicketsPage({
       ? ['resolved', 'closed']
       : [...OPEN_TICKET_STATUSES]
 
-  const [ticketResult, techRows, storesResult, vendorsResult] = await Promise.all([
-    listTickets({
-      limit: FETCH_LIMIT,
-      storeCode,
-      statuses,
-      q,
-      client: resolved?.client,
-    }).catch((err) => ({
-      tickets: [] as Awaited<ReturnType<typeof listTickets>>['tickets'],
-      backend: 'supabase' as const,
-      error: err instanceof Error ? err.message : 'שגיאה בטעינת תקלות',
-    })),
-    listInternalTechnicians().catch(() => []),
-    listStores().catch(() => ({ stores: [], backend: 'memory' as const })),
-    listVendors().catch(() => ({ vendors: [], backend: 'memory' as const })),
-  ])
+  const [ticketResult, historyResult, techRows, storesResult, vendorsResult] =
+    await Promise.all([
+      listTickets({
+        limit: FETCH_LIMIT,
+        storeCode,
+        statuses,
+        q,
+        client: resolved?.client,
+      }).catch((err) => ({
+        tickets: [] as Awaited<ReturnType<typeof listTickets>>['tickets'],
+        backend: 'supabase' as const,
+        error: err instanceof Error ? err.message : 'שגיאה בטעינת תקלות',
+      })),
+      view === 'resolved'
+        ? Promise.resolve({
+            tickets: [] as Awaited<ReturnType<typeof listTickets>>['tickets'],
+          })
+        : listTickets({
+            limit: 80,
+            storeCode,
+            statuses: ['resolved', 'closed'],
+            client: resolved?.client,
+          }).catch(() => ({
+            tickets: [] as Awaited<ReturnType<typeof listTickets>>['tickets'],
+          })),
+      listInternalTechnicians().catch(() => []),
+      listStores().catch(() => ({ stores: [], backend: 'memory' as const })),
+      listVendors().catch(() => ({ vendors: [], backend: 'memory' as const })),
+    ])
 
   const fetched = (ticketResult.tickets ?? []) as unknown as QueueTicket[]
   const all = actor ? scopeTicketsForActor(actor, fetched) : fetched
@@ -182,14 +198,27 @@ export default async function TicketsPage({
           backend: 'memory' as const,
         }))
   const storeCodes: Record<string, string> = {}
-  for (const ticket of rows) {
-    if (ticket.store_id && ticket.stores?.code) storeCodes[ticket.store_id] = ticket.stores.code
+  for (const ticket of view === 'resolved' ? rows : filtered) {
+    if (ticket.store_id && ticket.stores?.code) {
+      storeCodes[ticket.store_id] = ticket.stores.code
+    }
   }
+  const historyTickets = actor
+    ? scopeTicketsForActor(
+        actor,
+        (historyResult.tickets ?? []) as unknown as QueueTicket[],
+      )
+    : ((historyResult.tickets ?? []) as unknown as QueueTicket[])
+  const openForBundles =
+    view === 'resolved'
+      ? []
+      : (filtered as QueueTicket[]).map(toFault)
   const rawBundles =
     view === 'resolved'
       ? []
       : recommendBundles({
-          open: rows.map(toFault),
+          open: openForBundles,
+          history: historyTickets.map(toFault),
           outcomes: listOutcomes(),
           professionals: pros.professionals.map((pro) => ({
             id: pro.id,
@@ -203,7 +232,12 @@ export default async function TicketsPage({
   const bundleCards = presentRecommendations(rawBundles, storeCodes)
   const companionIdsByTicket = sameStoreCompanionIds(
     rawBundles,
-    new Map(rows.map((ticket) => [ticket.id, ticket.store_id || ''])),
+    new Map(
+      (view === 'resolved' ? rows : filtered).map((ticket) => [
+        ticket.id,
+        ticket.store_id || '',
+      ]),
+    ),
   )
 
   const baseHref = queueHref(queueFilters)

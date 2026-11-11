@@ -57,40 +57,51 @@ export function canMutateAssetStore(actor: Actor, store: StoreScope): boolean {
   )
 }
 
+function isHqCreateRole(role: string): boolean {
+  return (
+    role === 'global_admin' ||
+    role === 'global_maintenance' ||
+    role === 'country_manager'
+  )
+}
+
 /**
  * HQ create-store scope.
- * `global_admin` has full access — country/org default to pilot Israel when unset.
+ * Pilot: Ari (global_admin / global_maintenance) defaults to Optical Center IL
+ * when membership has no country/org — so new stores are never blocked on empty scope.
  */
 export function resolveStoreCreationScope(
   actor: Actor,
   requested: { country_id?: string; organization_id?: string },
 ) {
-  if (actorIsGlobalAdmin(actor)) {
-    const admin = actor.memberships.find((m) => m.role === 'global_admin')
+  const hq = actor.memberships.find((m) => isHqCreateRole(m.role))
+  if (!hq) {
+    throw new AuthError('אין הרשאה לפתיחת סניף', 403)
+  }
+
+  const pickOrg = (...ids: Array<string | null | undefined>) =>
+    ids.find((id) => Boolean(id && String(id).trim())) ?? PILOT_ORG_ID
+  const pickCountry = (...ids: Array<string | null | undefined>) =>
+    ids.find((id) => Boolean(id && String(id).trim())) ?? PILOT_COUNTRY_ID
+
+  if (hq.role === 'global_admin' || hq.role === 'global_maintenance' || actorIsGlobalAdmin(actor)) {
     return {
-      organization_id:
-        requested.organization_id ??
-        admin?.organization_id ??
-        PILOT_ORG_ID,
-      country_id:
-        requested.country_id ?? admin?.country_id ?? PILOT_COUNTRY_ID,
+      organization_id: pickOrg(requested.organization_id, hq.organization_id),
+      country_id: pickCountry(requested.country_id, hq.country_id),
     }
   }
 
-  const membership = actor.memberships.find(
-    (m) =>
-      m.role === 'country_manager' &&
-      Boolean(m.organization_id) &&
-      Boolean(m.country_id) &&
-      (!requested.organization_id ||
-        requested.organization_id === m.organization_id) &&
-      (!requested.country_id || requested.country_id === m.country_id),
-  )
-  if (!membership) {
-    throw new AuthError('אין הרשאה למדינה או לארגון', 403)
+  // country_manager — must match org/country when present on membership
+  if (
+    (!requested.organization_id ||
+      requested.organization_id === hq.organization_id) &&
+    (!requested.country_id || requested.country_id === hq.country_id)
+  ) {
+    return {
+      organization_id: pickOrg(hq.organization_id),
+      country_id: pickCountry(hq.country_id),
+    }
   }
-  return {
-    organization_id: membership.organization_id,
-    country_id: membership.country_id!,
-  }
+
+  throw new AuthError('אין הרשאה למדינה או לארגון', 403)
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { ClipboardList } from 'lucide-react'
-import { OperationalRow, RowList, Dot } from '@/components/ui/operational-row'
+import { PhoneList, PhoneRow, PhoneDot } from '@/components/mobile'
 import { EmptyState, Panel } from '@/components/ui/primitives'
 import { StatusLabel } from '@/components/ui/signal'
 import { techHref } from '@/lib/tech-href'
@@ -37,7 +37,7 @@ export function TechJobList({
 
   return (
     <Panel flush elevated className="-mx-4 overflow-hidden sm:mx-0">
-      <RowList>
+      <PhoneList>
         {sorted.map((t) => {
           const waiting =
             OPEN_TICKET_STATUSES.includes(t.status as never) &&
@@ -46,7 +46,7 @@ export function TechJobList({
             t.display_number ||
             (t.number != null ? `OC-${t.number}` : null)
           return (
-            <OperationalRow
+            <PhoneRow
               key={t.id}
               href={techHref(`/tech/${t.id}`, techId)}
               priority={t.priority}
@@ -67,7 +67,7 @@ export function TechJobList({
               footer={
                 <>
                   <StatusLabel status={t.status} />
-                  <Dot />
+                  <PhoneDot />
                   <span className="t-meta text-ink-2">
                     {waiting
                       ? 'ממתינה'
@@ -80,7 +80,7 @@ export function TechJobList({
             />
           )
         })}
-      </RowList>
+      </PhoneList>
     </Panel>
   )
 }
