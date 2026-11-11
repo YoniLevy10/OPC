@@ -12,7 +12,7 @@ export default async function ActivityPage() {
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
 
-  const { events } = await listRecentAuditEvents(150)
+  const { events, backend } = await listRecentAuditEvents(200)
 
   return (
     <OpsAppShell>
@@ -22,7 +22,7 @@ export default async function ActivityPage() {
           status={
             events.length === 0
               ? 'אין אירועים עדיין'
-              : `${events.length} שינויים שכבר נרשמו`
+              : `${events.length} אירועי תקלות אחרונים${backend === 'memory' ? ' · זיכרון' : ''}`
           }
         />
         <ActivityLog events={events} />

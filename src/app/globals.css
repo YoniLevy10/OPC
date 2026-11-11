@@ -757,10 +757,16 @@ body:has([role='dialog']) .hq-ticket-dock {
   }
 }
 @media (min-width: 1024px) {
-  .ops-shell-mobile {
+  .ops-shell-mobile:not(.ops-shell-fill) {
     height: auto;
     max-height: none;
     overflow: visible;
+  }
+  /* Fill-mode inbox: keep viewport lock on desktop too */
+  .ops-shell-mobile.ops-shell-fill {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 }
 
@@ -774,9 +780,11 @@ body:has([role='dialog']) .hq-ticket-dock {
 }
 @media (min-width: 1024px) {
   .ops-main-fill {
-    overflow: visible;
-    padding-top: 1.75rem;
-    padding-bottom: 2rem;
+    overflow: hidden;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    min-height: 0;
+    height: 100%;
   }
 }
 
@@ -1512,48 +1520,135 @@ main {
   }
 }
 
-/* Inbox thread — same plaster, espresso, and clay as the rest of the system. */
+/*
+ * Ops WhatsApp thread — match Meta WhatsApp Web colors/wallpaper
+ * (scoped to the chat pane; rest of ops shell keeps tenant theme).
+ */
+.wa-thread-panel {
+  --wa-header: #f0f2f5;
+  --wa-wallpaper: #efeae2;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #d9fdd3;
+  --wa-ink: #111b21;
+  --wa-meta: #667781;
+  --wa-composer: #f0f2f5;
+  --wa-input: #ffffff;
+  --wa-send: #00a884;
+  --wa-send-ink: #ffffff;
+  --wa-day-bg: rgba(255, 255, 255, 0.92);
+  --wa-day-ink: #54656f;
+  --wa-strip: rgba(255, 255, 255, 0.85);
+  background-color: var(--wa-wallpaper);
+}
+html.dark .wa-thread-panel {
+  --wa-header: #1f2c34;
+  --wa-wallpaper: #0b141a;
+  --wa-bubble-in: #202c33;
+  --wa-bubble-out: #005c4b;
+  --wa-ink: #e9edef;
+  --wa-meta: #8696a0;
+  --wa-composer: #1f2c34;
+  --wa-input: #2a3942;
+  --wa-send: #00a884;
+  --wa-send-ink: #111b21;
+  --wa-day-bg: rgba(17, 27, 33, 0.85);
+  --wa-day-ink: #8696a0;
+  --wa-strip: rgba(17, 27, 33, 0.88);
+}
+
+.wa-thread-header {
+  background-color: var(--wa-header) !important;
+  border-color: color-mix(in srgb, var(--wa-meta) 22%, transparent) !important;
+  color: var(--wa-ink);
+}
+
 .wa-chat-wallpaper,
+.wa-empty-stage {
+  background-color: var(--wa-wallpaper);
+  /* Soft doodle lattice — reads as WhatsApp wallpaper without heavy assets */
+  background-image:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--wa-meta) 14%, transparent) 1.1px, transparent 1.35px),
+    radial-gradient(circle at 72% 34%, color-mix(in srgb, var(--wa-meta) 12%, transparent) 1px, transparent 1.25px),
+    radial-gradient(circle at 38% 66%, color-mix(in srgb, var(--wa-meta) 11%, transparent) 1.15px, transparent 1.4px),
+    radial-gradient(circle at 88% 78%, color-mix(in srgb, var(--wa-meta) 13%, transparent) 1px, transparent 1.3px),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--wa-meta) 6%, transparent) 0 1px,
+      transparent 1px 11px
+    ),
+    linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--wa-meta) 5%, transparent) 0 1px,
+      transparent 1px 13px
+    );
+  background-size: 42px 42px, 56px 56px, 48px 48px, 62px 62px, 14px 14px, 16px 16px;
+  background-blend-mode: multiply, multiply, multiply, multiply, normal, normal;
+}
 html.dark .wa-chat-wallpaper,
-.wa-empty-stage,
 html.dark .wa-empty-stage {
-  background-color: var(--canvas);
-  background-image: none;
+  background-blend-mode: screen, screen, screen, screen, normal, normal;
+  opacity: 1;
 }
-.wa-bubble,
-html.dark .wa-bubble {
-  color: var(--ink);
+
+.wa-bubble {
+  color: var(--wa-ink);
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
 }
-.wa-bubble-in,
-html.dark .wa-bubble-in,
-.wa-composer-input,
-html.dark .wa-composer-input {
-  background-color: var(--surface);
-  color: var(--ink);
+.wa-bubble-in {
+  background-color: var(--wa-bubble-in);
 }
-.wa-bubble-out,
-html.dark .wa-bubble-out {
-  background-color: var(--tenant-soft);
-  color: var(--ink);
+.wa-bubble-out {
+  background-color: var(--wa-bubble-out);
 }
-.wa-bubble-meta,
-html.dark .wa-bubble-meta,
-.wa-day-pill,
-html.dark .wa-day-pill,
-.wa-ticket-strip,
-html.dark .wa-ticket-strip,
-.wa-composer-input::placeholder,
-html.dark .wa-composer-input::placeholder {
-  color: var(--ink-2);
+.wa-bubble-meta {
+  color: var(--wa-meta);
 }
-.wa-day-pill,
-html.dark .wa-day-pill,
-.wa-ticket-strip,
-html.dark .wa-ticket-strip,
-.wa-composer-bar,
-html.dark .wa-composer-bar {
-  background-color: var(--surface);
-  border-color: var(--border);
+.wa-bubble-out .wa-bubble-meta {
+  color: color-mix(in srgb, var(--wa-meta) 85%, var(--wa-ink));
+}
+html.dark .wa-bubble-out .wa-bubble-meta {
+  color: #99beb7;
+}
+
+.wa-day-pill {
+  background-color: var(--wa-day-bg);
+  color: var(--wa-day-ink);
+  border: 0;
+  box-shadow: 0 1px 1px rgba(11, 20, 26, 0.08);
+}
+
+.wa-ticket-strip {
+  background-color: var(--wa-strip);
+  border-color: color-mix(in srgb, var(--wa-meta) 18%, transparent);
+  color: var(--wa-meta);
+}
+
+.wa-composer-bar {
+  background-color: var(--wa-composer);
+  border-color: color-mix(in srgb, var(--wa-meta) 18%, transparent);
+}
+.wa-composer-input {
+  background-color: var(--wa-input) !important;
+  color: var(--wa-ink) !important;
+  box-shadow: none !important;
+}
+.wa-composer-input::placeholder {
+  color: var(--wa-meta);
+}
+.wa-send-btn {
+  background-color: var(--wa-send) !important;
+  color: var(--wa-send-ink) !important;
+}
+.wa-send-btn:hover {
+  filter: brightness(1.05);
+}
+.wa-avatar-chip {
+  background-color: #dfe5e7 !important;
+  color: #54656f !important;
+}
+html.dark .wa-avatar-chip {
+  background-color: #6a7b86 !important;
+  color: #111b21 !important;
 }
 
 /* Screen-reader only — skip link */

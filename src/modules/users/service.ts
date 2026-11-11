@@ -20,6 +20,8 @@ export type UserRow = {
   full_name: string | null
   phone: string | null
   memberships: Membership[]
+  /** From Supabase Auth `last_sign_in_at`; null when never signed in or Auth unavailable. */
+  last_login_at: string | null
 }
 
 export function requireUsersAdmin(actor: Actor) {
@@ -27,6 +29,49 @@ export function requireUsersAdmin(actor: Actor) {
   if (!ok) {
     throw new AuthError('אין הרשאת ניהול משתמשים', 403)
   }
+}
+
+/** Pure merge for tests — Auth last_sign_in_at → last_login_at by profile id. */
+export function mergeAuthLastLogins(
+  rows: Array<Omit<UserRow, 'last_login_at'>>,
+  authUsers: Array<{ id: string; last_sign_in_at?: string | null }>,
+): UserRow[] {
+  const byId = new Map(
+    authUsers.map((u) => [u.id, u.last_sign_in_at ?? null] as const),
+  )
+  return rows.map((row) => ({
+    ...row,
+    last_login_at: byId.get(row.id) ?? null,
+  }))
+}
+
+async function fetchAuthLastLoginById(
+  profileIds: string[],
+): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>()
+  for (const id of profileIds) map.set(id, null)
+  if (profileIds.length === 0) return map
+
+  try {
+    const admin = createAdminClient()
+    const needed = new Set(profileIds)
+    for (let page = 1; page <= 5 && needed.size > 0; page += 1) {
+      const { data, error } = await admin.auth.admin.listUsers({
+        page,
+        perPage: 200,
+      })
+      if (error) break
+      for (const u of data.users) {
+        if (!needed.has(u.id)) continue
+        map.set(u.id, u.last_sign_in_at ?? null)
+        needed.delete(u.id)
+      }
+      if (data.users.length < 200) break
+    }
+  } catch {
+    // Fail-open: keep nulls so the users list still loads.
+  }
+  return map
 }
 
 export async function listUsers(): Promise<UserRow[]> {
@@ -59,12 +104,15 @@ export async function listUsers(): Promise<UserRow[]> {
     byProfile.set(m.profile_id, list)
   }
 
+  const lastLoginById = await fetchAuthLastLoginById(ids)
+
   return (profiles ?? []).map((p) => ({
     id: p.id,
     email: p.email,
     full_name: p.full_name,
     phone: (p as { phone?: string | null }).phone ?? null,
     memberships: byProfile.get(p.id) ?? [],
+    last_login_at: lastLoginById.get(p.id) ?? null,
   }))
 }
 
@@ -303,6 +351,7 @@ export async function createUser(input: CreateUserInput): Promise<UserRow> {
     full_name: input.full_name,
     phone,
     memberships: [membership],
+    last_login_at: null,
   }
 }
 
@@ -486,5 +535,6 @@ function toUserRow(row: MemUserRow): UserRow {
     full_name: row.full_name,
     phone: row.phone ?? null,
     memberships: row.memberships,
+    last_login_at: null,
   }
 }

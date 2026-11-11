@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { logEvent } from '@/lib/logging'
+import { applyOutboundRedirect } from '@/lib/messaging/outbound-redirect'
 
 const SMS_019_API = 'https://019sms.co.il/api'
 const SMS_019_API_TEST = 'https://019sms.co.il/api/test'
@@ -102,7 +103,15 @@ export async function send019Sms(input: {
     return { ok: false, skipped: 'not_configured' }
   }
 
-  const phone = to019LocalPhone(input.to)
+  const routed = applyOutboundRedirect(input.to)
+  if (routed.redirected) {
+    logEvent('sms:019', 'info', 'outbound_redirect', {
+      ...input.meta,
+      intendedPreview: routed.intended.replace(/\d(?=\d{4})/g, '*').slice(0, 16),
+      toPreview: routed.to.replace(/\d(?=\d{4})/g, '*').slice(0, 16),
+    })
+  }
+  const phone = to019LocalPhone(routed.to)
   if (!phone) {
     logEvent('sms:019', 'warn', 'invalid_phone', {
       ...input.meta,

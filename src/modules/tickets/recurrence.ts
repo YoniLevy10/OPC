@@ -8,6 +8,8 @@ export type HistoryTicket = {
   createdAt: string
   resolvedAt?: string | null
   resolutionNote?: string | null
+  /** Human label for UI (OC-12). Never dump raw UUIDs in copy. */
+  displayNumber?: string | null
 }
 
 /** A fix held when no later ticket opened on the same subject inside this window. */
@@ -47,8 +49,16 @@ export function findRecurrences(
 
 export function recurrenceBasis(hits: RecurrenceHit[]): string {
   if (hits.length === 0) return ''
-  const ids = hits.map((hit) => hit.ticket.id).join(', ')
-  return `ההמלצה נשענת על ${hits.length} אירועים קודמים: ${ids}`
+  const n = hits.length
+  if (n === 1) return 'ההמלצה נשענת על אירוע קודם אחד באותו סניף.'
+  return `ההמלצה נשענת על ${n} אירועים קודמים באותו סניף.`
+}
+
+/** Short label for a prior ticket — never a raw UUID. */
+export function recurrenceTicketLabel(ticket: HistoryTicket): string {
+  const display = ticket.displayNumber?.trim()
+  if (display) return display
+  return 'תקלה קודמת'
 }
 
 export function suggestPrevention(hits: RecurrenceHit[], threshold = 3): string | null {

@@ -1,37 +1,57 @@
 # תרחישי פיילוט — Supabase production
 
-הריצו **אחרי** `npm run db:migrate` / `npm run db:migrate:ai-intake` על Supabase אמיתי (לא `MAINTAINOS_FORCE_MEMORY`).
+הריצו **אחרי** `npm run db:migrate` על Supabase אמיתי (לא `MAINTAINOS_FORCE_MEMORY`).
 
 מדד מוכנות חי: [`/api/health/pilot`](https://optical-center-rose.vercel.app/api/health/pilot) · Runbook: [`docs/META_PILOT_HANDOFF.md`](./META_PILOT_HANDOFF.md)
 
+## מחזור ראשי (ככה זה עובד בפועל)
+
 | # | תרחיש | צעדים | KPI |
 |---|--------|--------|-----|
-| 1 | דיווח WhatsApp | QR חנות → WA → תיאור + תמונה | תקלה ב-HQ < 60s |
-| 2 | דיווח Web | `/report` → תיאור + נכס + וידאו | ticket + attachments |
-| 3 | HQ triage | תור → שיוך טכנאי | WA notify < 30s |
-| 4 | Tech field | קישור `/tech` → התחלה → סיום + תיעוד | status resolved |
-| 5 | דוחות | `/ops/reports` → Excel/PDF + היסטוריה חודשית | export 200 OK |
+| 1 | דיווח מנהל חנות ב-WA | מנהל כותב לבוט (טלפון מזוהה אוטומטית) → תיאור + תמונה | תקלה ב-HQ < 60s בלי לשאול STORE_ |
+| 2 | שיוך איש מקצוע | HQ דחוף → מאגר / מידרג → אשר | סטטוס `engaged` + שמירה במאגר |
+| 3 | הודעות אחרי lock | WA למנהל (פרטי איש מקצוע + תקלות) · SMS לאיש מקצוע (טלפון מנהל + סיכום + קישור `/pro`) | WA < 30s · SMS עם לינק אישי |
+| 4 | אזור אישי לאיש מקצוע | פתיחת קישור מה-SMS → רשימת עבודות + חייג למנהל | רק תקלות שארי שייך |
+| 5 | אישור חנות | מנהל מאשר ב-WA / `/store` | `closed` (נתיב engaged) |
+| 6 | דוחות | `/ops/reports` → Excel/PDF | export 200 OK |
+
+### גיבוי / חירום (לא נתיב ראשי)
+
+| # | תרחיש | מתי |
+|---|--------|-----|
+| E1 | QR → WA | חירום / טלפון לא ממופה |
+| E2 | `/report?store=` | גיבוי web |
+| E3 | שיוך טכנאי פנימי `/tech` | משני — כשיש טכנאי רשת |
+
+## הכנה לפני טסט שדה
+
+```bash
+# סנכרון מנהלי חנויות → stores + store_phones
+node scripts/sync-store-managers.mjs
+
+# מיגרציית professional_id על engagements
+npm run db:migrate
+```
+
+- `SMS_019_ENABLED=1` + credentials 019 (ל-SMS לאיש מקצוע)
+- החלפת מנהל: `/ops/stores/[code]` → «החלף מנהל»
 
 ## אימות אוטומטי (memory / CI)
 
-Playwright: `e2e/pilot-scenarios.spec.ts` — זרימות 2–4 על memory backend.  
-Unit: `npm test -- src/modules/whatsapp` (כולל WA-14 HVAC leak).
+Playwright: `e2e/pilot-scenarios.spec.ts` — Midrag lock UI + report.  
+Unit: `npm test -- src/modules/pro src/modules/stores/manager-identity src/modules/engagements`
 
 ## Checklist production
 
-**מוכנות (2026-09-09):** `/api/health/pilot` → `readyForPilot: true` (build + meta).  
-אפשר להריץ את 5 התרחישים למעלה על פרודקשן.
-
 ### צד בנייה
-- [x] מיגרציית AI Intake על Supabase (health: `schema_ai_intake`)
-- [x] AI Gateway + intake מופעל (health: `ai_intake`)
+- [x] מיגרציית AI Intake על Supabase
+- [ ] מיגרציית `engagement_professional_id`
+- [ ] `node scripts/sync-store-managers.mjs` רץ על פרוד
 - [x] `MAINTAINOS_FORCE_MEMORY` **לא** set
-- [ ] Storage bucket `ticket-media` עם policies — לוודא ידנית במדיה
-- [x] `/api/health/pilot` → `buildSideReady: true`
+- [x] bucket `ticket-media`
+- [ ] `SMS_019_ENABLED=1` לפיילוט שדה עם אנשי מקצוע
 
 ### צד Meta
-- [x] Meta WhatsApp webhook + credentials ב־Vercel
-- [x] `NEXT_PUBLIC_WA_BUSINESS_PHONE` / מספר עסקי מוגדר
-- [x] `countries.whatsapp_phone_number_id` תואם ל־env
-- [ ] QR מודפס לסניפי הפיילוט (מומלץ לפני הרחבה)
-- [x] `/api/health/pilot` → `readyForPilot: true`
+- [x] Webhook + credentials
+- [x] מספר עסקי מוגדר
+- [ ] QR מודפס **לחירום בלבד** (2–3 סניפים)

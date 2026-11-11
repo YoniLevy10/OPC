@@ -12,6 +12,7 @@ export function ProfessionalsMidrag() {
   return (
     <MidragSearchAction
       category="other"
+      triggerVariant="primary"
       onSaved={() => startTransition(() => router.refresh())}
     />
   )

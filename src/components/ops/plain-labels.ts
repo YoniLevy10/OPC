@@ -73,7 +73,7 @@ export function plainOpenForHe(
   locale: Locale = 'he',
 ): { text: string; overdue: boolean } {
   if (ticket && isBreached(ticket as QueueTicket, now)) {
-    return { text: phrase(locale, 'חורגת'), overdue: true }
+    return { text: phrase(locale, 'חורגת מהזמן'), overdue: true }
   }
   const started = new Date(createdAt).getTime()
   if (Number.isNaN(started)) return { text: '—', overdue: false }

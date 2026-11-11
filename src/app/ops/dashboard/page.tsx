@@ -7,6 +7,7 @@ import { scopeTicketsForActor } from '@/lib/auth/ticket-scope'
 import { computeDashboardKpis } from '@/modules/ops/dashboard-kpis'
 import { ariGreeting, buildAriHome } from '@/modules/ops/ari-home'
 import { listTickets } from '@/modules/tickets/service'
+import { fetchStores } from '@/modules/stores/data'
 import { hydrateOpsLedger } from '@/lib/data/ops-db'
 import { listSpends } from '@/lib/data/ops-ledger'
 import { formatRecordedAmount, recordedTicketAmount } from '@/modules/recommendations/estimate'
@@ -34,15 +35,19 @@ export default async function OpsDashboardPage({
   const p = (text: string) => phrase(locale, text)
   const noticeCode = (await searchParams).notice
 
-  const [openResult, doneResult] = await Promise.all([
+  const [openResult, doneResult, storesResult] = await Promise.all([
     listTickets({
-      limit: 150,
+      limit: 500,
       statuses: [...OPEN_TICKET_STATUSES],
     }).catch(() => ({ tickets: [], backend: 'memory' as const })),
     listTickets({
       limit: 80,
       statuses: ['resolved', 'closed'],
     }).catch(() => ({ tickets: [], backend: 'memory' as const })),
+    fetchStores({ includeInactive: false }).catch(() => ({
+      stores: [],
+      backend: 'memory' as const,
+    })),
   ])
 
   const fetched = [
@@ -62,6 +67,12 @@ export default async function OpsDashboardPage({
     closedTickets,
     openCount: kpis.open,
     locale,
+    allStores: (storesResult.stores ?? []).map((store) => ({
+      id: store.id,
+      name: store.name,
+      code: store.code,
+      inactive: store.is_active === false,
+    })),
   })
   const spends = listSpends()
   const ticketCost: Record<string, string> = {}

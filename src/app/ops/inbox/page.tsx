@@ -15,10 +15,11 @@ export default async function InboxPage() {
 
   return (
     <OpsAppShell>
-      <div className="flex min-h-0 flex-1 flex-col md:mx-auto md:w-full md:max-w-[880px] md:gap-4">
-        {/* Desktop band; mobile uses the glass top-bar title (fillMain). */}
+      <div className="flex min-h-0 flex-1 flex-col md:w-full md:gap-2">
+        {/* Compact desktop band; mobile uses the glass top-bar title (fillMain). */}
         <OpsPageHero
           className="hidden shrink-0 md:block"
+          compact
           title="WhatsApp"
           status="תיבת דואר נכנסת · השתלטות אנושית"
         />

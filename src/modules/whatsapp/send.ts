@@ -1,10 +1,23 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { logEvent } from '@/lib/logging'
+import { applyOutboundRedirect } from '@/lib/messaging/outbound-redirect'
 import { shouldSendWhatsApp, type OutboundPurpose } from './cost-policy'
 import {
   normalizeWhatsAppRecipient,
   resolveWhatsAppPhoneNumberId,
 } from './phone-number-id'
+
+function resolveOutboundWaId(raw: string): string {
+  const intended = normalizeWhatsAppRecipient(raw)
+  const { to, redirected, intended: from } = applyOutboundRedirect(intended)
+  if (redirected) {
+    logEvent('whatsapp:send', 'info', 'outbound_redirect', {
+      intendedPreview: from.replace(/\d(?=\d{4})/g, '*').slice(0, 16),
+      toPreview: to.replace(/\d(?=\d{4})/g, '*').slice(0, 16),
+    })
+  }
+  return to
+}
 import {
   defaultSessionTemplateLang,
   defaultSessionTemplateName,
@@ -155,7 +168,7 @@ export async function sendWhatsAppText(
     }
   }
 
-  const toWaId = normalizeWhatsAppRecipient(params.toWaId)
+  const toWaId = resolveOutboundWaId(params.toWaId)
   const token = resolveAccessToken(params.forceDryRun)
   const phoneNumberId = resolveWhatsAppPhoneNumberId(params.phoneNumberId)
   let lastHttpStatus: number | undefined
@@ -376,7 +389,7 @@ export async function sendWhatsAppTemplate(
     }
   }
 
-  const toWaId = normalizeWhatsAppRecipient(params.toWaId)
+  const toWaId = resolveOutboundWaId(params.toWaId)
   const token = resolveAccessToken(params.forceDryRun)
   const phoneNumberId = resolveWhatsAppPhoneNumberId(params.phoneNumberId)
   const templateName =
@@ -562,7 +575,7 @@ export async function sendWhatsAppAudio(params: {
   purpose?: OutboundPurpose
 }): Promise<SendWhatsAppResult> {
   const purpose = params.purpose ?? 'ops_reply'
-  const toWaId = normalizeWhatsAppRecipient(params.toWaId)
+  const toWaId = resolveOutboundWaId(params.toWaId)
   const phoneNumberId = resolveWhatsAppPhoneNumberId(null)
   if (!shouldSendWhatsApp(purpose) || params.forceDryRun) {
     return {

@@ -15,6 +15,7 @@ export function RetainChat() {
     p('איזה סניף הכי דחוף?'),
     p('כמה מחכה?'),
     p('מה כדאי לאחד?'),
+    p('אילו מסמכים לחידוש?'),
   ]
   const { turns, setTurns, threads, activeId, ready, restore, startFresh } =
     useAgentThreads()
@@ -38,11 +39,11 @@ export function RetainChat() {
       .then((res) => res.json())
       .then((json: { reply?: string; error?: string }) => {
         if (json.reply) setTurns([{ role: 'assistant', text: json.reply }])
-        else setError(json.error || 'העוזר לא הצליח לענות')
+        else setError(p('העוזר לא הצליח לענות'))
       })
-      .catch(() => setError('אין קשר לעוזר כרגע'))
+      .catch(() => setError(p('אין קשר לעוזר כרגע')))
       .finally(() => setPending(false))
-  }, [ready, turns.length, startFresh, setTurns])
+  }, [ready, turns.length, startFresh, setTurns, p])
 
   async function ask(text: string) {
     const message = text.trim()
@@ -65,7 +66,7 @@ export function RetainChat() {
         error?: string
       } | null
       if (!res.ok || !json?.reply) {
-        setError(json?.error || 'העוזר לא הצליח לענות')
+        setError(p('העוזר לא הצליח לענות'))
         return
       }
       setTurns((current) => [
@@ -73,7 +74,7 @@ export function RetainChat() {
         { role: 'assistant', text: json.reply!, links: json.links },
       ])
     } catch {
-      setError('אין קשר לעוזר כרגע')
+      setError(p('אין קשר לעוזר כרגע'))
     } finally {
       setPending(false)
     }
@@ -92,9 +93,9 @@ export function RetainChat() {
       .then((res) => res.json())
       .then((json: { reply?: string; error?: string }) => {
         if (json.reply) setTurns([{ role: 'assistant', text: json.reply }])
-        else setError(json.error || 'העוזר לא הצליח לענות')
+        else setError(p('העוזר לא הצליח לענות'))
       })
-      .catch(() => setError('אין קשר לעוזר כרגע'))
+      .catch(() => setError(p('אין קשר לעוזר כרגע')))
       .finally(() => setPending(false))
   }
 

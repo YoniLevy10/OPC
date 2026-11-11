@@ -2,8 +2,9 @@ import { memAddMessage, memGet, supabaseReady } from '@/lib/data/memory-store'
 import { createSystemClient } from '@/lib/supabase/system'
 import { normalizePhoneDigits } from '@/lib/phone'
 import { captureError } from '@/lib/monitoring'
-import { ISRAEL_STORES } from '@/modules/stores/israel-stores'
+import { managerPhoneForStoreCode } from '@/modules/stores/manager-identity'
 import { upsertProfessional } from '@/modules/professionals/service'
+import { notifyProfessionalSms } from '@/modules/pro/notify-sms'
 import { formatIls } from '@/modules/spend/true-cost'
 import {
   appendEvent,
@@ -31,6 +32,7 @@ export type Engagement = {
   ticketId: string
   bundledTicketIds: string[]
   midragSpId: string | null
+  professionalId: string | null
   professionalName: string
   professionalPhone: string
   approvedAmount: number
@@ -40,6 +42,8 @@ export type Engagement = {
   closedAt: string | null
   /** Present on the lock that just ran. Not a stored column. */
   handoff?: { ok: boolean; line: string }
+  /** Present on the lock that just ran. Not a stored column. */
+  proSms?: { ok: boolean; line: string; portalUrl?: string }
 }
 
 const memory: Engagement[] = []
@@ -69,6 +73,7 @@ function rowToEngagement(row: Record<string, unknown>): Engagement {
       ? row.bundled_ticket_ids.map(String)
       : [],
     midragSpId: (row.midrag_sp_id as string | null) ?? null,
+    professionalId: (row.professional_id as string | null) ?? null,
     professionalName: String(row.professional_name ?? ''),
     professionalPhone: String(row.professional_phone ?? ''),
     approvedAmount: Number(row.approved_amount),
@@ -288,8 +293,7 @@ async function tellStore(input: {
     return prior
   }
 
-  const manager = ISRAEL_STORES.find((store) => store.code === input.storeCode)
-    ?.managerPhone
+  const manager = await managerPhoneForStoreCode(input.storeCode)
   const phones = [manager, input.reporterPhone]
     .map((phone) => normalizePhoneDigits(phone))
     .filter((phone): phone is string => phone != null && phone.length >= 9)
@@ -356,6 +360,7 @@ export async function lockEngagement(input: {
   ticketId: string
   bundledTicketIds?: string[]
   midragSpId?: string | null
+  professionalId?: string | null
   professionalName: string
   professionalPhone: string
   approvedAmount?: number
@@ -412,6 +417,7 @@ export async function lockEngagement(input: {
     ticketId: ticket.id,
     bundledTicketIds: bundled,
     midragSpId: input.midragSpId?.trim() || null,
+    professionalId: input.professionalId?.trim() || null,
     professionalName: name,
     professionalPhone: phone,
     approvedAmount,
@@ -423,23 +429,27 @@ export async function lockEngagement(input: {
 
   if (await supabaseReady()) {
     const supabase = createSystemClient('engagements')
+    const insertRow: Record<string, unknown> = {
+      organization_id: engagement.organizationId,
+      store_id: engagement.storeId,
+      store_code: engagement.storeCode,
+      store_name: engagement.storeName,
+      ticket_id: engagement.ticketId,
+      bundled_ticket_ids: engagement.bundledTicketIds,
+      midrag_sp_id: engagement.midragSpId,
+      professional_name: engagement.professionalName,
+      professional_phone: engagement.professionalPhone,
+      approved_amount: engagement.approvedAmount,
+      approved_by: engagement.approvedBy,
+      approved_at: engagement.approvedAt,
+      status: 'locked',
+    }
+    if (engagement.professionalId) {
+      insertRow.professional_id = engagement.professionalId
+    }
     const { data, error } = await supabase
       .from('engagements')
-      .insert({
-        organization_id: engagement.organizationId,
-        store_id: engagement.storeId,
-        store_code: engagement.storeCode,
-        store_name: engagement.storeName,
-        ticket_id: engagement.ticketId,
-        bundled_ticket_ids: engagement.bundledTicketIds,
-        midrag_sp_id: engagement.midragSpId,
-        professional_name: engagement.professionalName,
-        professional_phone: engagement.professionalPhone,
-        approved_amount: engagement.approvedAmount,
-        approved_by: engagement.approvedBy,
-        approved_at: engagement.approvedAt,
-        status: 'locked',
-      })
+      .insert(insertRow)
       .select('*')
       .single()
     if (error || !data) throw new Error(error?.message || 'נעילת המחיר נכשלה')
@@ -484,16 +494,46 @@ export async function lockEngagement(input: {
 
   // Every pro Ari locks + sends lands in the ranked book automatically.
   try {
-    await upsertProfessional({
+    const saved = await upsertProfessional({
       full_name: engagement.professionalName,
       phone: engagement.professionalPhone,
       trade: input.scope?.trim() || null,
       source: engagement.midragSpId ? 'midrag' : 'manual',
       notes: `ננעל מאישור ארי · חנות #${engagement.storeCode}`,
     })
+    if (!engagement.professionalId && saved.professional.id) {
+      engagement.professionalId = saved.professional.id
+      if (await supabaseReady()) {
+        const supabase = createSystemClient('engagements')
+        await supabase
+          .from('engagements')
+          .update({ professional_id: saved.professional.id })
+          .eq('id', engagement.id)
+      }
+    }
   } catch (err) {
     captureError(err, { route: 'engagement_auto_professional' })
   }
+
+  const faultLines = await engagementFaultLabels(
+    engagement.ticketId,
+    engagement.bundledTicketIds,
+  )
+  const proSms = await notifyProfessionalSms({
+    professionalPhone: engagement.professionalPhone,
+    professionalName: engagement.professionalName,
+    storeCode: engagement.storeCode,
+    storeName: engagement.storeName,
+    faultLines,
+    engagementId: engagement.id,
+  })
+  engagement.proSms = proSms
+  await appendEvent(engagement.ticketId, 'pro_sms', null, {
+    engagementId: engagement.id,
+    ok: proSms.ok,
+    line: proSms.line,
+    portalUrl: proSms.portalUrl ?? null,
+  })
 
   return engagement
 }

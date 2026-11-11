@@ -36,7 +36,12 @@ import {
 } from '@/components/ops/plain-labels'
 import { cn } from '@/lib/utils'
 import { listTickets } from '@/modules/tickets/service'
-import { findRecurrences, recurrenceBasis, suggestPrevention } from '@/modules/tickets/recurrence'
+import {
+  findRecurrences,
+  recurrenceBasis,
+  recurrenceTicketLabel,
+  suggestPrevention,
+} from '@/modules/tickets/recurrence'
 import { getLocale } from '@/lib/i18n/server'
 import { translate, type MessageKey } from '@/lib/i18n/messages'
 import { TicketTrueCostPanel } from './ticket-true-cost'
@@ -54,6 +59,7 @@ import { formatQualityHoldHe, isQualityHoldActive } from '@/modules/tickets/qual
 import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
 import { ticketDecision } from '@/modules/decisions/queue'
 import { lockedEngagementFor } from '@/modules/engagements/service'
+import { listProfessionals } from '@/modules/professionals/service'
 import { loadMidragResults } from '@/modules/vendors/midrag/live-results'
 import { recommendBundles, type BundleFault } from '@/modules/whatsapp/agent/bundle'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
@@ -121,6 +127,9 @@ export default async function TicketDetailPage({
       createdAt: row.created_at,
       assetId: row.asset_id ?? null,
       resolutionNote: null,
+      displayNumber:
+        row.display_number?.trim() ||
+        (row.number != null ? `OC-${row.number}` : null),
     })),
   )
   const ticketSpends = spendsForTicket(ticket.id)
@@ -132,6 +141,12 @@ export default async function TicketDetailPage({
   const prevention = suggestPrevention(hits)
   const urgent = ticketIsUrgent(ticket)
   const locked = await lockedEngagementFor(ticket.id).catch(() => null)
+  const bookPros =
+    urgent && ticket.status !== 'engaged'
+      ? await listProfessionals({ limit: 24 })
+          .then((r) => r.professionals.filter((pro) => Boolean(pro.phone)))
+          .catch(() => [])
+      : []
   const midrag =
     urgent && ticket.status !== 'engaged'
       ? await loadMidragResults({
@@ -376,6 +391,18 @@ export default async function TicketDetailPage({
                     <Tx text="אירועים דומים" />
                   </p>
                   <p className="t-meta mt-1 text-ink-2">{recurrenceBasis(hits)}</p>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {hits.slice(0, 6).map((hit) => (
+                      <li key={hit.ticket.id}>
+                        <Link
+                          href={`/ops/tickets/${hit.ticket.id}`}
+                          className="t-meta inline-flex min-h-8 items-center rounded-[var(--radius-sm)] border border-border bg-canvas px-2.5 text-ink transition-colors hover:border-[var(--tenant)] hover:text-[var(--tenant)]"
+                        >
+                          {recurrenceTicketLabel(hit.ticket)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                   {prevention ? <p className="t-body mt-2 text-ink">{prevention}</p> : null}
                 </div>
               ) : null}
@@ -411,6 +438,7 @@ export default async function TicketDetailPage({
             urgent={urgent}
             status={ticket.status}
             locked={locked}
+            book={bookPros}
             pros={midrag?.pros ?? []}
             searchUrl={midrag?.searchUrl ?? 'https://www.midrag.co.il/Search/InSector'}
             fallback={midrag?.fallback ?? true}

@@ -49,9 +49,12 @@ export async function lockPlannedVisitAction(input: {
   revalidatePath('/ops/reports')
   revalidatePath('/ops/professionals')
   for (const id of ids) revalidatePath(`/store/tickets/${id}`)
+  const handoffLine =
+    locked.handoff?.line ?? 'הפרטים נשמרו. ההודעה למנהל החנות לא אומתה.'
+  const smsLine = locked.proSms?.line
   return {
-    ok: locked.handoff?.ok ?? false,
-    line: locked.handoff?.line ?? 'הפרטים נשמרו. ההודעה למנהל החנות לא אומתה.',
+    ok: Boolean(locked.handoff?.ok),
+    line: smsLine ? `${handoffLine} · ${smsLine}` : handoffLine,
   }
 }
 
@@ -67,10 +70,12 @@ export async function lockEngagementAction(formData: FormData) {
     .getAll('bundle')
     .map((value) => String(value))
     .filter(Boolean)
+  const professionalId = String(formData.get('professional_id') ?? '').trim() || null
   await lockEngagement({
     ticketId,
     bundledTicketIds: bundled,
     midragSpId: midragSpId || null,
+    professionalId,
     professionalName,
     professionalPhone: String(formData.get('professional_phone') ?? ''),
     approvedAmount: formData.get('approved_amount') ? Number(formData.get('approved_amount')) : undefined,

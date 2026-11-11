@@ -12,16 +12,20 @@ import { fetchStores } from '@/modules/stores/data'
 import { resolveWhatsAppBusinessPhone } from '@/modules/stores/business-phone'
 import { storeWhatsAppDeepLink } from '@/modules/stores/whatsapp-link'
 import { listTickets } from '@/modules/tickets/service'
+import { OPEN_TICKET_STATUSES } from '@/modules/tickets/constants'
+import { queueHref } from '@/modules/tickets/queue'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
+import { scopeTicketsForActor } from '@/lib/auth/ticket-scope'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
 import { cn } from '@/lib/utils'
 import {
-  IL_REGION_CODES,
-  regionCodeFromId,
-  regionLabel,
-  type IlRegionCode,
+  IL_ZONE_CODES,
+  parseZoneParam,
+  zoneFromRegionId,
+  zoneLabel,
+  type IlZoneCode,
 } from '@/modules/stores/regions'
 
 export const dynamic = 'force-dynamic'
@@ -38,44 +42,60 @@ export default async function StoresPage({
 
   const sp = await searchParams
   const q = (sp.q ?? '').trim().toLowerCase()
-  const regionFilter = (sp.region ?? '').trim().toUpperCase() as
-    | IlRegionCode
-    | ''
+  const zoneFilter = parseZoneParam(sp.region)
   const [{ stores }, businessPhone] = await Promise.all([
     fetchStores({ includeInactive: true }),
     resolveWhatsAppBusinessPhone(),
   ])
 
-  const { tickets } = await listTickets(500).catch(() => ({
-    tickets: [],
+  // Same open slice as /ops/tickets?view=open — not "newest 500 of all statuses".
+  const openResult = await listTickets({
+    limit: 1000,
+    statuses: [...OPEN_TICKET_STATUSES],
+  }).catch(() => ({
+    tickets: [] as Awaited<ReturnType<typeof listTickets>>['tickets'],
     backend: 'memory' as const,
   }))
+  const openTickets = actor
+    ? scopeTicketsForActor(actor, openResult.tickets ?? [])
+    : (openResult.tickets ?? [])
 
-  const openCountByStore = new Map<string, number>()
-  for (const t of tickets) {
+  const openCountByStoreId = new Map<string, number>()
+  const openCountByStoreCode = new Map<string, number>()
+  for (const t of openTickets) {
     if (t.source === 'demo') continue
-    if (
-      t.status === 'closed' ||
-      t.status === 'cancelled' ||
-      t.status === 'resolved'
-    ) {
-      continue
+    if (t.store_id) {
+      openCountByStoreId.set(
+        t.store_id,
+        (openCountByStoreId.get(t.store_id) ?? 0) + 1,
+      )
     }
-    openCountByStore.set(t.store_id, (openCountByStore.get(t.store_id) ?? 0) + 1)
+    const code = t.stores?.code
+    if (code) {
+      openCountByStoreCode.set(code, (openCountByStoreCode.get(code) ?? 0) + 1)
+    }
   }
 
-  const byRegion = new Map<IlRegionCode, number>()
-  for (const code of IL_REGION_CODES) byRegion.set(code, 0)
+  function openCountFor(store: { id: string; code: string }) {
+    return (
+      openCountByStoreId.get(store.id) ??
+      openCountByStoreCode.get(store.code) ??
+      0
+    )
+  }
+
+  const byZone = new Map<IlZoneCode, number>()
+  for (const code of IL_ZONE_CODES) byZone.set(code, 0)
   for (const s of stores) {
     if (s.is_active === false) continue
-    const code = regionCodeFromId(s.region_id)
-    if (code) byRegion.set(code, (byRegion.get(code) ?? 0) + 1)
+    const zone = zoneFromRegionId(s.region_id)
+    if (zone) byZone.set(zone, (byZone.get(zone) ?? 0) + 1)
   }
   const activeCount = stores.filter((s) => s.is_active !== false).length
 
   const filtered = stores
     .filter((s) => {
-      if (regionFilter && regionCodeFromId(s.region_id) !== regionFilter) {
+      if (zoneFilter && zoneFromRegionId(s.region_id) !== zoneFilter) {
         return false
       }
       if (!q) return true
@@ -84,8 +104,7 @@ export default async function StoresPage({
       return hay.includes(q)
     })
     .sort((a, b) => {
-      const openDelta =
-        (openCountByStore.get(b.id) ?? 0) - (openCountByStore.get(a.id) ?? 0)
+      const openDelta = openCountFor(b) - openCountFor(a)
       if (openDelta !== 0) return openDelta
       return a.name.localeCompare(b.name, 'he')
     })
@@ -95,7 +114,7 @@ export default async function StoresPage({
       (m) => m.role === 'global_admin' || m.role === 'country_manager',
     ) || shouldAllowDemoEntry()
 
-  function regionHref(code: IlRegionCode | '') {
+  function zoneHref(code: IlZoneCode | '') {
     const params = new URLSearchParams()
     if (sp.q) params.set('q', sp.q)
     if (code) params.set('region', code)
@@ -105,12 +124,10 @@ export default async function StoresPage({
 
   const locale = await getLocale()
   const p = (text: string) => phrase(locale, text)
-  const openStores = filtered.filter(
-    (s) => (openCountByStore.get(s.id) ?? 0) > 0,
-  ).length
+  const openStores = filtered.filter((s) => openCountFor(s) > 0).length
 
   function toCard(s: (typeof filtered)[number]) {
-    const openCount = openCountByStore.get(s.id) ?? 0
+    const openCount = openCountFor(s)
     const inactive = s.is_active === false
     return {
       id: s.id,
@@ -119,6 +136,7 @@ export default async function StoresPage({
       city: s.city,
       inactive,
       openCount,
+      href: queueHref({ view: 'open', store: s.code }),
       status: inactive
         ? p('מושבת')
         : openCount > 0
@@ -127,12 +145,12 @@ export default async function StoresPage({
     }
   }
 
-  const groups: StoreGroupModel[] = IL_REGION_CODES.flatMap((code) => {
-    const rows = filtered.filter((s) => regionCodeFromId(s.region_id) === code)
+  const groups: StoreGroupModel[] = IL_ZONE_CODES.flatMap((code) => {
+    const rows = filtered.filter((s) => zoneFromRegionId(s.region_id) === code)
     if (rows.length === 0) return []
-    return [{ code, label: regionLabel(code, locale), stores: rows.map(toCard) }]
+    return [{ code, label: zoneLabel(code, locale), stores: rows.map(toCard) }]
   })
-  const ungrouped = filtered.filter((s) => !regionCodeFromId(s.region_id))
+  const ungrouped = filtered.filter((s) => !zoneFromRegionId(s.region_id))
   if (ungrouped.length > 0) {
     groups.push({ code: 'other', label: p('בלי מחוז'), stores: ungrouped.map(toCard) })
   }
@@ -151,7 +169,7 @@ export default async function StoresPage({
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" size="sm" asChild>
               <Link href="/api/stores/qr-batch?format=pdf" target="_blank" rel="noopener">
-                הדפסת QR לכל הרשת
+                {p('הדפסת QR לכל הרשת')}
               </Link>
             </Button>
             {canMutate ? <StoreCreateForm /> : null}
@@ -160,49 +178,48 @@ export default async function StoresPage({
 
         <div
           role="group"
-          aria-label="סינון לפי מחוז"
+          aria-label={p('סינון לפי מחוז')}
           className="flex gap-2 overflow-x-auto pb-1 scrollbar-none"
         >
           <Link
-            href={regionHref('')}
+            href={zoneHref('')}
             className={cn(
               't-body inline-flex min-h-[var(--tap)] shrink-0 items-center rounded-full px-4',
-              !regionFilter
+              !zoneFilter
                 ? 'bg-ink text-[var(--tenant-contrast)]'
                 : 'bg-surface text-ink-2',
             )}
           >
-            הכל · {activeCount}
+            {p('הכל')} · {activeCount}
           </Link>
-          {IL_REGION_CODES.map((code) => (
+          {IL_ZONE_CODES.map((code) => (
             <Link
               key={code}
-              href={regionHref(code)}
+              href={zoneHref(code)}
               className={cn(
                 't-body inline-flex min-h-[var(--tap)] shrink-0 items-center rounded-full px-4',
-                regionFilter === code
+                zoneFilter === code
                   ? 'bg-ink text-[var(--tenant-contrast)]'
                   : 'bg-surface text-ink-2',
               )}
             >
-              {regionLabel(code, locale)} · {byRegion.get(code) ?? 0}
+              {zoneLabel(code, locale)} · {byZone.get(code) ?? 0}
             </Link>
           ))}
         </div>
 
-        <StoreSearch initialQ={sp.q ?? ''} region={regionFilter} />
+        <StoreSearch initialQ={sp.q ?? ''} region={zoneFilter} />
 
         {groups.length === 0 ? (
           <EmptyState
-            title="לא נמצאו חנויות"
-            description="נסו שם, מספר, עיר או מחוז."
+            title={p('לא נמצאו חנויות')}
+            description={p('נסו שם, מספר, עיר או מחוז.')}
             icon={Store}
           />
         ) : (
           <StoreBoard groups={groups} />
         )}
 
-        <div className="hidden md:block">
         <StoreQrAccordion
           stores={filtered
             .filter((s) => s.is_active !== false)
@@ -215,7 +232,6 @@ export default async function StoresPage({
                 : null,
             }))}
         />
-        </div>
       </div>
     </OpsAppShell>
   )

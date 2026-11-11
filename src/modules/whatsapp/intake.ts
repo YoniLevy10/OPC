@@ -17,7 +17,7 @@ import {
   parseStoreCodeFromText,
 } from '@/modules/tickets/constants'
 import { canonicalStoreCode } from '@/modules/stores/israel-stores'
-import { soleManagerStore } from '@/modules/stores/manager-identity'
+import { resolveManagerStoreByPhone } from '@/modules/stores/manager-identity'
 import { createTicket } from '@/modules/tickets/service'
 import {
   findPossibleDuplicateTicket,
@@ -425,7 +425,7 @@ async function linkStorePhone(
   store: StoreRow,
 ) {
   if (!waId || !store.id) return
-  const manager = soleManagerStore(waId)
+  const manager = await resolveManagerStoreByPhone(waId)
   if (!manager || canonicalStoreCode(manager.code) !== canonicalStoreCode(store.code)) return
   if (!supabase) {
     memLinkStorePhone(waId, store.id, country.id)
@@ -502,14 +502,31 @@ async function logWhatsAppMessage(params: {
     mediaRef,
     ticketId,
   } = params
-  if (!supabase) return
+  const text = typeof body === 'string' ? body.trim() : ''
+  if (!text) return
+
+  if (!supabase) {
+    try {
+      const { memAddInboxMessage } = await import('@/lib/data/memory-store')
+      memAddInboxMessage({
+        wa_id: waId,
+        direction,
+        body: text,
+        ticket_id: ticketId ?? null,
+      })
+    } catch {
+      /* memory mirror optional */
+    }
+    return
+  }
+
   try {
     const row: Record<string, unknown> = {
       organization_id: country.organization_id,
       country_id: country.id,
       wa_id: waId,
       direction,
-      body,
+      body: text,
       meta_message_id: metaMessageId,
       media_kind: mediaKind ?? null,
       media_ref: mediaRef ?? null,
@@ -523,6 +540,19 @@ async function logWhatsAppMessage(params: {
     }
   } catch {
     // Table may not exist pre-migration — non-fatal
+  }
+
+  // Mirror into desk inbox so ops sees bot Q&A without a separate merge path.
+  try {
+    await supabase.from('inbox_messages').insert({
+      country_id: country.id,
+      wa_id: waId,
+      direction,
+      body: text,
+      ticket_id: ticketId ?? null,
+    })
+  } catch {
+    /* inbox_messages may be missing — listSessionMessages still merges whatsapp_messages */
   }
 }
 
@@ -1448,7 +1478,7 @@ export async function processInboundMessage(
       !storeCodeFromText &&
       !message.mediaUrl
     ) {
-      const manager = soleManagerStore(message.waId)
+      const manager = await resolveManagerStoreByPhone(message.waId)
       const sameStore =
         manager != null &&
         canonicalStoreCode(manager.code) === canonicalStoreCode(session.store_code)
@@ -1491,7 +1521,7 @@ export async function processInboundMessage(
 
     // A store manager's phone is the only number that skips the store question.
     if ((!session.store_id || session.state === 'awaiting_store') && !storeCodeFromText) {
-      const manager = soleManagerStore(message.waId)
+      const manager = await resolveManagerStoreByPhone(message.waId)
       const byPhone = manager
         ? await resolveStoreByCode(supabase, country.id, manager.code)
         : null

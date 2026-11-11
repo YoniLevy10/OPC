@@ -25,9 +25,11 @@
 
 ## 3. סניפים ודיווח
 
-- [ ] סניפים עם קודים + הדפסת QR (`/ops/stores/print-qr`)
+- [ ] `node scripts/sync-store-managers.mjs` — מנהלים ב־`stores` + `store_phones`
+- [ ] בדיקת דיווח WA ממספר מנהל (בלי STORE_xxx)
 - [ ] `NEXT_PUBLIC_WA_BUSINESS_PHONE` / הגדרות Ops → WhatsApp
-- [ ] בדיקת דיווח WhatsApp end-to-end (סריקת QR → טיקט)
+- [ ] QR מודפס **לחירום** בלבד (`/ops/stores/print-qr` או פר־סניף)
+- [ ] `SMS_019_ENABLED=1` + credentials — SMS לאיש מקצוע אחרי lock
 
 ## 4. צוות
 

@@ -31,6 +31,7 @@ import { defaultSessionTemplateName } from '@/modules/whatsapp/templates'
 import { OPEN_TICKET_STATUSES } from '@/modules/tickets/constants'
 import { DEMO_STORES } from '@/modules/stores/data'
 import { dedupeThreadMessages } from './dedupe-messages'
+import { humanizeMessageBody } from './display-labels'
 import {
   humanPauseUntilIso,
   isHumanPauseActive,
@@ -223,7 +224,9 @@ function enrichSession(
     store_name: ctx.storeName,
     customer_name: ctx.customerName,
     display_name,
-    last_message: ctx.lastMessage ?? session.last_inbound ?? null,
+    last_message: humanizeMessageBody(
+      ctx.lastMessage ?? session.last_inbound ?? '',
+    ) || null,
     unread,
     priority: pickHighestPriority(ctx.openPriorities),
     /** waiting = private ops window active for this chat only */
@@ -652,7 +655,10 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
     if (!testAuthAllowed()) throw new AuthError('Inbox backend unavailable', 503)
     const session = memListSessions().find((s) => s.wa_id === waId)
     if (!session || !canAccessInboxSession(actor, session)) throw new AuthError('אין הרשאה לשיחה זו', 403)
-    const messages = memListInboxMessages(waId)
+    const messages = dedupeThreadMessages(memListInboxMessages(waId)).map((m) => ({
+      ...m,
+      body: humanizeMessageBody(m.body),
+    }))
     const ticketIds = [
       ...new Set(messages.map((m) => m.ticket_id).filter(Boolean)),
     ] as string[]
@@ -691,7 +697,7 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
   const accessStore = Array.isArray(accessSession.stores) ? accessSession.stores[0] : accessSession.stores
   const authorizedSession = { ...accessSession, region_id: accessStore?.region_id, organization_id: accessStore?.organization_id }
   if (!canAccessInboxSession(actor, authorizedSession)) throw new AuthError('אין הרשאה לשיחה זו', 403)
-  const [inboxResult, ticketsResult, sessionResult] = await Promise.all([
+  const [inboxResult, ticketsResult, sessionResult, waResult] = await Promise.all([
     supabase
       .from('inbox_messages')
       .select('id, direction, body, created_at, ticket_id')
@@ -711,6 +717,11 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
       .select('store_id, store_code, customer_name')
       .eq('wa_id', waId)
       .maybeSingle(),
+    supabase
+      .from('whatsapp_messages')
+      .select('id, direction, body, created_at, ticket_id')
+      .eq('wa_id', waId)
+      .order('created_at', { ascending: true }),
   ])
 
   const { data: inboxRows, error } = inboxResult
@@ -799,6 +810,19 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
 
   const { count: waSessionCount } = await supabase.from('intake_sessions').select('wa_id', { count: 'exact', head: true }).eq('wa_id', waId)
   const safeInboxRows = waSessionCount === 1 ? (inboxRows ?? []) : []
+  const waMessages: InboxMessage[] = []
+  if (!waResult.error) {
+    for (const m of waResult.data ?? []) {
+      if (!m.body) continue
+      waMessages.push({
+        id: `wa-${m.id}`,
+        direction: m.direction === 'outbound' ? 'outbound' : 'inbound',
+        body: m.body,
+        created_at: m.created_at,
+        ticket_id: m.ticket_id,
+      })
+    }
+  }
   const combined = [
     ...safeInboxRows.map((m) => ({
       id: m.id,
@@ -808,12 +832,16 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
       ticket_id: m.ticket_id,
     })),
     ...ticketMessages,
+    ...waMessages,
   ].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   )
 
-  // Ops replies are stored in both inbox_messages and ticket_messages.
-  const messages = dedupeThreadMessages(combined)
+  // Ops replies / intake may land in multiple tables — collapse near-duplicates.
+  const messages = dedupeThreadMessages(combined).map((m) => ({
+    ...m,
+    body: humanizeMessageBody(m.body),
+  }))
 
   const sessionRow = sessionResult.data
 
@@ -968,11 +996,9 @@ export async function replyToSession(input: {
 
   if (!send.ok || send.dryRun) {
     throw new Error(
-      send.error
-        ? `שליחת WhatsApp נכשלה: ${send.error}`
-        : send.dryRun
-          ? 'שליחת WhatsApp לא בוצעה (מצב הדמיה / חסר Phone Number ID או טוקן)'
-          : 'שליחת WhatsApp נכשלה',
+      send.dryRun
+        ? 'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'
+        : 'שליחת ההודעה נכשלה. נסו שוב בעוד רגע.',
     )
   }
 
@@ -1121,6 +1147,7 @@ export async function sendSessionTemplate(input: {
   if (input.ticketId && !ticketId) throw new AuthError('אין הרשאה לקריאה זו', 403)
   if (ticketId) await assertTicketBelongsToSession(ticketId, waId, input.actor)
   const bodyParameters = input.bodyParameters
+  // Persist Meta name for audit; desk UI humanizes via humanizeMessageBody.
   const label = `[תבנית] ${templateName}`
 
   if (!(await supabaseReady())) {
@@ -1155,11 +1182,9 @@ export async function sendSessionTemplate(input: {
 
   if (!send.ok || send.dryRun) {
     throw new Error(
-      send.error
-        ? `שליחת תבנית נכשלה: ${send.error}`
-        : send.dryRun
-          ? 'שליחת תבנית לא בוצעה (מצב הדמיה / חסרים פרטי Meta)'
-          : 'שליחת תבנית נכשלה',
+      send.dryRun
+        ? 'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'
+        : 'שליחת הודעת מעקב נכשלה',
     )
   }
 

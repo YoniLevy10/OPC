@@ -23,6 +23,10 @@ import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { AdminRow, AdminRowList } from '@/components/ui/admin-row'
 import { Modal } from '@/components/ui/overlay'
 import { TICKET_CATEGORY_LABELS_HE, TICKET_CATEGORIES } from '@/modules/tickets/constants'
+import {
+  formatPersonalRating,
+  parsePersonalRating,
+} from '@/modules/notes/personal-rating'
 import { cn } from '@/lib/utils'
 
 export type VendorDispatchHint = {
@@ -126,32 +130,34 @@ export function VendorsAdmin({
 
   function editVendor(v: VendorRow) {
     setEditingVendor(v)
-    const match = v.notes?.match(/(?:^|\n)\[דירוג אישי: ([1-5])\](?:\n([\s\S]*))?/)
-    setRating(Number(match?.[1] ?? 0))
-    setPersonalNote(match ? (match[2] ?? '') : (v.notes ?? ''))
+    const parsed = parsePersonalRating(v.notes)
+    setRating(parsed.rating)
+    setPersonalNote(parsed.note)
   }
 
   async function saveVendorEdit() {
     if (!editingVendor) return
     setBusy(true)
     try {
-      const cleanNotes = personalNote.trim()
-      const notes = `${rating ? `[דירוג אישי: ${rating}]\n` : ''}${cleanNotes}`.trim() || null
+      const notes = formatPersonalRating(rating, personalNote)
       const response = await fetch(`/api/vendors/${editingVendor.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'השמירה נכשלה')
       setEditingVendor(null)
       setNotice('פרטי הספק נשמרו')
       await load()
-    } catch (err) { setError(err instanceof Error ? err.message : 'השמירה נכשלה') } finally { setBusy(false) }
+    } catch {
+      setError('השמירה נכשלה')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function saveVendorDetails(vendor: VendorRow, nextRating: number, nextNote: string) {
     setBusy(true)
     setError(null)
     try {
-      const cleanNotes = nextNote.trim()
-      const notes = `${nextRating ? `[דירוג אישי: ${nextRating}]\n` : ''}${cleanNotes}`.trim() || null
+      const notes = formatPersonalRating(nextRating, nextNote)
       const response = await fetch(`/api/vendors/${vendor.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -693,9 +699,9 @@ function VendorExpand({
   onSave: (vendor: VendorRow, rating: number, note: string) => Promise<void>
   busy: boolean
 }) {
-  const match = v.notes?.match(/(?:^|\n)\[דירוג אישי: ([1-5])\](?:\n([\s\S]*))?/)
-  const [rating, setRating] = useState(Number(match?.[1] ?? 0))
-  const [note, setNote] = useState(match ? (match[2] ?? '') : (v.notes ?? ''))
+  const parsed = parsePersonalRating(v.notes)
+  const [rating, setRating] = useState(parsed.rating)
+  const [note, setNote] = useState(parsed.note)
 
   return (
     <div className="grid gap-4 px-4 py-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(20rem,1.4fr)_minmax(14rem,1fr)]">

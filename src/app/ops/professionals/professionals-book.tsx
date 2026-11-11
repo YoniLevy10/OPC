@@ -2,13 +2,17 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { MessageCircle, Pencil, Phone } from 'lucide-react'
+import { MessageCircle, Pencil, Phone, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input, Textarea } from '@/components/ui/input'
 import { BottomSheet } from '@/components/ui/overlay'
 import { useToast } from '@/components/ui/toast'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import type { Professional } from '@/modules/professionals/types'
+import {
+  formatPersonalRating,
+  parsePersonalRating,
+} from '@/modules/notes/personal-rating'
 import { formatIsraeliPhoneDisplay, normalizePhoneDigits } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +26,53 @@ function whatsAppHref(phone: string | null | undefined): string | null {
   const digits = normalizePhoneDigits(phone)
   if (!digits) return null
   return `https://wa.me/${digits}`
+}
+
+function StarRow({
+  rating,
+  interactive,
+  onChange,
+  label,
+}: {
+  rating: number
+  interactive?: boolean
+  onChange?: (value: number) => void
+  label: string
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[var(--tenant)]"
+      role={interactive ? 'radiogroup' : 'img'}
+      aria-label={label}
+    >
+      {[1, 2, 3, 4, 5].map((value) =>
+        interactive ? (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={rating === value}
+            aria-label={`${value}`}
+            onClick={() => onChange?.(rating === value ? 0 : value)}
+            className="rounded-md p-0.5"
+          >
+            <Star
+              className="h-5 w-5"
+              fill={rating >= value ? 'currentColor' : 'none'}
+              aria-hidden
+            />
+          </button>
+        ) : (
+          <Star
+            key={value}
+            className="h-3.5 w-3.5"
+            fill={rating >= value ? 'currentColor' : 'none'}
+            aria-hidden
+          />
+        ),
+      )}
+    </span>
+  )
 }
 
 export function ProfessionalsBook({
@@ -43,14 +94,19 @@ export function ProfessionalsBook({
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editTrade, setEditTrade] = useState('')
+  const [editRating, setEditRating] = useState(0)
+  const [editNote, setEditNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   function openEdit(person: Professional) {
+    const parsed = parsePersonalRating(person.notes)
     setEditing(person)
     setEditName(person.full_name)
     setEditPhone(person.phone ?? '')
     setEditTrade(person.trade ?? '')
+    setEditRating(parsed.rating)
+    setEditNote(parsed.note)
   }
 
   async function touch(id: string) {
@@ -86,7 +142,7 @@ export function ProfessionalsBook({
           phone: editPhone.trim() || null,
           trade: editTrade.trim() || null,
           company_name: editing.company_name,
-          notes: editing.notes,
+          notes: formatPersonalRating(editRating, editNote),
         }),
       })
       const data = (await res.json().catch(() => null)) as {
@@ -98,9 +154,9 @@ export function ProfessionalsBook({
       toast.push({ title: tx('איש המקצוע עודכן'), tone: 'success' })
       setEditing(null)
       startTransition(() => router.refresh())
-    } catch (err) {
+    } catch {
       toast.push({
-        title: err instanceof Error ? err.message : tx('העריכה נכשלה'),
+        title: tx('העריכה נכשלה'),
         tone: 'critical',
       })
     } finally {
@@ -128,9 +184,9 @@ export function ProfessionalsBook({
       }
       toast.push({ title: tx('איש המקצוע נמחק'), tone: 'success' })
       startTransition(() => router.refresh())
-    } catch (err) {
+    } catch {
       toast.push({
-        title: err instanceof Error ? err.message : tx('המחיקה נכשלה'),
+        title: tx('המחיקה נכשלה'),
         tone: 'critical',
       })
     } finally {
@@ -145,13 +201,24 @@ export function ProfessionalsBook({
           const tel = dialHref(person.phone)
           const whatsapp = whatsAppHref(person.phone)
           const busy = pending || busyId === person.id
+          const { rating } = parsePersonalRating(person.notes)
           return (
             <li
               key={person.id}
               className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0 space-y-1">
-                <p className="t-lead font-semibold text-ink">{person.full_name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="t-lead font-semibold text-ink">
+                    {person.full_name}
+                  </p>
+                  {rating > 0 ? (
+                    <StarRow
+                      rating={rating}
+                      label={`${tx('דירוג אישי')} ${rating}`}
+                    />
+                  ) : null}
+                </div>
                 <p className="t-meta text-ink-2">
                   {[person.trade, person.company_name].filter(Boolean).join(' · ') ||
                     tx('איש מקצוע ממידרג')}
@@ -259,6 +326,24 @@ export function ProfessionalsBook({
               value={editTrade}
               onChange={(e) => setEditTrade(e.target.value)}
               placeholder={tx('מקצוע (אופציונלי)')}
+            />
+          </label>
+          <div className="grid gap-1">
+            <span className="t-meta text-ink-2">{tx('דירוג אישי')}</span>
+            <StarRow
+              rating={editRating}
+              interactive
+              onChange={setEditRating}
+              label={tx('דירוג אישי')}
+            />
+          </div>
+          <label className="grid gap-1">
+            <span className="t-meta text-ink-2">{tx('הערה אישית')}</span>
+            <Textarea
+              rows={3}
+              value={editNote}
+              onChange={(e) => setEditNote(e.target.value)}
+              placeholder={tx('רשמו הערה פנימית…')}
             />
           </label>
           <Button

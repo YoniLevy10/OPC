@@ -1,5 +1,6 @@
 'use client'
 
+import { useId, useState } from 'react'
 import {
   cancelEngagementAction,
   lockEngagementAction,
@@ -8,6 +9,7 @@ import {
 import type { Engagement } from '@/modules/engagements/service'
 import { formatIls } from '@/modules/spend/true-cost'
 import type { MidragPro } from '@/modules/vendors/midrag/live-results'
+import type { Professional } from '@/modules/professionals/types'
 import { Button } from '@/components/ui/button'
 import { MidragSearchAction } from '@/components/ops/midrag-search-action'
 import { usePhrase } from '@/components/i18n/locale-provider'
@@ -23,6 +25,7 @@ export function EngagementPanel({
   urgent,
   status,
   locked,
+  book = [],
   pros,
   searchUrl,
   fallback,
@@ -34,6 +37,7 @@ export function EngagementPanel({
   urgent: boolean
   status: string
   locked: Engagement | null
+  book?: Professional[]
   pros: MidragPro[]
   searchUrl: string
   fallback: boolean
@@ -42,6 +46,38 @@ export function EngagementPanel({
   city?: string | null
 }) {
   const p = usePhrase()
+  const formId = useId()
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [scope, setScope] = useState('')
+  const [amount, setAmount] = useState('')
+  const [pickedMidrag, setPickedMidrag] = useState('')
+  const [pickedBookId, setPickedBookId] = useState('')
+
+  function applyBookPro(pro: Professional) {
+    setPickedBookId(pro.id)
+    setPickedMidrag('')
+    setName(pro.full_name)
+    setPhone(pro.phone ?? '')
+    setScope((prev) => prev.trim() || pro.trade || '')
+  }
+
+  function applyMidragPro(pro: MidragPro) {
+    setPickedBookId('')
+    setPickedMidrag(`${pro.id}::${encodeURIComponent(pro.name)}`)
+    setName(pro.name)
+    // Midrag does not expose a phone to third-party sites — leave for Ari after the call.
+    setPhone('')
+    setScope((prev) => prev.trim() || p('תיאום אחרי שיחה במידרג'))
+    // Indicative range only — never lock Midrag min/max as the approved price.
+    setAmount('')
+    window.setTimeout(() => {
+      document
+        .getElementById(`${formId}-phone`)
+        ?.focus()
+    }, 0)
+  }
+
   if (status === 'closed' || status === 'cancelled') return null
 
   if (locked && status === 'engaged') {
@@ -54,6 +90,33 @@ export function EngagementPanel({
             ? formatIls(locked.approvedAmount ?? 0)
             : p('מחיר טרם סוכם')}
         </p>
+        {locked.handoff ? (
+          <p
+            className={`t-meta ${locked.handoff.ok ? 'text-[var(--signal-resolved)]' : 'text-[var(--signal-critical)]'}`}
+          >
+            {locked.handoff.line}
+          </p>
+        ) : null}
+        {locked.proSms ? (
+          <p
+            className={`t-meta ${locked.proSms.ok ? 'text-[var(--signal-resolved)]' : 'text-[var(--signal-critical)]'}`}
+          >
+            {locked.proSms.line}
+            {locked.proSms.portalUrl ? (
+              <>
+                {' · '}
+                <a
+                  href={locked.proSms.portalUrl}
+                  className="underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  קישור אישי
+                </a>
+              </>
+            ) : null}
+          </p>
+        ) : null}
         <p className="t-meta text-ink-3">
           {p('המחיר נעול. שינוי דורש ביטול וחזרה לתור.')}
         </p>
@@ -85,6 +148,48 @@ export function EngagementPanel({
       {urgent ? (
         <form action={lockEngagementAction} className="grid gap-3">
           <input type="hidden" name="ticketId" value={ticketId} />
+          <input type="hidden" name="midrag" value={pickedMidrag} />
+          <input type="hidden" name="professional_id" value={pickedBookId} />
+
+          {book.length > 0 ? (
+            <fieldset className="grid gap-2">
+              <legend className="t-body-strong text-ink">
+                {p('מאגר אנשי מקצוע')}
+              </legend>
+              <p className="t-meta text-ink-3">
+                בחרו מאנשי מקצוע שכבר עבדו עם ארי — מידרג רק אם חסר במאגר.
+              </p>
+              <ul className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
+                {book.map((pro) => (
+                  <li
+                    key={pro.id}
+                    className="rounded-[var(--radius-md)] border border-border px-3"
+                  >
+                    <label className="flex min-h-[var(--tap)] cursor-pointer items-center gap-3 py-2">
+                      <input
+                        type="radio"
+                        name="book_ui"
+                        value={pro.id}
+                        checked={pickedBookId === pro.id}
+                        onChange={() => applyBookPro(pro)}
+                        className="h-5 w-5 shrink-0 accent-[var(--tenant)]"
+                      />
+                      <span className="min-w-0">
+                        <span className="t-body block truncate text-ink">
+                          {pro.full_name}
+                          {pro.trade ? ` · ${pro.trade}` : ''}
+                        </span>
+                        <span className="t-meta block truncate text-ink-3" dir="ltr">
+                          {pro.phone || 'בלי טלפון'}
+                          {pro.use_count > 0 ? ` · ${pro.use_count}×` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -111,45 +216,52 @@ export function EngagementPanel({
             <fieldset className="grid gap-2">
               <legend className="t-body-strong text-ink">{p('מידרג באזור')}</legend>
               <p className="t-meta text-ink-3">
-                {p('טווח מידרג הוא לא המחיר שאושר.')}
+                {p('טווח מידרג הוא לא המחיר שאושר.')}{' '}
+                {p('בחירה ממלאת את השם — הטלפון אחרי השיחה.')}
               </p>
               <ul className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
-                {pros.map((pro) => (
-                  <li
-                    key={pro.id}
-                    className="rounded-[var(--radius-md)] border border-border px-3"
-                  >
-                    <label className="flex min-h-[var(--tap)] items-center gap-3 py-2">
-                      <input
-                        type="radio"
-                        name="midrag"
-                        value={`${pro.id}::${encodeURIComponent(pro.name)}`}
-                        className="h-5 w-5 shrink-0"
-                      />
-                      <span className="min-w-0">
-                        <span className="t-body block truncate text-ink">
-                          {pro.name}
-                          {pro.rating != null ? ` · ${pro.rating}` : ''}
-                          {pro.reviews != null ? ` · ${pro.reviews}` : ''}
+                {pros.map((pro) => {
+                  const value = `${pro.id}::${encodeURIComponent(pro.name)}`
+                  return (
+                    <li
+                      key={pro.id}
+                      className="rounded-[var(--radius-md)] border border-border px-3"
+                    >
+                      <label className="flex min-h-[var(--tap)] cursor-pointer items-center gap-3 py-2">
+                        <input
+                          type="radio"
+                          name="midrag_ui"
+                          value={value}
+                          checked={pickedMidrag === value}
+                          onChange={() => applyMidragPro(pro)}
+                          className="h-5 w-5 shrink-0 accent-[var(--tenant)]"
+                        />
+                        <span className="min-w-0">
+                          <span className="t-body block truncate text-ink">
+                            {pro.name}
+                            {pro.rating != null ? ` · ${pro.rating}` : ''}
+                            {pro.reviews != null ? ` · ${pro.reviews}` : ''}
+                          </span>
+                          <span className="t-meta block truncate text-ink-3">
+                            {pro.availability || p('זמינות לא צוינה')}
+                            {pro.priceMin != null
+                              ? ` · ${p('טווח')} ${formatIls(pro.priceMin)}${pro.priceMax != null ? `–${formatIls(pro.priceMax)}` : ''}`
+                              : ''}
+                          </span>
+                          <a
+                            className="t-meta text-ink underline"
+                            href={pro.profileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {p('דברו איתי במידרג')}
+                          </a>
                         </span>
-                        <span className="t-meta block truncate text-ink-3">
-                          {pro.availability || p('זמינות לא צוינה')}
-                          {pro.priceMin != null
-                            ? ` · ${p('טווח')} ${formatIls(pro.priceMin)}${pro.priceMax != null ? `–${formatIls(pro.priceMax)}` : ''}`
-                            : ''}
-                        </span>
-                        <a
-                          className="t-meta text-ink underline"
-                          href={pro.profileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {p('דברו איתי במידרג')}
-                        </a>
-                      </span>
-                    </label>
-                  </li>
-                ))}
+                      </label>
+                    </li>
+                  )
+                })}
               </ul>
             </fieldset>
           ) : (
@@ -185,17 +297,22 @@ export function EngagementPanel({
               <span className="t-meta text-ink-2">{p('שם אחרי השיחה')}</span>
               <input
                 name="professional_name"
-                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base text-ink"
                 placeholder={p('אם לא בחרת מהרשימה')}
               />
             </label>
             <label className="grid gap-1">
               <span className="t-meta text-ink-2">{p('טלפון')}</span>
               <input
+                id={`${formId}-phone`}
                 name="professional_phone"
                 required
                 inputMode="tel"
-                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base text-ink"
                 placeholder={p('המספר שארי קיבל')}
               />
             </label>
@@ -203,7 +320,9 @@ export function EngagementPanel({
               <span className="t-meta text-ink-2">{p('העבודה שסוכמה')}</span>
               <input
                 name="scope"
-                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
+                value={scope}
+                onChange={(e) => setScope(e.target.value)}
+                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base text-ink"
                 placeholder={p('מה בעל המקצוע יעשה')}
               />
             </label>
@@ -214,13 +333,15 @@ export function EngagementPanel({
               <input
                 name="approved_amount"
                 inputMode="decimal"
-                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="min-h-11 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-base text-ink"
                 placeholder="₪"
               />
             </label>
           </div>
           <Button type="submit" variant="primary" className="max-md:w-full">
-            {p('אשר ושלח למנהל החנות')}
+            אשר · WA למנהל + SMS לאיש מקצוע
           </Button>
         </form>
       ) : (

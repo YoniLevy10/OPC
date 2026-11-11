@@ -300,6 +300,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'סיים עבודה': { en: 'Finish the job', fr: 'Terminer l’intervention' },
   'אשר סגירה': { en: 'Confirm closure', fr: 'Confirmer la clôture' },
   'בקש מידע': { en: 'Request info', fr: 'Demander des infos' },
+  הערה: { en: 'Note', fr: 'Note' },
   'הוסף הערה': { en: 'Add a note', fr: 'Ajouter une note' },
   'מה חסר?': { en: 'What is missing?', fr: 'Qu’est-ce qui manque ?' },
   'הערה פנימית': { en: 'Internal note', fr: 'Note interne' },
@@ -410,6 +411,16 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   חשוב: { en: 'Important', fr: 'Important' },
   רגיל: { en: 'Normal', fr: 'Normal' },
   חורגת: { en: 'Overdue', fr: 'En retard' },
+  'חורגת מהזמן': { en: 'Past due time', fr: 'Hors délai' },
+  'ממתינה לטיפול': { en: 'Waiting for handling', fr: 'En attente de traitement' },
+  'דורשת אישור': { en: 'Needs approval', fr: 'Nécessite une validation' },
+  'הערה על התקלה': { en: 'Note on this fault', fr: 'Note sur le défaut' },
+  'רשמו הערה אישית על התקלה…': {
+    en: 'Write a personal note about this fault…',
+    fr: 'Écrivez une note personnelle sur ce défaut…',
+  },
+  'ההערה נשמרה': { en: 'Note saved', fr: 'Note enregistrée' },
+  'שמירת ההערה נכשלה': { en: 'Could not save the note', fr: 'Échec de l’enregistrement de la note' },
   'נפתחה זה עתה': { en: 'Just opened', fr: 'Tout juste ouverte' },
   'פתוחה כבר שעה': { en: 'Open for 1 hour', fr: 'Ouverte depuis 1 heure' },
   'לפני שעה': { en: '1 hour ago', fr: 'il y a 1 heure' },
@@ -621,6 +632,10 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   ציוד: { en: 'Equipment', fr: 'Équipement' },
   'בריאות השירותים בזמן אמת': { en: 'Live service health', fr: 'Santé des services en direct' },
   'לא נמצאו חנויות': { en: 'No stores found', fr: 'Aucun magasin trouvé' },
+  'שם או קוד סניף': {
+    en: 'Store name or code',
+    fr: 'Nom ou code magasin',
+  },
   'עדיין אין אנשי מקצוע שמורים': { en: 'No saved professionals yet', fr: 'Aucun professionnel enregistré' },
   'אין תקלות שדורשות טיפול': { en: 'No faults need attention', fr: 'Aucune panne à traiter' },
   'כל התקלות': { en: 'All faults', fr: 'Toutes les pannes' },
@@ -743,7 +758,19 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'דלג לתוכן': { en: 'Skip to content', fr: 'Aller au contenu' },
   'ניקוי חיפוש': { en: 'Clear search', fr: 'Effacer la recherche' },
   'ערוץ דיווח': { en: 'Report channel', fr: 'Canal de signalement' },
+  מיזוג: { en: 'HVAC', fr: 'Climatisation' },
+  חשמל: { en: 'Electrical', fr: 'Électricité' },
+  'סכנת חשמל': { en: 'Electrical hazard', fr: 'Danger électrique' },
+  אינסטלציה: { en: 'Plumbing', fr: 'Plomberie' },
+  אבטחה: { en: 'Security', fr: 'Sécurité' },
+  'מחשוב / קופה': { en: 'IT / POS', fr: 'Informatique / caisse' },
+  ניקיון: { en: 'Cleaning', fr: 'Nettoyage' },
+  אחר: { en: 'Other', fr: 'Autre' },
   'QR לפי סניף': { en: 'QR by store', fr: 'QR par magasin' },
+  'משני — הפתיחה העיקרית היא דרך שיחת WhatsApp': {
+    en: 'Secondary — primary open path is a WhatsApp chat',
+    fr: 'Secondaire — l’ouverture principale passe par WhatsApp',
+  },
   'פתחו סניף כדי להציג QR, להוריד PNG או לבדוק את קישור ה־WhatsApp.': {
     en: 'Open a store to preview the QR, download a PNG, or check the WhatsApp link.',
     fr: 'Ouvrez un magasin pour voir le QR, télécharger un PNG ou vérifier le lien WhatsApp.',
@@ -997,6 +1024,14 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Midrag range is not the approved price.',
     fr: 'La fourchette Midrag n’est pas le prix approuvé.',
   },
+  'בחירה ממלאת את השם — הטלפון אחרי השיחה.': {
+    en: 'Selecting fills the name — phone after the call.',
+    fr: 'La sélection remplit le nom — téléphone après l’appel.',
+  },
+  'תיאום אחרי שיחה במידרג': {
+    en: 'Coordination after Midrag call',
+    fr: 'Coordination après appel Midrag',
+  },
   'לסגור באותו ביקור': {
     en: 'Close in the same visit',
     fr: 'Clôturer dans la même visite',
@@ -1096,6 +1131,138 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'הצעות שנרשמו לפי סוג': {
     en: 'Quotes recorded by type',
     fr: 'Devis enregistrés par type',
+  },
+  'ממתין לסניף': { en: 'Waiting for store', fr: 'En attente du magasin' },
+  'ממתין לתיאור': { en: 'Waiting for description', fr: 'En attente de description' },
+  'ממתין להבהרה': { en: 'Waiting for clarification', fr: 'En attente de clarification' },
+  'ממתין לתמונה': { en: 'Waiting for a photo', fr: 'En attente d’une photo' },
+  טופל: { en: 'Handled', fr: 'Traité' },
+  'אוסף פרטים': { en: 'Collecting details', fr: 'Collecte des détails' },
+  'הודעת מעקב': { en: 'Follow-up message', fr: 'Message de suivi' },
+  'התראת דסק': { en: 'Desk alert', fr: 'Alerte bureau' },
+  'עדכון תקלה': { en: 'Fault update', fr: 'Mise à jour de panne' },
+  'הודעת תבנית': { en: 'Template message', fr: 'Message modèle' },
+  'שיחה פרטית': { en: 'Private chat', fr: 'Conversation privée' },
+  'טעינה נכשלה': { en: 'Could not load', fr: 'Chargement impossible' },
+  'טעינת שיחה נכשלה': {
+    en: 'Could not load the chat',
+    fr: 'Impossible de charger la conversation',
+  },
+  'עדכון נכשל': { en: 'Update failed', fr: 'Mise à jour échouée' },
+  'שליחה נכשלה': { en: 'Send failed', fr: 'Envoi échoué' },
+  'שליחת ההודעה נכשלה. נסו שוב בעוד רגע.': {
+    en: 'Could not send the message. Try again in a moment.',
+    fr: 'Impossible d’envoyer le message. Réessayez dans un instant.',
+  },
+  'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.': {
+    en: 'The message was not sent to the customer. Check WhatsApp connection in settings.',
+    fr: 'Le message n’a pas été envoyé au client. Vérifiez la connexion WhatsApp dans les réglages.',
+  },
+  'שליחת הודעת מעקב נכשלה': {
+    en: 'Could not send the follow-up message',
+    fr: 'Impossible d’envoyer le message de suivi',
+  },
+  'הודעת מעקב נשלחה — הלקוח יכול להשיב ולפתוח מחדש את השיחה.': {
+    en: 'Follow-up sent — the customer can reply and reopen the chat.',
+    fr: 'Suivi envoyé — le client peut répondre et rouvrir la conversation.',
+  },
+  'השיחה הוסרה מהתיבה': {
+    en: 'Chat removed from the inbox',
+    fr: 'Conversation retirée de la boîte',
+  },
+  'פרטי הלקוח והסניף נשמרו': {
+    en: 'Customer and store details saved',
+    fr: 'Coordonnées client et magasin enregistrées',
+  },
+  'הבוט הושהה — השתלטות אנושית': {
+    en: 'Bot paused — human takeover',
+    fr: 'Bot en pause — prise en charge humaine',
+  },
+  'הבוט חזר לפעול בשיחה זו': {
+    en: 'Bot resumed on this chat',
+    fr: 'Bot repris sur cette conversation',
+  },
+  'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.': {
+    en: 'Message sent · private window open for {minutes} minutes on this chat only (bot continues elsewhere). Tap “Return to bot” when done.',
+    fr: 'Message envoyé · fenêtre privée ouverte {minutes} minutes sur cette conversation seulement (le bot continue ailleurs). Appuyez sur « Rendre au bot » quand vous avez fini.',
+  },
+  'הערה אישית': { en: 'Personal note', fr: 'Note personnelle' },
+  'הערה אישית שלי': { en: 'My personal note', fr: 'Ma note personnelle' },
+  'רשמו הערה פנימית…': {
+    en: 'Write an internal note…',
+    fr: 'Écrivez une note interne…',
+  },
+  'דירוג אישי': { en: 'Personal rating', fr: 'Note personnelle' },
+  'הדפסת QR לכל הרשת': {
+    en: 'Print QR for the whole network',
+    fr: 'Imprimer les QR de tout le réseau',
+  },
+  'סינון לפי מחוז': { en: 'Filter by region', fr: 'Filtrer par région' },
+  'נסו שם, מספר, עיר או מחוז.': {
+    en: 'Try a name, number, city, or region.',
+    fr: 'Essayez un nom, un numéro, une ville ou une région.',
+  },
+  'איזו תקלה לסמן? כתוב את שם הסניף.': {
+    en: 'Which fault should I mark? Write the store name.',
+    fr: 'Quelle panne marquer ? Indiquez le magasin.',
+  },
+  'סימנתי את התקלה ב{store} כדחופה.': {
+    en: 'Marked the fault at {store} as urgent.',
+    fr: 'Panne marquée urgente à {store}.',
+  },
+  'הורדתי את הדחיפות ב{store}.': {
+    en: 'Cleared urgency at {store}.',
+    fr: 'Urgence retirée à {store}.',
+  },
+  'באיזה סניף לפתוח את התקלה?': {
+    en: 'Which store should I open the fault for?',
+    fr: 'Dans quel magasin ouvrir la panne ?',
+  },
+  'פתחתי תקלה ב{store}: {description}.': {
+    en: 'Opened a fault at {store}: {description}.',
+    fr: 'Panne ouverte à {store} : {description}.',
+  },
+  לתקלה: { en: 'Open fault', fr: 'Voir la panne' },
+  'לא הצלחתי לפתוח את התקלה.': {
+    en: 'Could not open the fault.',
+    fr: 'Impossible d’ouvrir la panne.',
+  },
+  למשימה: { en: 'Open task', fr: 'Voir la tâche' },
+  'רשמתי משימה: {title}. בסניף {store}.': {
+    en: 'Logged task: {title}. Store {store}.',
+    fr: 'Tâche enregistrée : {title}. Magasin {store}.',
+  },
+  'רשמתי משימה: {title}.': {
+    en: 'Logged task: {title}.',
+    fr: 'Tâche enregistrée : {title}.',
+  },
+  'בדקו את המסמכים לסניף {store} ברשימת העובדות.': {
+    en: 'Check documents for {store} in the facts list.',
+    fr: 'Vérifiez les documents de {store} dans les faits.',
+  },
+  'בדקו את המסמכים לחידוש ברשימת העובדות.': {
+    en: 'Check documents due for renewal in the facts list.',
+    fr: 'Vérifiez les documents à renouveler dans les faits.',
+  },
+  'אילו מסמכים לחידוש?': {
+    en: 'Which documents need renewal?',
+    fr: 'Quels documents à renouveler ?',
+  },
+  'חלון 24 השעות פג — לא ניתן לשלוח טקסט חופשי. שלחו הודעת מעקב כדי לפתוח מחדש את השיחה.': {
+    en: 'The 24-hour window closed — free text is blocked. Send a follow-up message to reopen the chat.',
+    fr: 'La fenêtre de 24 h est close — texte libre bloqué. Envoyez un message de suivi pour rouvrir.',
+  },
+  'שליחת הודעת מעקב': {
+    en: 'Send follow-up',
+    fr: 'Envoyer le suivi',
+  },
+  'העוזר לא הצליח לענות': {
+    en: 'The assistant could not answer',
+    fr: 'L’assistant n’a pas pu répondre',
+  },
+  'אין קשר לעוזר כרגע': {
+    en: 'No connection to the assistant right now',
+    fr: 'Pas de connexion à l’assistant pour le moment',
   },
 }
 

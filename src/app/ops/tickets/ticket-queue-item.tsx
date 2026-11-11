@@ -8,11 +8,12 @@ import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
 import { OperationalRow, Dot } from '@/components/ui/operational-row'
 import { StatusLabel } from '@/components/ui/signal'
 import { cn } from '@/lib/utils'
-import { plainOpenForHe } from '@/components/ops/plain-labels'
+import { plainOpenForHe, plainStatus } from '@/components/ops/plain-labels'
 import { ticketDecision } from '@/modules/decisions/queue'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import type { QueueTicket } from '@/modules/tickets/queue'
 import { useVisitSelection } from './visit-selection-context'
+import { TicketQueueNoteButton } from './ticket-queue-note-button'
 
 function displayNum(t: QueueTicket): string {
   if (t.display_number?.trim()) return t.display_number
@@ -38,7 +39,10 @@ export function TicketQueueItem({
   const openFor = plainOpenForHe(ticket.created_at, ticket, new Date(), locale)
   const selected = visitSelection?.selected.has(ticket.id) ?? false
   const decision = ticketDecision(ticket, new Date(), locale)
-  const verb = decision?.action.split('·')[0]?.trim() || p('לטפל')
+  const actionLabel = decision?.action || p('לטפל')
+  const needsApproval =
+    ticketIsUrgent(ticket) && ticket.status !== 'engaged'
+  const title = ticket.title || ticket.description
 
   if (!open) {
     return (
@@ -54,7 +58,7 @@ export function TicketQueueItem({
             <span>{ticket.stores?.name?.trim() || p('חנות')}</span>
           </span>
         }
-        title={ticket.title || ticket.description}
+        title={title}
         footer={
           <>
             <StatusLabel status={ticket.status} />
@@ -75,9 +79,9 @@ export function TicketQueueItem({
         selected && 'bg-[var(--tenant-soft)]/40',
       )}
     >
-      <div className="flex items-center gap-3 px-4 py-2 md:items-start md:pt-3">
+      <div className="flex items-start gap-3 px-4 py-3">
         {selectable && visitSelection ? (
-          <label className="flex shrink-0 items-center self-center md:self-start md:pt-1">
+          <label className="flex shrink-0 items-center self-center pt-1">
             <input
               type="checkbox"
               className="h-6 w-6 accent-[var(--tenant)]"
@@ -90,43 +94,45 @@ export function TicketQueueItem({
 
         <Link
           href={`/ops/tickets/${ticket.id}`}
-          className="min-w-0 flex-1 space-y-0.5 md:space-y-1.5"
+          className="min-w-0 flex-1 space-y-1"
         >
-          <p className="t-body line-clamp-1 text-ink md:line-clamp-2">
-            {ticket.title || ticket.description}
+          <p className="t-body line-clamp-2 text-ink">{title}</p>
+          <p className="t-meta text-ink-3">
+            <span
+              className={cn(
+                openFor.overdue && 'font-semibold text-[var(--tenant)]',
+              )}
+            >
+              {openFor.text}
+            </span>
+            <span aria-hidden className="text-ink-3">
+              {' '}
+              ·{' '}
+            </span>
+            <span
+              className={cn(
+                needsApproval ? 'font-semibold text-[var(--tenant)]' : 'text-ink-2',
+              )}
+            >
+              {needsApproval
+                ? p('דורשת אישור')
+                : plainStatus(ticket.status, locale)}
+            </span>
           </p>
-          <p
-            className={cn(
-              't-meta truncate',
-              openFor.overdue ? 'font-semibold text-[var(--tenant)]' : 'text-ink-3',
-            )}
-          >
-            {openFor.text}
-            <span className="text-ink-3"> · </span>
-            <span className="text-ink-2">{verb}</span>
-            <span className="text-ink md:hidden"> · {verb}</span>
-          </p>
-          <div className="hidden items-center gap-2 md:flex">
-            <StatusLabel
-              status={ticket.status}
-              awaiting={ticketIsUrgent(ticket) && ticket.status !== 'engaged'}
-            />
-            {openFor.overdue ? (
-              <span className="t-body-strong text-[var(--tenant)]">{p('דחוף')}</span>
-            ) : null}
-          </div>
         </Link>
-      </div>
-      <div className="flex justify-end px-4 pb-3 pt-2">
-        {ticketIsUrgent(ticket) && ticket.status !== 'engaged' ? (
-          <Button asChild variant="primary" size="sm" className="max-md:w-full">
-            <Link href={`/ops/tickets/${ticket.id}`}>{verb}</Link>
-          </Button>
-        ) : (
-          <Link href={`/ops/tickets/${ticket.id}`} className="t-meta text-ink">
-            {verb}
-          </Link>
-        )}
+
+        <div className="flex shrink-0 flex-col items-stretch gap-2 self-center">
+          <TicketQueueNoteButton ticketId={ticket.id} ticketTitle={title} />
+          {needsApproval ? (
+            <Button asChild variant="primary" size="sm">
+              <Link href={`/ops/tickets/${ticket.id}`}>{actionLabel}</Link>
+            </Button>
+          ) : (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/ops/tickets/${ticket.id}`}>{p('לטפל')}</Link>
+            </Button>
+          )}
+        </div>
       </div>
     </article>
   )

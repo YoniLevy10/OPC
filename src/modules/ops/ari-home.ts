@@ -15,7 +15,7 @@ import type { Locale } from '@/lib/i18n/locale'
 import { phrase } from '@/lib/i18n/phrases'
 import { isNightHour, jerusalemHour } from '@/lib/theme'
 
-/** Stores past this stay under "עוד סניפים" so the home is not a wall. */
+/** @deprecated Home lists every store; kept for older imports. */
 export const ARI_HOME_STORE_CAP = 8
 
 /** Day greeting until 19:00 Israel time; night greeting from 19:00 until 07:00. */
@@ -118,12 +118,21 @@ function toHistory(ticket: QueueTicket): HistoryTicket {
   }
 }
 
+export type AriHomeStoreSeed = {
+  id: string
+  name: string
+  code: string
+  inactive?: boolean
+}
+
 export function buildAriHome(input: {
   openTickets: QueueTicket[]
   closedTickets: QueueTicket[]
   openCount: number
   now?: Date
   locale?: Locale
+  /** Full network roster — quiet stores appear as empty folders. */
+  allStores?: AriHomeStoreSeed[]
 }): AriHomeModel {
   const now = input.now ?? new Date()
   const locale = input.locale ?? 'he'
@@ -217,10 +226,26 @@ export function buildAriHome(input: {
     return a.store.name.localeCompare(b.store.name, 'he')
   })
 
+  const seen = new Set(ranked.map((item) => item.store.id))
+  const quiet = (input.allStores ?? [])
+    .filter((store) => !store.inactive && !seen.has(store.id))
+    .map((store) => ({
+      rank: 100,
+      store: {
+        id: store.id,
+        name: store.name.trim() || phrase(locale, 'סניף'),
+        code: store.code.trim(),
+        categories: [] as AriHomeCategory[],
+      },
+    }))
+    .sort((a, b) => a.store.name.localeCompare(b.store.name, 'he'))
+
+  const stores = [...ranked, ...quiet].map((item) => item.store)
+
   return {
     open: input.openCount,
     closedToday: countClosedToday(input.closedTickets, now),
-    stores: ranked.slice(0, ARI_HOME_STORE_CAP).map((item) => item.store),
-    moreStores: Math.max(0, ranked.length - ARI_HOME_STORE_CAP),
+    stores,
+    moreStores: 0,
   }
 }

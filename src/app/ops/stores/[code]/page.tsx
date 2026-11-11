@@ -14,6 +14,7 @@ import { resolveWhatsAppBusinessPhone } from "@/modules/stores/business-phone";
 import { listTickets } from "@/modules/tickets/service";
 import { OPEN_TICKET_STATUSES } from "@/modules/tickets/constants";
 import { StoreEditControls } from "../store-edit-controls";
+import { ReplaceManagerForm } from "../replace-manager-form";
 import { StoreDirectoryPanel } from "../store-directory-panel";
 import { StoreAssetsPanel } from "./store-assets-panel";
 import { StoreSecondaryActions } from "./store-secondary-actions";
@@ -198,6 +199,16 @@ export default async function StoreDetailPage({
                     {store.is_active === false ? "מושבת" : "פעיל"}
                   </KeyValue>
                 </dl>
+                {canEdit ? (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <ReplaceManagerForm
+                      storeId={store.id}
+                      managerName={store.manager_name ?? null}
+                      managerPhone={store.manager_phone ?? null}
+                      managerNameEn={store.manager_name_en ?? null}
+                    />
+                  </div>
+                ) : null}
               </Panel>
             </PhoneFold>
 

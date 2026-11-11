@@ -18,7 +18,7 @@ export default async function UsersPage() {
       <div className="flex flex-col gap-5 stagger">
         <OpsPageHero
           title="משתמשים"
-          status="ניהול גישה, תפקידים וסניפים"
+          status="HQ לארי · חנות וטכנאי לשטח"
         />
         <UsersAdmin
           actorId={actor?.id ?? null}

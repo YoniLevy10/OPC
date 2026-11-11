@@ -28,12 +28,14 @@ export const PRODUCT_ROLE_LABELS_HE: Record<ProductRole, string> = {
   internal_technician: 'טכנאי',
 }
 
-/** Short “who can what” for the Users admin. */
+/** Short “who can what” for the Users admin (OC pilot: HQ = Ari only). */
 export const PRODUCT_ROLE_HELP_HE: Record<ProductRole, string> = {
-  global_admin: 'הכל: משתמשים, הגדרות, תפעול, חנויות',
-  global_maintenance: 'מרכז שליטה: תקלות, חנויות, דוחות — בלי ניהול משתמשים',
-  store_employee: 'פורטל חנות בלבד — דיווח ומעקב',
-  internal_technician: 'רואה רק עבודות ששויכו אליו',
+  global_admin:
+    'ארי / HQ — גישה מלאה למרכז השליטה (משתמשים, הגדרות, חנויות)',
+  global_maintenance:
+    'לא נדרש בפיילוט ארי־יחיד — נשמר לתאימות עתידית',
+  store_employee: 'שטח: WhatsApp + פורטל חנות — דיווח ומעקב',
+  internal_technician: 'שטח: רואה רק עבודות ששויכו אליו ב־/tech',
 }
 
 export const PRODUCT_ROLE_OPTIONS: {

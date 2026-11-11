@@ -1077,6 +1077,10 @@ export function memUpdateStore(
     address?: string | null
     region_id?: string
     is_active?: boolean
+    manager_name?: string | null
+    manager_name_en?: string | null
+    manager_phone?: string | null
+    area_manager?: string | null
   },
 ): MemStore {
   const store = MEM_STORES.find((s) => s.id === id)
@@ -1101,6 +1105,18 @@ export function memUpdateStore(
   if (patch.address !== undefined) store.address = patch.address?.trim() || null
   if (patch.region_id !== undefined) store.region_id = patch.region_id.trim() || store.region_id
   if (patch.is_active !== undefined) store.is_active = patch.is_active
+  if (patch.manager_name !== undefined) {
+    store.manager_name = patch.manager_name?.trim() || null
+  }
+  if (patch.manager_name_en !== undefined) {
+    store.manager_name_en = patch.manager_name_en?.trim() || null
+  }
+  if (patch.manager_phone !== undefined) {
+    store.manager_phone = patch.manager_phone?.trim() || null
+  }
+  if (patch.area_manager !== undefined) {
+    store.area_manager = patch.area_manager?.trim() || null
+  }
   return store
 }
 

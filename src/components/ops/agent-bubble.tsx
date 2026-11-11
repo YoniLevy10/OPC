@@ -10,7 +10,12 @@ import type { AgentLink } from '@/modules/ops/agent-threads'
 
 export function AgentBubble() {
   const p = usePhrase()
-  const starters = [p('איזה סניף הכי דחוף?'), p('כמה מחכה?'), p('מה כדאי לאחד?')]
+  const starters = [
+    p('איזה סניף הכי דחוף?'),
+    p('כמה מחכה?'),
+    p('מה כדאי לאחד?'),
+    p('אילו מסמכים לחידוש?'),
+  ]
   const { turns, setTurns, threads, activeId, ready, restore, startFresh } = useAgentThreads()
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState(false)
@@ -59,7 +64,7 @@ export function AgentBubble() {
         error?: string
       } | null
       if (!res.ok || !json?.reply) {
-        setError(json?.error || p('הסוכן לא הצליח לענות'))
+        setError(p('העוזר לא הצליח לענות'))
         return
       }
       setTurns((current) => [...current, { role: 'assistant', text: json.reply!, links: json.links }])

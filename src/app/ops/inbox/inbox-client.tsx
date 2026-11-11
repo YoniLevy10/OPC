@@ -34,6 +34,8 @@ import {
 } from '@/components/ui/signal'
 import { LiveAge } from '@/components/ui/time'
 import { cn } from '@/lib/utils'
+import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
+import { intakeStateLabel } from '@/modules/inbox/display-labels'
 import { TICKET_PRIORITY_LABELS_HE } from '@/modules/tickets/constants'
 import { HUMAN_PAUSE_WINDOW_MINUTES } from '@/modules/whatsapp/human-pause'
 
@@ -166,9 +168,28 @@ function buildThreadItems(messages: ThreadMessage[]): ThreadItem[] {
   return items
 }
 
+function safeClientError(
+  err: unknown,
+  fallback: string,
+  p: (hebrew: string) => string,
+): string {
+  if (!(err instanceof Error) || !err.message) return p(fallback)
+  const msg = err.message
+  if (
+    /supabase|postgres|stack|zod|dryRun|Phone Number|fbtrace|maintainos_|WHATSAPP_|schema|ECONN|fetch failed/i.test(
+      msg,
+    )
+  ) {
+    return p(fallback)
+  }
+  return msg
+}
+
 export function InboxClient() {
   const searchParams = useSearchParams()
   const waFromUrl = searchParams.get('wa')
+  const p = usePhrase()
+  const { locale } = useLocale()
 
   const [sessions, setSessions] = useState<Session[]>([])
   const [messages, setMessages] = useState<ThreadMessage[]>([])
@@ -193,29 +214,29 @@ export function InboxClient() {
     try {
       const res = await fetch('/api/inbox/sessions')
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'טעינה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
       setSessions(json.sessions ?? [])
       if (!selected && json.sessions?.[0] && isDesktopMq()) {
         setSelected(json.sessions[0].wa_id as string)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה')
+      setError(safeClientError(err, 'טעינה נכשלה', p))
     }
-  }, [selected])
+  }, [selected, p])
 
   const loadThread = useCallback(async (waId: string) => {
     try {
       const res = await fetch(`/api/inbox/sessions/${encodeURIComponent(waId)}`)
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'טעינת שיחה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('טעינת שיחה נכשלה'))
       setMessages(json.messages ?? [])
       setTicketIds(json.ticketIds ?? [])
       setOpenTickets(json.openTickets ?? json.context?.openTickets ?? [])
       setContext(json.context ?? null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינת שיחה נכשלה')
+      setError(safeClientError(err, 'טעינת שיחה נכשלה', p))
     }
-  }, [])
+  }, [p])
 
   useEffect(() => {
     void loadSessions()
@@ -261,16 +282,16 @@ export function InboxClient() {
         body: JSON.stringify({ wa_id: waId, status }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'עדכון נכשל')
+      if (!res.ok) throw new Error(json.error || p('עדכון נכשל'))
       setNotice(
         status === 'waiting'
-          ? 'הבוט הושהה — השתלטות אנושית'
-          : 'הבוט חזר לפעול בשיחה זו',
+          ? p('הבוט הושהה — השתלטות אנושית')
+          : p('הבוט חזר לפעול בשיחה זו'),
       )
       await loadSessions()
       if (selected) await loadThread(selected)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'עדכון נכשל')
+      setError(safeClientError(err, 'עדכון נכשל', p))
     } finally {
       setBusy(false)
     }
@@ -304,23 +325,24 @@ export function InboxClient() {
         },
       )
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'שליחה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('שליחה נכשלה'))
       if (json.send && json.send.ok === false) {
-        throw new Error(json.send.error || 'שליחת WhatsApp נכשלה')
+        throw new Error(p('שליחת ההודעה נכשלה. נסו שוב בעוד רגע.'))
       }
       if (json.send?.dryRun) {
-        throw new Error(
-          'ההודעה לא נשלחה ללקוח (מצב הדמיה / חסרים פרטי Meta). בדקו WHATSAPP_ACCESS_TOKEN ו־WHATSAPP_PHONE_NUMBER_ID.',
-        )
+        throw new Error(p('ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'))
       }
       setReply('')
       setNotice(
-        `הודעה נשלחה · נפתח חלון שיחה פרטית ל־${HUMAN_PAUSE_WINDOW_MINUTES} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.`,
+        p(
+          'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.',
+          { minutes: HUMAN_PAUSE_WINDOW_MINUTES },
+        ),
       )
       await Promise.all([loadThread(selected), loadSessions()])
       composerRef.current?.focus()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שליחה נכשלה')
+      setError(safeClientError(err, 'שליחה נכשלה', p))
     } finally {
       setBusy(false)
     }
@@ -344,16 +366,16 @@ export function InboxClient() {
         },
       )
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'שליחת תבנית נכשלה')
+      if (!res.ok) throw new Error(json.error || p('שליחת הודעת מעקב נכשלה'))
       if (json.send && json.send.ok === false) {
-        throw new Error(json.send.error || 'שליחת תבנית נכשלה')
+        throw new Error(p('שליחת הודעת מעקב נכשלה'))
       }
       setNotice(
-        'תבנית נשלחה — הלקוח יכול להשיב ולפתוח מחדש את חלון 24 השעות.',
+        p('הודעת מעקב נשלחה — הלקוח יכול להשיב ולפתוח מחדש את השיחה.'),
       )
       await Promise.all([loadThread(selected), loadSessions()])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שליחת תבנית נכשלה')
+      setError(safeClientError(err, 'שליחת הודעת מעקב נכשלה', p))
     } finally {
       setBusy(false)
     }
@@ -377,14 +399,14 @@ export function InboxClient() {
         { method: 'DELETE' },
       )
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'מחיקה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('מחיקה נכשלה'))
       setSelected(null)
       setMessages([])
       setMobileShowThread(false)
-      setNotice('השיחה הוסרה מתיבת ה־Ops')
+      setNotice(p('השיחה הוסרה מהתיבה'))
       await loadSessions()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'מחיקה נכשלה')
+      setError(safeClientError(err, 'מחיקה נכשלה', p))
     } finally {
       setBusy(false)
     }
@@ -408,11 +430,14 @@ export function InboxClient() {
         body: JSON.stringify({ wa_id: active.wa_id, store_id: editStoreId || null, customer_name: editCustomerName.trim() || null }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'שמירה נכשלה')
-      setNotice('פרטי הלקוח והסניף נשמרו')
+      if (!res.ok) throw new Error(json.error || p('שמירה נכשלה'))
+      setNotice(p('פרטי הלקוח והסניף נשמרו'))
       await Promise.all([loadSessions(), loadThread(active.wa_id)])
-    } catch (err) { setError(err instanceof Error ? err.message : 'שמירה נכשלה') }
-    finally { setBusy(false) }
+    } catch (err) {
+      setError(safeClientError(err, 'שמירה נכשלה', p))
+    } finally {
+      setBusy(false)
+    }
   }
 
   const linkedTickets = openTickets.length
@@ -491,10 +516,8 @@ export function InboxClient() {
                       ) : null}
                       <span className="t-caption text-ink-3">
                         {s.human_takeover || s.inbox_status === 'waiting'
-                          ? 'שיחה פרטית'
-                          : s.state === 'done'
-                            ? 'טופל'
-                            : s.state}
+                          ? p('שיחה פרטית')
+                          : intakeStateLabel(s.state, locale)}
                       </span>
                     </span>
                   </span>
@@ -587,20 +610,20 @@ export function InboxClient() {
     <Panel
       flush
       elevated
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-none border-0 shadow-none lg:rounded-[var(--radius-lg)] lg:border lg:border-border/80 lg:shadow-[var(--shadow-1)]"
+      className="wa-thread-panel flex h-full min-h-0 flex-col overflow-hidden rounded-none border-0 shadow-none lg:rounded-[var(--radius-lg)] lg:border lg:border-border/80 lg:shadow-[var(--shadow-1)]"
     >
       {!active ? (
-        <div className="flex flex-1 items-center justify-center wa-empty-stage">
+        <div className="wa-empty-stage flex flex-1 items-center justify-center">
           <EmptyState title="בחרו שיחה" />
         </div>
       ) : (
         <>
-          <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-3 py-2.5 text-ink">
+          <header className="wa-thread-header flex shrink-0 items-center gap-3 border-b px-3 py-2.5">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="-ms-1 shrink-0 text-ink lg:hidden"
+              className="-ms-1 shrink-0 lg:hidden"
               onClick={backToList}
               aria-label="חזרה לרשימה"
             >
@@ -608,7 +631,7 @@ export function InboxClient() {
             </Button>
             <span
               aria-hidden
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--tenant-soft)] text-sm font-semibold text-[var(--tenant)]"
+              className="wa-avatar-chip flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
             >
               {initialsFrom(sessionTitle(active))}
             </span>
@@ -755,7 +778,7 @@ export function InboxClient() {
                           </time>
                           {item.message.direction === 'outbound' ? (
                             <CheckCheck
-                              className="h-3.5 w-3.5 text-ink-2"
+                              className="h-3.5 w-3.5 text-[#53bdeb]"
                               aria-label="נשלח"
                             />
                           ) : null}
@@ -772,8 +795,9 @@ export function InboxClient() {
           {!careWindowOpen ? (
             <div className="shrink-0 border-t border-border bg-surface-sunken/50 px-3 py-3">
               <p className="t-caption mb-2 text-ink-2">
-                חלון 24 השעות פג — לא ניתן לשלוח טקסט חופשי. שלחו תבנית
-                מאושרת (Meta) כדי לפתוח מחדש את השיחה.
+                {p(
+                  'חלון 24 השעות פג — לא ניתן לשלוח טקסט חופשי. שלחו הודעת מעקב כדי לפתוח מחדש את השיחה.',
+                )}
               </p>
               <Button
                 type="button"
@@ -782,7 +806,7 @@ export function InboxClient() {
                 disabled={busy}
                 onClick={() => void sendTemplate()}
               >
-                שליחת תבנית
+                {p('שליחת הודעת מעקב')}
               </Button>
             </div>
           ) : (
@@ -804,7 +828,7 @@ export function InboxClient() {
                 }}
                 placeholder="כתבו הודעה ללקוח…"
                 disabled={busy}
-                className="wa-composer-input max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 px-4 py-2.5 shadow-sm focus:ring-1 focus:ring-[color-mix(in_srgb,var(--tenant)_35%,transparent)]"
+                className="wa-composer-input max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 px-4 py-2.5 focus:ring-0 focus:outline-none"
               />
               <button
                 type="button"
@@ -812,9 +836,8 @@ export function InboxClient() {
                 onClick={() => void sendReply()}
                 aria-label={busy ? 'שולח' : 'שליחה'}
                 className={cn(
-                  'mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity',
-                  'bg-[var(--tenant)] text-[var(--tenant-contrast)] shadow-[var(--shadow-1)]',
-                  'hover:bg-[var(--tenant-hover)] disabled:opacity-40',
+                  'wa-send-btn mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity',
+                  'shadow-[var(--shadow-1)] disabled:opacity-40',
                 )}
               >
                 <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
@@ -852,8 +875,8 @@ export function InboxClient() {
         )}
       </div>
 
-      {/* Desktop: fixed WhatsApp-like stage */}
-      <div className="mx-auto hidden h-[min(580px,70vh)] w-full max-w-[860px] gap-3 max-lg:hidden lg:grid lg:grid-cols-[220px_400px_200px] lg:justify-center">
+      {/* Desktop: fill remaining viewport height */}
+      <div className="hidden min-h-0 w-full flex-1 gap-3 max-lg:hidden lg:grid lg:grid-cols-[minmax(220px,1fr)_minmax(360px,2fr)_minmax(220px,1fr)]">
         {listPanel}
         {conversationPanel}
         {contextPanel ?? (

@@ -100,7 +100,7 @@ export function normalizeTicketCategory(raw: string): TicketCategory {
 }
 
 export const TICKET_EVENT_LABELS_HE: Record<string, string> = {
-  created: 'נוצרה',
+  created: 'תקלה נפתחה',
   status_changed: 'שינוי סטטוס',
   assigned: 'שיוך טכנאי',
   sla_breached: 'חריגת SLA',
@@ -115,11 +115,17 @@ export const TICKET_EVENT_LABELS_HE: Record<string, string> = {
   quality_hold_override: 'סגירה לפני תום החזקת איכות',
   repair_eta_set: 'עודכן מועד הגעה משוער',
   service_visit_created: 'נוצר ביקור שירות',
+  service_visit_planned: 'תוכנן ביקור שירות',
   classification_corrected: 'תיקון סיווג',
   priority_changed: 'שינוי דחיפות',
   urgent_changed: 'שינוי דחוף / לא דחוף',
-  engagement_locked: 'אישור עסקה',
-  engagement_cancelled: 'ביטול אישור',
+  engagement_locked: 'אושר איש מקצוע',
+  engagement_cancelled: 'בוטל אישור איש מקצוע',
+  store_handoff: 'נשלח WA למנהל החנות',
+  pro_sms: 'נשלח SMS לאיש מקצוע',
+  ari_manual_close: 'סגירה ידנית (ארי)',
+  note_added: 'נוספה הערה',
+  photo_added: 'נוספה תמונה',
 }
 
 

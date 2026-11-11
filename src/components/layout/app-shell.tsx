@@ -174,18 +174,33 @@ function alertCount(href: string, notices: DeskNotices): number {
   return 0
 }
 
-function NavAlert({ count }: { count: number }) {
+function NavAlert({
+  count,
+  title,
+}: {
+  count: number
+  title?: string
+}) {
   if (count <= 0) return null
   const label = count > 99 ? '99+' : String(count)
   return (
-    <span className="nav-alert" aria-hidden>
+    <span className="nav-alert" aria-hidden title={title}>
       {label}
     </span>
   )
 }
 
-function waitingLabel(name: string, count: number) {
-  return count > 0 ? `${name}, ${count} ממתינים` : undefined
+function noticeLabel(
+  href: string,
+  name: string,
+  count: number,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+) {
+  if (count <= 0) return undefined
+  if (href === '/ops/documents') {
+    return t('nav.documentsDue', { name, count })
+  }
+  return t('nav.waitingCount', { name, count })
 }
 
 function SidebarNavLink({
@@ -203,12 +218,13 @@ function SidebarNavLink({
   const t = useT()
   const key = HREF_KEY[item.href]
   const name = key ? t(key) : item.label
+  const label = noticeLabel(item.href, name, count, t)
 
   return (
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
-      aria-label={waitingLabel(name, count)}
+      aria-label={label}
       className={cn(
         'sidebar-nav-link t-control relative flex h-9 items-center gap-2.5 rounded-[var(--radius-md)] px-3 transition-colors duration-[var(--dur-1)]',
         active ? 'text-ink' : 'text-ink-2',
@@ -222,7 +238,7 @@ function SidebarNavLink({
         aria-hidden
       />
       <NavText href={item.href} fallback={item.label} />
-      <NavAlert count={count} />
+      <NavAlert count={count} title={label} />
     </Link>
   )
 }
@@ -245,12 +261,13 @@ function DrawerNavLink({
   const t = useT()
   const key = HREF_KEY[item.href]
   const name = key ? t(key) : item.label
+  const label = noticeLabel(item.href, name, count, t)
 
   return (
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
-      aria-label={waitingLabel(name, count)}
+      aria-label={label}
       onClick={onNavigate}
       className={cn(
         't-body flex min-h-[var(--tap)] items-center gap-2.5 rounded-[var(--radius-md)] px-3 transition-colors',
@@ -268,7 +285,7 @@ function DrawerNavLink({
         <Icon className={cn('h-4 w-4', sectionIconClass[mark])} aria-hidden />
       </span>
       <NavText href={item.href} fallback={item.label} />
-      <NavAlert count={count} />
+      <NavAlert count={count} title={label} />
     </Link>
   )
 }
@@ -337,7 +354,10 @@ export function AppShell({
 
   return (
     <div
-      className="ops-atmosphere ops-shell-mobile dvh-screen flex min-w-0 flex-col overflow-x-hidden text-ink md:block md:overflow-x-hidden"
+      className={cn(
+        'ops-atmosphere ops-shell-mobile dvh-screen flex min-w-0 flex-col overflow-x-hidden text-ink md:overflow-x-hidden',
+        fillMain ? 'ops-shell-fill md:flex' : 'md:block',
+      )}
       style={navHidden ? { ['--nav-w' as string]: '0px' } : undefined}
     >
       <SkipLink />
@@ -413,13 +433,18 @@ export function AppShell({
           <div className="px-2.5">
             <LogoutButton className="w-full justify-start px-0 text-ink-2 hover:text-ink" />
           </div>
-          <div className="mt-1 flex items-center gap-2 px-2.5 py-2">
-            <span
-              aria-hidden
-              className="h-1.5 w-1.5 rounded-full bg-[var(--signal-resolved)]"
-            />
-            <span className="t-caption truncate text-ink-3">
-              {t('nav.tenant')}
+          <div className="mt-1 flex flex-col gap-0.5 px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--signal-resolved)]"
+              />
+              <span className="t-caption truncate text-ink-3">
+                {t('nav.tenant')}
+              </span>
+            </div>
+            <span className="t-caption truncate ps-3.5 text-ink-3/80">
+              {t('nav.opsbrain')}
             </span>
           </div>
         </div>
@@ -463,7 +488,8 @@ export function AppShell({
       {/* ---------- Content ---------- */}
       <div
         className={cn(
-          'flex min-h-0 min-w-0 flex-1 flex-col md:block md:ps-[var(--nav-w)]',
+          'flex min-h-0 min-w-0 flex-1 flex-col md:ps-[var(--nav-w)]',
+          fillMain ? 'md:flex md:min-h-0' : 'md:block',
           !fillMain &&
             'max-md:pb-[calc(var(--bottomnav-h)+var(--bottomnav-gap)+var(--safe-b))]',
         )}
@@ -471,8 +497,8 @@ export function AppShell({
         <PullToRefresh
           disabled={fillMain}
           className={cn(
-            'flex min-h-0 flex-1 flex-col md:block',
-            fillMain && 'md:min-h-0',
+            'flex min-h-0 flex-1 flex-col',
+            fillMain ? 'md:flex md:min-h-0' : 'md:block',
           )}
         >
           <main
@@ -525,9 +551,11 @@ export function AppShell({
                 <Link
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  aria-label={waitingLabel(
+                  aria-label={noticeLabel(
+                    item.href,
                     HREF_KEY[item.href] ? t(HREF_KEY[item.href]) : item.label,
                     alertCount(item.href, notices),
+                    t,
                   )}
                   className={cn(
                     'press-scale flex h-full flex-col items-center justify-center gap-1 transition-colors duration-[var(--dur-1)]',
@@ -597,6 +625,10 @@ export function AppShell({
         ))}
         <div className="mt-2 border-t border-border px-1 pt-3">
           <LogoutButton size="touch" variant="secondary" className="w-full" />
+          <div className="mt-3 px-2">
+            <p className="t-caption text-ink-3">{t('nav.tenant')}</p>
+            <p className="t-caption text-ink-3/80">{t('nav.opsbrain')}</p>
+          </div>
         </div>
       </SideDrawer>
       {pathname.startsWith('/ops') && !pathname.startsWith('/ops/pilot') ? <AgentBubble /> : null}

@@ -208,7 +208,7 @@ function Paper({
       {!doc.renewed ? (
         <details className="doc-renew">
           <summary>חידוש</summary>
-          <form action={renewDocumentAction} className="mt-2 grid gap-2" encType="multipart/form-data">
+          <form action={renewDocumentAction} className="mt-2 grid gap-2">
             <input type="hidden" name="documentId" value={doc.id} />
             <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
               <label className="grid min-w-0 gap-1">

@@ -39,7 +39,7 @@ export function TechPushSubscribe() {
   if (!vapid) {
     return (
       <p className="t-caption mb-3 text-ink-3">
-        התראות Push יופעלו כשיוגדרו מפתחות VAPID. בינתיים: SMS + WhatsApp.
+        תקבלו עדכון ב־SMS או WhatsApp כשמשייכים לכם עבודה.
       </p>
     )
   }

@@ -28,6 +28,7 @@ import { photosForTickets } from '@/modules/tickets/attachments'
 import { listTickets } from '@/modules/tickets/service'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import { loadMidragResults } from '@/modules/vendors/midrag/live-results'
+import { listProfessionals } from '@/modules/professionals/service'
 import { ApprovalCard } from './approval-card'
 import { approveFromBrief } from './brief-actions'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
@@ -76,6 +77,9 @@ export default async function ApprovalsPage({
   const params = await searchParams
   const notice = params.notice
   const openId = params.open ?? null
+  const bookPros = await listProfessionals({ limit: 24 })
+    .then((r) => r.professionals.filter((pro) => Boolean(pro.phone)))
+    .catch(() => [])
   const categoryByTicketId: Record<string, string> = {}
   for (const ticket of visible) {
     if (ticket.category) categoryByTicketId[ticket.id] = ticket.category
@@ -182,6 +186,7 @@ export default async function ApprovalsPage({
                   status={ticket.status}
                   locked={null}
                   pros={open ? (midrag?.pros ?? []) : []}
+                  book={open ? bookPros : []}
                   searchUrl={open ? (midrag?.searchUrl ?? '') : ''}
                   fallback={open ? (midrag?.fallback ?? true) : false}
                   companions={open ? companions : []}

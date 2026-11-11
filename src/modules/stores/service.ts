@@ -162,6 +162,10 @@ export type UpdateStoreInput = {
   address?: string | null
   region_id?: string
   is_active?: boolean
+  manager_name?: string | null
+  manager_name_en?: string | null
+  manager_phone?: string | null
+  area_manager?: string | null
 }
 
 export async function updateStore(
@@ -182,6 +186,18 @@ export async function updateStore(
   if (patch.address !== undefined) payload.address = patch.address?.trim() || null
   if (patch.region_id !== undefined) payload.region_id = patch.region_id
   if (patch.is_active !== undefined) payload.is_active = patch.is_active
+  if (patch.manager_name !== undefined) {
+    payload.manager_name = patch.manager_name?.trim() || null
+  }
+  if (patch.manager_name_en !== undefined) {
+    payload.manager_name_en = patch.manager_name_en?.trim() || null
+  }
+  if (patch.manager_phone !== undefined) {
+    payload.manager_phone = patch.manager_phone?.trim() || null
+  }
+  if (patch.area_manager !== undefined) {
+    payload.area_manager = patch.area_manager?.trim() || null
+  }
 
   const { data, error } = await supabase
     .from('stores')

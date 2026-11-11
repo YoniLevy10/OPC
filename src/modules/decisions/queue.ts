@@ -1,5 +1,4 @@
 import { isBreached, type QueueTicket } from '@/modules/tickets/queue'
-import { plainStatus } from '@/components/ops/plain-labels'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import type { Locale } from '@/lib/i18n/locale'
 import { phrase } from '@/lib/i18n/phrases'
@@ -50,8 +49,8 @@ export function ticketDecision(
     ticket.status === 'engaged'
       ? phrase(locale, 'החנות מתאמת')
       : ticketIsUrgent(ticket)
-        ? phrase(locale, 'לאשר')
-        : phrase(locale, 'בתור')
+        ? phrase(locale, 'דורשת אישור')
+        : phrase(locale, 'ממתינה לטיפול')
   return {
     id: `ticket:${ticket.id}`,
     kind: 'ticket',
@@ -65,7 +64,7 @@ export function ticketDecision(
           ? phrase(locale, 'דחוף')
           : phrase(locale, 'לא דחוף'),
     urgency: overdue ? 'overdue' : 'today',
-    action: `${action} · ${plainStatus(ticket.status, locale)}`,
+    action,
     href: `/ops/tickets/${ticket.id}`,
     ticketId: ticket.id,
   }

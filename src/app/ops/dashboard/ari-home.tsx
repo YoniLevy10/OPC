@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ChevronDown } from 'lucide-react'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import { Button } from '@/components/ui/button'
+import { SearchField } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { AriHomeModel, AriHomeStore } from '@/modules/ops/ari-home'
 export type AriHomeStats = {
@@ -38,27 +39,51 @@ function StoreFolder({
   return (
     <article
       data-active={open ? 'true' : undefined}
-      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-1)] transition-shadow hover:shadow-[var(--shadow-2)]"
+      className={cn(
+        'overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-1)] transition-shadow hover:shadow-[var(--shadow-2)]',
+        open && 'col-span-full',
+        !open && openHere > 0 && 'border-[color-mix(in_srgb,var(--tenant)_28%,var(--border))]',
+      )}
     >
       <h3>
         <button
           type="button"
           aria-expanded={open}
           onClick={onToggle}
-          className="flex min-h-[4.25rem] w-full items-center justify-between gap-3 px-4 py-3.5 text-start transition-colors hover:bg-surface-sunken/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--tenant)]"
+          className={cn(
+            'flex w-full text-start transition-colors hover:bg-surface-sunken/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--tenant)]',
+            open
+              ? 'min-h-[4.25rem] items-center justify-between gap-3 px-4 py-3.5'
+              : 'h-full min-h-[5.5rem] flex-col justify-between gap-2 px-3 py-3',
+          )}
         >
-          <span className="min-w-0">
+          <span className="min-w-0 w-full">
             <span className="t-body-strong block truncate text-ink">{store.name}</span>
             {store.code ? (
               <span className="t-meta t-num block text-ink-3">{store.code}</span>
             ) : null}
           </span>
-          <span className="flex shrink-0 items-center gap-2.5">
-            <span className={cn('inline-flex min-w-10 items-center justify-center gap-1 rounded-full px-2.5 py-1 t-caption t-num font-semibold', openHere > 0 ? 'bg-[var(--tenant-soft)] text-[var(--tenant)]' : 'bg-surface-sunken text-ink-3')}>
-              <span>{openHere}</span><span>{p('פתוחות')}</span>
+          <span
+            className={cn(
+              'flex shrink-0 items-center gap-2',
+              open ? 'justify-end' : 'w-full justify-between',
+            )}
+          >
+            <span
+              className={cn(
+                't-caption t-num font-semibold',
+                openHere > 0 ? 'text-[var(--tenant)]' : 'text-ink-3',
+              )}
+            >
+              {openHere > 0
+                ? `${openHere} ${openHere === 1 ? p('פתוחה') : p('פתוחות')}`
+                : p('שקט')}
             </span>
             <ChevronDown
-              className={cn('h-4 w-4 text-ink-3 transition-transform duration-[var(--dur-1)]', open && 'rotate-180')}
+              className={cn(
+                'h-4 w-4 text-ink-3 transition-transform duration-[var(--dur-1)]',
+                open && 'rotate-180',
+              )}
               aria-hidden
             />
           </span>
@@ -170,8 +195,15 @@ export function AriHomeBoard({
   notice: string | null
 }) {
   const p = usePhrase()
-  const nowStores = model.stores
-  const [openStore, setOpenStore] = useState<string | null>(() => model.stores[0]?.id ?? null)
+  // Start collapsed so the store grid stays scannable; expand one in place.
+  const [openStore, setOpenStore] = useState<string | null>(null)
+  const [storeQuery, setStoreQuery] = useState('')
+  const storeQ = storeQuery.trim().toLowerCase()
+  const visibleStores = storeQ
+    ? model.stores.filter((store) =>
+        `${store.name} ${store.code ?? ''}`.toLowerCase().includes(storeQ),
+      )
+    : model.stores
   const metrics: {
     href: string
     label: string
@@ -240,36 +272,47 @@ export function AriHomeBoard({
       ) : null}
 
       {model.stores.length > 0 ? (
-        <>
-          {nowStores.length > 0 ? (
-            <section className="rounded-[var(--radius-xl)] border border-border/70 bg-surface-sunken/20 p-3 sm:p-4">
-              <header className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="t-section text-ink">{p('תקלות לפי חנות')}</h2>
-                  <span aria-hidden className="clay-rule" />
-                </div>
-                <span className="t-meta t-num text-ink-3">{nowStores.length}</span>
-              </header>
-              <div className="store-stack grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {nowStores.map((store) => (
-                  <StoreFolder
-                    key={store.id}
-                    store={store}
-                    open={openStore === store.id}
-                    onToggle={() => setOpenStore(openStore === store.id ? null : store.id)}
-                    ticketCost={ticketCost}
-                    storeCost={storeCost}
-                  />
-                ))}
+        <section className="rounded-[var(--radius-xl)] border border-border/70 bg-surface-sunken/20 p-3 sm:p-4">
+          <header className="mb-3 flex flex-col gap-3">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h2 className="t-section text-ink">{p('תקלות לפי חנות')}</h2>
+                <span aria-hidden className="clay-rule" />
               </div>
-            </section>
+              <span className="t-meta t-num text-ink-3">
+                {storeQuery.trim()
+                  ? `${visibleStores.length}/${model.stores.length}`
+                  : model.stores.length}
+              </span>
+            </div>
+            <SearchField
+              value={storeQuery}
+              onValueChange={setStoreQuery}
+              placeholder="שם או קוד סניף"
+              className="w-full max-w-md"
+            />
+          </header>
+          {visibleStores.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
+              {visibleStores.map((store) => (
+                <StoreFolder
+                  key={store.id}
+                  store={store}
+                  open={openStore === store.id}
+                  onToggle={() =>
+                    setOpenStore(openStore === store.id ? null : store.id)
+                  }
+                  ticketCost={ticketCost}
+                  storeCost={storeCost}
+                />
+              ))}
+            </div>
           ) : (
-            <p className="t-body rounded-[var(--radius-md)] bg-surface-sunken px-4 py-4 text-ink-2">
-              {p('הכל שקט')}
+            <p className="t-body rounded-[var(--radius-md)] bg-surface px-4 py-4 text-ink-2">
+              {p('לא נמצאו חנויות')}
             </p>
           )}
-
-        </>
+        </section>
       ) : (
         <p className="t-title rounded-[var(--radius-md)] bg-surface-sunken px-4 py-8 text-center text-ink-2">
           {p('הכל שקט')}

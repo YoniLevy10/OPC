@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { OpsAppShell } from '@/components/layout/ops-app-shell'
-import { OpsPageHero } from '@/components/ops/ops-page-hero'
-import { EmptyState } from '@/components/ui/primitives'
+import { EmptyState, Panel } from '@/components/ui/primitives'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { getLocale } from '@/lib/i18n/server'
@@ -23,7 +22,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { normalizePhoneDigits, formatIsraeliPhoneDisplay } from '@/lib/phone'
 import { rankKnownVendors } from '@/modules/vendors/outcomes'
-import { UserRound } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Search, UserPlus, UserRound } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,94 +96,126 @@ export default async function ProfessionalsPage() {
 
   const ranked = rankKnownVendors(outcomes, 'hvac')
 
+  const metrics = [
+    { label: p('בספר'), value: professionals.length, accent: false },
+    { label: p('ספקים פעילים'), value: activeCount, accent: false },
+    {
+      label: p('מועדפים'),
+      value: preferredCount,
+      accent: preferredCount > 0,
+    },
+    { label: p('מקצועות מידרג'), value: sectors.length, accent: false },
+  ]
+
+  const sectionTabs = [
+    { href: '#contacts', label: p('ספר קשר') },
+    { href: '#vendors', label: p('ספקים לשיגור') },
+    { href: '#outcomes', label: p('תוצאות טיפול') },
+  ]
+
   return (
     <OpsAppShell>
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 md:gap-5">
-        <OpsPageHero
-          title="בעלי מקצוע"
-          status="ספר קשר לתיאום, וספקים לשיגור כשצריך."
-        />
+      <div className="ari-home flex flex-col gap-3">
+        <header className="flex flex-col gap-1">
+          <h1 className="t-title text-ink">{p('בעלי מקצוע')}</h1>
+          <p className="t-meta text-ink-2">
+            {p('ספר קשר לתיאום, וספקים לשיגור כשצריך.')}
+          </p>
+        </header>
 
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-          <li className="flex min-h-[4.75rem] flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-3.5 py-3">
-            <span className="t-meta text-ink-3">{p('בספר')}</span>
-            <span className="t-num mt-2 text-[1.5rem] font-semibold leading-none text-ink">
-              {professionals.length}
-            </span>
-          </li>
-          <li className="flex min-h-[4.75rem] flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-3.5 py-3">
-            <span className="t-meta text-ink-3">{p('ספקים פעילים')}</span>
-            <span className="t-num mt-2 text-[1.5rem] font-semibold leading-none text-ink">
-              {activeCount}
-            </span>
-          </li>
-          <li className="flex min-h-[4.75rem] flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-3.5 py-3">
-            <span className="t-meta text-ink-3">{p('מועדפים')}</span>
-            <span className="t-num mt-2 text-[1.5rem] font-semibold leading-none text-ink">
-              {preferredCount}
-            </span>
-          </li>
-          <li className="flex min-h-[4.75rem] flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-3.5 py-3">
-            <span className="t-meta text-ink-3">{p('מקצועות מידרג')}</span>
-            <span className="t-num mt-2 text-[1.5rem] font-semibold leading-none text-ink">
-              {sectors.length}
-            </span>
-          </li>
-        </ul>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+          {metrics.map((metric) => (
+            <div
+              key={metric.label}
+              className="flex min-h-[5.75rem] min-w-0 flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-4"
+            >
+              <span
+                className={cn(
+                  't-num block text-[2.125rem] font-semibold leading-none tracking-tight',
+                  metric.accent ? 'text-[var(--tenant)]' : 'text-ink',
+                )}
+              >
+                {metric.value}
+              </span>
+              <span className="t-body mt-3 block text-ink-2">{metric.label}</span>
+            </div>
+          ))}
+        </div>
 
         <nav
           aria-label={p('מעבר מהיר')}
-          className="flex flex-wrap gap-2 border-b border-border pb-3"
+          className="sticky top-0 z-20 bg-[var(--canvas)] py-2"
         >
-          <a
-            href="#contacts"
-            className="t-caption rounded-full border border-border bg-surface px-3 py-1.5 text-ink hover:bg-[var(--tenant-soft)] hover:text-[var(--tenant)]"
-          >
-            {p('ספר קשר')}
-          </a>
-          <a
-            href="#vendors"
-            className="t-caption rounded-full border border-border bg-surface px-3 py-1.5 text-ink hover:bg-[var(--tenant-soft)] hover:text-[var(--tenant)]"
-          >
-            {p('ספקים לשיגור')}
-          </a>
-          <a
-            href="#outcomes"
-            className="t-caption rounded-full border border-border bg-surface px-3 py-1.5 text-ink hover:bg-[var(--tenant-soft)] hover:text-[var(--tenant)]"
-          >
-            {p('תוצאות טיפול')}
-          </a>
+          <div className="flex w-full min-w-0 gap-1 overflow-x-auto rounded-[var(--radius-md)] border border-border bg-[var(--surface-sunken)]/50 p-1 scrollbar-none">
+            {sectionTabs.map((tab) => (
+              <a
+                key={tab.href}
+                href={tab.href}
+                className="t-control flex h-10 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-center text-ink-3 transition-colors hover:bg-surface hover:text-ink hover:shadow-[var(--shadow-1)]"
+              >
+                {tab.label}
+              </a>
+            ))}
+          </div>
         </nav>
 
-        <section id="contacts" className="scroll-mt-6 space-y-3">
-          <header className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="t-section text-ink">{p('ספר קשר')}</h2>
-              <p className="t-meta text-ink-3">
-                {p('מידרג או הוספה ידנית — חיוג מהיר בפעם הבאה')}
-              </p>
-            </div>
+        <section id="contacts" className="scroll-mt-6 flex flex-col gap-3">
+          <header>
+            <h2 className="t-section text-ink">{p('ספר קשר')}</h2>
+            <span aria-hidden className="clay-rule" />
+            <p className="t-meta mt-1 text-ink-3">
+              {p('מידרג או הוספה ידנית — חיוג מהיר בפעם הבאה')}
+            </p>
           </header>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-              <p className="t-body-strong text-ink">{p('חיפוש במידרג')}</p>
-              <p className="t-caption mt-1 text-ink-3">
-                {p('פותח מידרג חיצוני. מעתיקים שם וטלפון ושומרים לספר.')}
-              </p>
-              <div className="mt-3">
+          <div className="grid items-stretch gap-3 lg:grid-cols-2">
+            <div className="flex h-full min-h-0 flex-col rounded-[var(--radius-lg)] border border-border bg-surface p-4 shadow-[var(--shadow-1)]">
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden
+                  className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--tenant-soft)] text-[var(--tenant)]"
+                >
+                  <Search className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="t-body-strong text-ink">{p('חיפוש במידרג')}</p>
+                  <p className="t-caption mt-1 text-ink-2">
+                    {p('פותח מידרג חיצוני. מעתיקים שם וטלפון ושומרים לספר.')}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-auto pt-4">
                 <ProfessionalsMidrag />
               </div>
             </div>
-            <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-              <ProfessionalsManualAdd />
+            <div className="flex h-full min-h-0 flex-col rounded-[var(--radius-lg)] border border-border bg-surface p-4 shadow-[var(--shadow-1)]">
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden
+                  className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--tenant-soft)] text-[var(--tenant)]"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="t-body-strong text-ink">{p('הוספה ידנית')}</p>
+                  <p className="t-caption mt-1 text-ink-2">
+                    {p('שם וטלפון — בלי מידרג.')}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-auto flex min-h-0 flex-1 flex-col pt-4">
+                <ProfessionalsManualAdd />
+              </div>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-              <p className="t-body-strong text-ink">{p('שמורים')}</p>
-              <p className="t-meta text-ink-3">
+          <Panel flush elevated className="overflow-hidden">
+            <div className="flex items-center justify-between gap-3 border-b border-border bg-[var(--surface-sunken)] px-4 py-3">
+              <div>
+                <p className="t-body-strong text-ink">{p('שמורים')}</p>
+                <span aria-hidden className="clay-rule" />
+              </div>
+              <p className="t-meta t-num text-ink-3">
                 {professionals.length === 0
                   ? p('ריק')
                   : p('{count} אנשי מקצוע', { count: professionals.length })}
@@ -201,13 +233,14 @@ export default async function ProfessionalsPage() {
             ) : (
               <ProfessionalsBook professionals={professionals} />
             )}
-          </div>
+          </Panel>
         </section>
 
-        <section id="vendors" className="scroll-mt-6 space-y-3">
+        <section id="vendors" className="scroll-mt-6 flex flex-col gap-3">
           <header>
             <h2 className="t-section text-ink">{p('ספקים לשיגור')}</h2>
-            <p className="t-meta text-ink-3">
+            <span aria-hidden className="clay-rule" />
+            <p className="t-meta mt-1 text-ink-3">
               {p('{active} פעילים · {preferred} מועדפים — לשליחה דרך המערכת', {
                 active: activeCount,
                 preferred: preferredCount,
@@ -217,14 +250,15 @@ export default async function ProfessionalsPage() {
           <VendorsAdmin initialVendors={enriched} />
         </section>
 
-        <section id="outcomes" className="scroll-mt-6 space-y-3">
+        <section id="outcomes" className="scroll-mt-6 flex flex-col gap-3">
           <header>
             <h2 className="t-section text-ink">{p('תוצאות טיפול')}</h2>
-            <p className="t-meta text-ink-3">
+            <span aria-hidden className="clay-rule" />
+            <p className="t-meta mt-1 text-ink-3">
               {p('מחיר, איכות וזמן הגעה — לדירוג מהיר בפעם הבאה')}
             </p>
           </header>
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+          <Panel elevated>
             <form
               action={addOutcomeAction}
               className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
@@ -307,7 +341,7 @@ export default async function ProfessionalsPage() {
                 {p('עדיין אין תוצאות שמורות.')}
               </p>
             )}
-          </div>
+          </Panel>
         </section>
       </div>
     </OpsAppShell>

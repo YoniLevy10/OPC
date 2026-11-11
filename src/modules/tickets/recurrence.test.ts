@@ -3,6 +3,8 @@ import {
   assetRepeatStats,
   findRecurrences,
   previousFixFailed,
+  recurrenceBasis,
+  recurrenceTicketLabel,
   type HistoryTicket,
 } from './recurrence'
 
@@ -100,6 +102,27 @@ describe('recurrence and first-time fix', () => {
         }),
       ])?.id,
     ).toBe('same-trade')
+  })
+
+  it('keeps recurrence copy free of raw UUIDs', () => {
+    const hits = findRecurrences(ticket({ id: 'new' }), [
+      ticket({
+        id: 'db39b622-d7be-406f-806d-39481f3a3bb6',
+        displayNumber: 'OC-12',
+        createdAt: '2026-08-01T00:00:00.000Z',
+      }),
+      ticket({
+        id: '6cf6e42c-3831-4c77-bb33-40f88d88e752',
+        createdAt: '2026-07-01T00:00:00.000Z',
+      }),
+    ])
+    const copy = recurrenceBasis(hits)
+    expect(copy).toContain('2 אירועים קודמים')
+    expect(copy).not.toMatch(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    )
+    expect(recurrenceTicketLabel(hits[0]!.ticket)).toBe('OC-12')
+    expect(recurrenceTicketLabel(hits[1]!.ticket)).toBe('תקלה קודמת')
   })
 
   it('counts repeats on an asset and a fix that did not hold', () => {

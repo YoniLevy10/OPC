@@ -18,6 +18,7 @@
     "db:migrate": "node scripts/apply-migrations.mjs",
     "db:migrate:ai-intake": "node scripts/apply-migration.mjs 20260827230000_whatsapp_ai_intake.sql",
     "pilot:readiness": "node scripts/pilot-readiness.mjs",
+    "db:sync-managers": "node scripts/sync-store-managers.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

@@ -9,6 +9,8 @@ export type StoreCardModel = {
   inactive: boolean
   openCount: number
   status: string
+  /** Open-tickets queue for this store (same slice as /ops/tickets). */
+  href?: string
 }
 
 export type StoreGroupModel = {
@@ -38,20 +40,25 @@ export function StoreBoard({ groups }: { groups: StoreGroupModel[] }) {
             </h2>
             <span className="t-meta t-num text-ink-3">{group.stores.length}</span>
           </header>
-          <ul>
+          <ul className="grid grid-cols-2 gap-2 p-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {group.stores.map((store) => (
-              <li key={store.id} className="border-b border-border last:border-b-0">
+              <li key={store.id}>
                 <Link
-                  href={`/ops/stores/${encodeURIComponent(store.code)}`}
+                  href={
+                    store.href ??
+                    `/ops/tickets?view=open&store=${encodeURIComponent(store.code)}`
+                  }
                   aria-label={`${store.name}, ${store.code}`}
                   className={cn(
-                    'flex items-center justify-between gap-3 px-4 py-3',
+                    'flex h-full min-h-[5.5rem] flex-col justify-between gap-2 rounded-[var(--radius-md)] border border-border/80 px-3 py-3 transition-colors hover:border-[color-mix(in_srgb,var(--tenant)_35%,var(--border))] hover:bg-[var(--tenant-soft)]',
                     store.inactive && 'opacity-60',
                     store.openCount > 0 ? 'bg-surface' : 'bg-surface-sunken',
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="t-body-strong block truncate text-ink">{store.name}</span>
+                    <span className="t-body-strong block truncate text-ink">
+                      {store.name}
+                    </span>
                     <span className="t-meta t-num block text-ink-3">
                       {store.code}
                       {showCity(store.name, store.city) ? ` · ${store.city}` : ''}

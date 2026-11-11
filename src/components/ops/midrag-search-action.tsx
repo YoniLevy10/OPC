@@ -30,6 +30,7 @@ export function MidragSearchAction({
   city,
   compact = false,
   className,
+  triggerVariant,
   open: openProp,
   onOpenChange,
   hideTrigger = false,
@@ -41,6 +42,8 @@ export function MidragSearchAction({
   city?: string | null
   compact?: boolean
   className?: string
+  /** Override trigger button look (default: secondary / ghost when compact). */
+  triggerVariant?: 'primary' | 'secondary' | 'ghost'
   open?: boolean
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
@@ -132,7 +135,9 @@ export function MidragSearchAction({
       {hideTrigger ? null : (
         <Button
           type="button"
-          variant={compact ? 'ghost' : 'secondary'}
+          variant={
+            triggerVariant ?? (compact ? 'ghost' : 'secondary')
+          }
           size={compact ? 'sm' : 'touch'}
           className={cn(compact ? 'min-h-[var(--tap)] w-full' : 'w-full')}
           onClick={openSheet}

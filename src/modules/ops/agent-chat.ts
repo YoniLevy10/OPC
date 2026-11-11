@@ -10,6 +10,12 @@ import { ticketDecision } from '@/modules/decisions/queue'
 import { isBreached } from '@/modules/tickets/queue'
 import { hasAiGatewayAuth, resolveReplyModel } from '@/modules/whatsapp/ai-sdk/models'
 import { generateText } from 'ai'
+import {
+  ariSystemPrompt,
+  buildAriTools,
+  stepCountIs,
+} from '@/modules/ops/agent-tools'
+import type { AriLink } from '@/modules/ops/agent-actions'
 import type { Actor } from '@/lib/auth/types'
 import { scopeTicketsForActor } from '@/lib/auth/ticket-scope'
 import { listProfessionals } from '@/modules/professionals/service'
@@ -24,6 +30,7 @@ import {
   type BundleFault,
 } from '@/modules/whatsapp/agent/bundle'
 import type { Locale } from '@/lib/i18n/locale'
+import { phrase } from '@/lib/i18n/phrases'
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string }
 
@@ -395,8 +402,14 @@ export async function replyToAri(input: {
       links: [],
     }
   }
-  const modeled = await tryModelReply(input.message, snapshot, input.history ?? [], locale)
-  if (modeled) return { reply: modeled, links: [] }
+  const modeled = await tryModelReply(
+    input.message,
+    snapshot,
+    input.history ?? [],
+    locale,
+    input.source ?? 'web_fallback',
+  )
+  if (modeled) return modeled
   return { reply: answerFromSnapshot(input.message, snapshot, locale, input.history ?? []), links: [] }
 }
 
@@ -406,35 +419,48 @@ function asksPapersOrGear(message: string): boolean {
   )
 }
 
-const ARI_SYSTEM = `אתה העוזר האישי של ארי, מנהל התפעול של הרשת.
-כבר הסתכלת על העובדות למטה. ענה בעברית, קצר, עם שם הסניף והצעד הבא.
-השתמש רק בעובדות האלה. אל תמציא מחיר, ספק, או תקלה.
-מסמך באיחור וציוד שחזר כלולים בעובדות. מחיר של ציוד רק אם הוא רשום שם.
-אל תשלח אותו למסך אחר. אל תגיד שאתה כאן כדי שיישאר.`
-
 async function tryModelReply(
   question: string,
   snapshot: OpsSnapshot,
   history: ChatTurn[],
   locale: Locale,
-): Promise<string | null> {
-  if (locale !== 'he' || !hasAiGatewayAuth()) return null
+  source: 'web_fallback' | 'whatsapp',
+): Promise<{ reply: string; links: AriLink[] } | null> {
+  if (!hasAiGatewayAuth()) return null
   const resolved = await resolveReplyModel()
   if (!resolved) return null
+  const links: AriLink[] = []
+  const tools = buildAriTools({
+    locale,
+    open: snapshot.open.map((fault) => ({
+      id: fault.id,
+      storeName: fault.storeName,
+      summary: fault.summary,
+      displayNumber: fault.displayNumber ?? null,
+    })),
+    source,
+    collectLink: (link) => links.push(link),
+  })
   const prior = history
     .slice(-6)
-    .map((turn) => `${turn.role === 'user' ? 'ארי' : 'עוזר'}: ${turn.text}`)
+    .map((turn) => `${turn.role === 'user' ? 'Ari' : 'Assistant'}: ${turn.text}`)
     .join('\n')
   try {
     const { text } = await generateText({
       model: resolved.model,
-      system: ARI_SYSTEM,
-      prompt: `${briefForAri(snapshot)}\n${prior ? `שיחה:\n${prior}\n` : ''}ארי: ${question}`,
+      system: ariSystemPrompt(locale),
+      tools,
+      stopWhen: stepCountIs(3),
+      prompt: `${briefForAri(snapshot)}\n${prior ? `Chat:\n${prior}\n` : ''}Ari: ${question}`,
       temperature: 0.3,
-      abortSignal: AbortSignal.timeout(12_000),
+      abortSignal: AbortSignal.timeout(18_000),
     })
     const reply = text.trim()
-    return reply || null
+    if (!reply && links.length === 0) return null
+    return {
+      reply: reply || phrase(locale, 'העוזר לא הצליח לענות'),
+      links,
+    }
   } catch {
     return null
   }

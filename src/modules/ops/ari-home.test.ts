@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ariGreeting, buildAriHome, ARI_HOME_STORE_CAP } from './ari-home'
+import { ariGreeting, buildAriHome } from './ari-home'
 import type { QueueTicket } from '@/modules/tickets/queue'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
@@ -105,7 +105,7 @@ describe('buildAriHome', () => {
     )
   })
 
-  it('sorts a breached store ahead of routine work and caps the rest', () => {
+  it('sorts a breached store ahead of routine work and lists every store', () => {
     const openTickets = [
       ticket({
         id: 'late',
@@ -115,7 +115,7 @@ describe('buildAriHome', () => {
         sla_respond_by: '2026-08-16T08:00:00.000Z',
         stores: { code: '6099', name: 'באיחור' },
       }),
-      ...Array.from({ length: ARI_HOME_STORE_CAP }, (_, index) =>
+      ...Array.from({ length: 9 }, (_, index) =>
         ticket({
           id: `calm-${index}`,
           store_id: `calm-${index}`,
@@ -129,13 +129,18 @@ describe('buildAriHome', () => {
       now: NOW,
       openTickets,
       closedTickets: [],
+      allStores: [
+        { id: 'quiet-1', name: 'שקט לגמרי', code: '6999' },
+        { id: 'late-store', name: 'באיחור', code: '6099' },
+      ],
     })
 
     expect(home.stores[0]?.name).toBe('באיחור')
     expect(home.stores[0]?.categories[0]?.urgent).toBe(true)
-    expect(home.stores[0]?.categories[0]?.advice).toContain('לאשר')
-    expect(home.stores).toHaveLength(ARI_HOME_STORE_CAP)
-    expect(home.moreStores).toBe(1)
+    expect(home.stores[0]?.categories[0]?.advice).toMatch(/אישור/)
+    expect(home.stores).toHaveLength(11) // 10 with open faults + 1 quiet
+    expect(home.stores.some((store) => store.name === 'שקט לגמרי')).toBe(true)
+    expect(home.moreStores).toBe(0)
   })
 
   it('adds a prevention line only after a real repeat', () => {

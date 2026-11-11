@@ -6,6 +6,7 @@ import type { TicketEvidence } from '@/modules/tickets/attachments'
 import { EngagementPanel, type CompanionChoice } from '@/app/ops/tickets/[id]/engagement-panel'
 import type { Engagement } from '@/modules/engagements/service'
 import type { MidragPro } from '@/modules/vendors/midrag/live-results'
+import type { Professional } from '@/modules/professionals/types'
 
 export function ApprovalCard({
   ticketId,
@@ -19,6 +20,7 @@ export function ApprovalCard({
   urgent,
   status,
   locked,
+  book = [],
   pros,
   searchUrl,
   fallback,
@@ -35,6 +37,7 @@ export function ApprovalCard({
   urgent: boolean
   status: string
   locked: Engagement | null
+  book?: Professional[]
   pros: MidragPro[]
   searchUrl: string
   fallback: boolean
@@ -84,6 +87,7 @@ export function ApprovalCard({
             urgent={urgent}
             status={status}
             locked={locked}
+            book={book}
             pros={pros}
             searchUrl={searchUrl}
             fallback={fallback}

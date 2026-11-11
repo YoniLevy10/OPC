@@ -66,3 +66,51 @@ export function regionLabel(
 export function isIlRegionCode(value: string): value is IlRegionCode {
   return (IL_REGION_CODES as readonly string[]).includes(value.toUpperCase())
 }
+
+/** Ops directory view: North / Center / South (districts collapse into these). */
+export const IL_ZONE_CODES = ['N', 'C', 'S'] as const
+
+export type IlZoneCode = (typeof IL_ZONE_CODES)[number]
+
+export const IL_ZONE_LABELS_HE: Record<IlZoneCode, string> = {
+  N: 'הצפון',
+  C: 'המרכז',
+  S: 'הדרום',
+}
+
+/** Haifa joins North; Tel Aviv / Center / Jerusalem join Center. */
+export function zoneFromRegion(
+  code: IlRegionCode | null | undefined,
+): IlZoneCode | null {
+  if (!code) return null
+  if (code === 'N' || code === 'HFA') return 'N'
+  if (code === 'S') return 'S'
+  return 'C'
+}
+
+export function zoneFromRegionId(
+  regionId: string | null | undefined,
+): IlZoneCode | null {
+  return zoneFromRegion(regionCodeFromId(regionId))
+}
+
+export function zoneLabel(
+  zone: IlZoneCode | string | null | undefined,
+  locale: Locale = 'he',
+): string {
+  const code = String(zone ?? '')
+    .trim()
+    .toUpperCase()
+  if (!(IL_ZONE_CODES as readonly string[]).includes(code)) return '—'
+  return phrase(locale, IL_ZONE_LABELS_HE[code as IlZoneCode])
+}
+
+/** Accepts zone (N/C/S) or legacy district (TA/HFA/…) in ?region=. */
+export function parseZoneParam(value: string | null | undefined): IlZoneCode | '' {
+  if (!value) return ''
+  const upper = value.trim().toUpperCase()
+  if ((IL_ZONE_CODES as readonly string[]).includes(upper)) {
+    return upper as IlZoneCode
+  }
+  return zoneFromRegion(regionCodeFromId(upper)) ?? ''
+}

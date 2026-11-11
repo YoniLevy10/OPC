@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
@@ -47,9 +46,9 @@ export function ProfessionalsManualAdd() {
       setTrade('')
       toast.push({ title: p('איש המקצוע נשמר'), tone: 'success' })
       startTransition(() => router.refresh())
-    } catch (err) {
+    } catch {
       toast.push({
-        title: err instanceof Error ? err.message : p('השמירה נכשלה'),
+        title: p('השמירה נכשלה'),
         tone: 'critical',
       })
     } finally {
@@ -58,12 +57,7 @@ export function ProfessionalsManualAdd() {
   }
 
   return (
-    <div className="space-y-3">
-      <p className="t-body-strong flex items-center gap-2 text-ink">
-        <UserPlus className="h-4 w-4 text-[var(--tenant)]" aria-hidden />
-        {p('הוספה ידנית')}
-      </p>
-      <p className="t-caption text-ink-3">{p('שם וטלפון — בלי מידרג.')}</p>
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="grid gap-2 sm:grid-cols-2">
         <Input
           value={name}
@@ -89,16 +83,18 @@ export function ProfessionalsManualAdd() {
           className="sm:col-span-2"
         />
       </div>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        className="w-full"
-        disabled={saving}
-        onClick={() => void save()}
-      >
-        {saving ? p('שומר…') : p('שמור לספר')}
-      </Button>
+      <div className="mt-auto">
+        <Button
+          type="button"
+          variant="primary"
+          size="touch"
+          className="w-full"
+          disabled={saving}
+          onClick={() => void save()}
+        >
+          {saving ? p('שומר…') : p('שמור לספר')}
+        </Button>
+      </div>
     </div>
   )
 }
