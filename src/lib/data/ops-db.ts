@@ -9,6 +9,7 @@ import {
 } from '@/lib/supabase/schema-fallback'
 import { supabaseReady } from '@/lib/data/memory-store'
 import { IL_ORG_ID } from '@/modules/stores/israel-stores'
+import { readTaskStatus } from '@/modules/tasks/status'
 import {
   getDriveSync,
   listDocuments,
@@ -214,9 +215,16 @@ export async function hydrateOpsLedger(): Promise<void> {
         documentId: row.document_id ? String(row.document_id) : null,
         spendId: row.spend_id ? String(row.spend_id) : null,
         done: Boolean(row.done),
+        status: readTaskStatus({
+          done: Boolean(row.done),
+          needsClarification: Boolean(row.needs_clarification),
+          status: row.status as 'open' | 'doing' | 'waiting' | 'done' | null,
+        }),
         needsClarification: Boolean(row.needs_clarification),
         clarification: row.clarification ? String(row.clarification) : null,
         createdAt: String(row.created_at),
+        repeatDays: row.repeat_days == null ? null : Number(row.repeat_days),
+        nextOpened: Boolean(row.next_opened),
       })),
     })
   } catch (err) {
@@ -300,6 +308,9 @@ export async function persistOpsLedger(): Promise<void> {
       due_at: task.dueAt,
       ticket_id: asUuid(task.ticketId),
       done: task.done,
+      status: task.status ?? (task.done ? 'done' : task.needsClarification ? 'waiting' : 'open'),
+      repeat_days: task.repeatDays ?? null,
+      next_opened: task.nextOpened ?? false,
       needs_clarification: task.needsClarification,
       clarification: task.clarification,
     }))

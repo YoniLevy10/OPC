@@ -38,11 +38,6 @@ export function StoreSecondaryActions({
     <ActionMenu
       label="פעולות נוספות לסניף"
       items={[
-        {
-          key: 'qr-print',
-          label: 'QR של הסניף',
-          href: '?tab=overview#store-qr',
-        },
         ...(whatsappHref
           ? [
               {

@@ -1,7 +1,9 @@
 import { memAddMessage, memGet, supabaseReady } from '@/lib/data/memory-store'
 import { createSystemClient } from '@/lib/supabase/system'
 import { normalizePhoneDigits } from '@/lib/phone'
+import { captureError } from '@/lib/monitoring'
 import { ISRAEL_STORES } from '@/modules/stores/israel-stores'
+import { upsertProfessional } from '@/modules/professionals/service'
 import { formatIls } from '@/modules/spend/true-cost'
 import {
   appendEvent,
@@ -48,6 +50,11 @@ export function resetEngagementsForTests() {
   handoffSent.clear()
 }
 
+/** Drops the process cache only. A successful send still lives on the ticket. */
+export function clearHandoffCacheForTests() {
+  handoffSent.clear()
+}
+
 const WAITING = new Set(['new', 'triaged', 'awaiting_info', 'assigned'])
 
 function rowToEngagement(row: Record<string, unknown>): Engagement {
@@ -72,14 +79,12 @@ function rowToEngagement(row: Record<string, unknown>): Engagement {
   }
 }
 
-export async function listEngagements(): Promise<Engagement[]> {
+export async function listEngagements(organizationId?: string): Promise<Engagement[]> {
   if (await supabaseReady()) {
     const supabase = createSystemClient('engagements')
-    const { data, error } = await supabase
-      .from('engagements')
-      .select('*')
-      .order('approved_at', { ascending: false })
-      .limit(2000)
+    let query = supabase.from('engagements').select('*').order('approved_at', { ascending: false }).limit(2001)
+    if (organizationId) query = query.eq('organization_id', organizationId)
+    const { data, error } = await query
     if (!error && data) return data.map((row) => rowToEngagement(row))
   }
   return [...memory].sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
@@ -114,20 +119,33 @@ export async function findTicketAwaitingAri(): Promise<TicketDetail | null> {
   return null
 }
 
+async function engagementFaultLabels(ticketId: string, bundledTicketIds: string[]): Promise<string[]> {
+  const labels: string[] = []
+  for (const id of [ticketId, ...bundledTicketIds]) {
+    const ticket = await getById(id)
+    if (!ticket) continue
+    const number = ticket.display_number || ticket.number || ticket.id.slice(0, 8)
+    labels.push(`#${number}${ticket.title || ticket.description ? ` — ${(ticket.title || ticket.description).slice(0, 100)}` : ''}`)
+  }
+  return labels
+}
+
 function handoffText(input: {
   name: string
   phone: string
   amount: number
   scope?: string | null
+  faults?: string[]
 }): string {
   return [
-    'ארי אישר את הטיפול.',
+    'ארי אישר שאיש המקצוע יגיע לטפל בתקלות:',
+    ...(input.faults ?? []).map((fault) => `• ${fault}`),
     `איש המקצוע: ${input.name}`,
     `טלפון: ${input.phone}`,
     input.scope?.trim() ? `עבודה: ${input.scope.trim()}` : null,
-    `מחיר שאושר: ${formatIls(input.amount)}`,
+    input.amount > 0 ? `מחיר שאושר: ${formatIls(input.amount)}` : null,
     'תאמו איתו ישירות את מועד ההגעה.',
-    'כשהעבודה תסתיים, אשרו אם התקלה סודרה.',
+    'כשהעבודה תסתיים, אשרו אם התקלות סודרו.',
   ]
     .filter((line): line is string => Boolean(line))
     .join('\n')
@@ -135,12 +153,103 @@ function handoffText(input: {
 
 export type StoreHandoff = { ok: boolean; line: string }
 
+function handoffFromRaw(raw: unknown, idempotencyKey: string): StoreHandoff | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  if (row.delivered !== true || row.kind !== 'engagement_locked') return null
+  if (row.idempotencyKey !== idempotencyKey) return null
+  return {
+    ok: true,
+    line: typeof row.line === 'string' ? row.line : 'מנהל החנות קיבל את הפרטים',
+  }
+}
+
+function handoffFromEvent(payload: unknown, engagementId: string): StoreHandoff | null {
+  if (!payload || typeof payload !== 'object' || !engagementId) return null
+  const row = payload as Record<string, unknown>
+  if (row.ok !== true || String(row.engagementId ?? '') !== engagementId) return null
+  return {
+    ok: true,
+    line: typeof row.line === 'string' ? row.line : 'מנהל החנות קיבל את הפרטים',
+  }
+}
+
+function memorySuccessfulHandoff(
+  ticketId: string,
+  idempotencyKey: string,
+  engagementId: string,
+): StoreHandoff | null {
+  const ticket = memGet(ticketId)
+  if (!ticket) return null
+  for (const message of [...ticket.messages].reverse()) {
+    const found = handoffFromRaw(message.raw, idempotencyKey)
+    if (found) return found
+  }
+  for (const event of [...ticket.events].reverse()) {
+    if (event.event_type !== 'store_handoff') continue
+    const found = handoffFromEvent(event.payload, engagementId)
+    if (found) return found
+  }
+  return null
+}
+
+/** A successful send survives a process restart. A failed send does not. */
+async function persistedSuccessfulHandoff(
+  ticketId: string,
+  idempotencyKey: string,
+): Promise<StoreHandoff | null> {
+  const engagementId = idempotencyKey.startsWith('engagement:')
+    ? idempotencyKey.slice('engagement:'.length)
+    : ''
+  if (!(await supabaseReady())) {
+    return memorySuccessfulHandoff(ticketId, idempotencyKey, engagementId)
+  }
+  try {
+    const supabase = createSystemClient('engagements')
+    const messages = await supabase
+      .from('ticket_messages')
+      .select('raw')
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: false })
+      .limit(40)
+    if (!messages.error) {
+      for (const row of messages.data ?? []) {
+        const found = handoffFromRaw(row.raw, idempotencyKey)
+        if (found) return found
+      }
+    }
+    const events = await supabase
+      .from('ticket_events')
+      .select('payload')
+      .eq('ticket_id', ticketId)
+      .eq('event_type', 'store_handoff')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (!events.error) {
+      for (const row of events.data ?? []) {
+        const found = handoffFromEvent(row.payload, engagementId)
+        if (found) return found
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 async function recordHandoff(input: {
   ticketId: string
   body: string
   delivered: boolean
   line: string
+  idempotencyKey: string
 }) {
+  const raw = {
+    kind: 'engagement_locked',
+    delivered: input.delivered,
+    line: input.line,
+    idempotencyKey: input.idempotencyKey,
+  }
   const ready = await supabaseReady()
   if (ready) {
     const supabase = createSystemClient('engagements')
@@ -149,7 +258,7 @@ async function recordHandoff(input: {
       channel: 'whatsapp',
       direction: 'outbound',
       body: input.body,
-      raw: { kind: 'engagement_locked', delivered: input.delivered, line: input.line },
+      raw,
     })
     return
   }
@@ -158,6 +267,7 @@ async function recordHandoff(input: {
       channel: 'whatsapp',
       direction: 'outbound',
       body: input.body,
+      raw,
     })
   }
 }
@@ -172,6 +282,11 @@ async function tellStore(input: {
 }): Promise<StoreHandoff> {
   const cached = handoffSent.get(input.idempotencyKey)
   if (cached?.ok) return cached
+  const prior = await persistedSuccessfulHandoff(input.ticketId, input.idempotencyKey)
+  if (prior) {
+    handoffSent.set(input.idempotencyKey, prior)
+    return prior
+  }
 
   const manager = ISRAEL_STORES.find((store) => store.code === input.storeCode)
     ?.managerPhone
@@ -190,6 +305,7 @@ async function tellStore(input: {
       body: input.body,
       delivered: false,
       line: missed.line,
+      idempotencyKey: input.idempotencyKey,
     })
     return missed
   }
@@ -230,6 +346,7 @@ async function tellStore(input: {
     body: input.body,
     delivered,
     line: result.line,
+    idempotencyKey: input.idempotencyKey,
   })
   if (delivered) handoffSent.set(input.idempotencyKey, result)
   return result
@@ -241,7 +358,7 @@ export async function lockEngagement(input: {
   midragSpId?: string | null
   professionalName: string
   professionalPhone: string
-  approvedAmount: number
+  approvedAmount?: number
   approvedBy: string
   scope?: string | null
 }): Promise<Engagement> {
@@ -249,11 +366,27 @@ export async function lockEngagement(input: {
   const phone = input.professionalPhone.trim()
   if (name.length < 2) throw new Error('חסר שם של איש המקצוע')
   if (phone.replace(/\D/g, '').length < 9) throw new Error('חסר טלפון של איש המקצוע')
-  if (!(input.approvedAmount > 0)) throw new Error('חסר מחיר שסוכם')
+  const approvedAmount = Number.isFinite(input.approvedAmount) && (input.approvedAmount ?? 0) > 0
+    ? input.approvedAmount!
+    : 0
 
   const ticket = await getById(input.ticketId)
   if (!ticket) throw new Error('תקלה לא נמצאה')
-  if (await lockedEngagementFor(ticket.id)) {
+  const existing = await lockedEngagementFor(ticket.id)
+  if (existing) {
+    await tellStore({
+      ticketId: existing.ticketId,
+      storeCode: existing.storeCode,
+      reporterPhone: ticket.reporter_phone,
+      idempotencyKey: `engagement:${existing.id}`,
+      body: handoffText({
+        name: existing.professionalName,
+        phone: existing.professionalPhone,
+        amount: existing.approvedAmount,
+        scope: input.scope,
+        faults: await engagementFaultLabels(existing.ticketId, existing.bundledTicketIds),
+      }),
+    })
     throw new Error('המחיר כבר נעול. לשינוי צריך לבטל ולחזור לתור')
   }
   if (!WAITING.has(ticket.status) && ticket.status !== 'in_progress') {
@@ -281,7 +414,7 @@ export async function lockEngagement(input: {
     midragSpId: input.midragSpId?.trim() || null,
     professionalName: name,
     professionalPhone: phone,
-    approvedAmount: input.approvedAmount,
+    approvedAmount,
     approvedBy: input.approvedBy,
     approvedAt: now,
     status: 'locked',
@@ -339,6 +472,7 @@ export async function lockEngagement(input: {
       phone: engagement.professionalPhone,
       amount: engagement.approvedAmount,
       scope: input.scope,
+      faults: await engagementFaultLabels(engagement.ticketId, engagement.bundledTicketIds),
     }),
   })
   engagement.handoff = handoff
@@ -347,6 +481,19 @@ export async function lockEngagement(input: {
     ok: handoff.ok,
     line: handoff.line,
   })
+
+  // Every pro Ari locks + sends lands in the ranked book automatically.
+  try {
+    await upsertProfessional({
+      full_name: engagement.professionalName,
+      phone: engagement.professionalPhone,
+      trade: input.scope?.trim() || null,
+      source: engagement.midragSpId ? 'midrag' : 'manual',
+      notes: `ננעל מאישור ארי · חנות #${engagement.storeCode}`,
+    })
+  } catch (err) {
+    captureError(err, { route: 'engagement_auto_professional' })
+  }
 
   return engagement
 }

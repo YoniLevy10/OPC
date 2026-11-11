@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     try {
       body = JSON.parse(rawBody)
     } catch {
-      return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 200 })
+      return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
     }
 
     const messages = parseWhatsAppWebhook(body)
@@ -123,15 +123,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const failed = results.some((result) => !result.ok)
     return NextResponse.json(
-      { ok: true, processed: results.length, results },
-      { status: 200 },
+      { ok: !failed, processed: results.length, results },
+      { status: failed ? 500 : 200 },
     )
   } catch (e) {
     captureError(e, { route: 'POST /api/whatsapp/webhook' })
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : 'error' },
-      { status: 200 },
+      { status: 500 },
     )
   }
 }

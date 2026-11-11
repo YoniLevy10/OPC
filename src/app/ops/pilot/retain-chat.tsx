@@ -7,11 +7,17 @@ import { AgentHistoryButton, AgentHistoryList } from '@/components/ops/agent-his
 import { AgentTurns } from '@/components/ops/agent-turn'
 import { useAgentThreads } from '@/components/ops/use-agent-threads'
 import type { AgentLink } from '@/modules/ops/agent-threads'
-
-const STARTERS = ['איזה סניף הכי דחוף?', 'כמה מחכה?', 'מה כדאי לאחד?']
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export function RetainChat() {
-  const { turns, setTurns, threads, activeId, ready, restore, startFresh } = useAgentThreads()
+  const p = usePhrase()
+  const STARTERS = [
+    p('איזה סניף הכי דחוף?'),
+    p('כמה מחכה?'),
+    p('מה כדאי לאחד?'),
+  ]
+  const { turns, setTurns, threads, activeId, ready, restore, startFresh } =
+    useAgentThreads()
   const [history, setHistory] = useState(false)
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState(false)
@@ -62,7 +68,10 @@ export function RetainChat() {
         setError(json?.error || 'העוזר לא הצליח לענות')
         return
       }
-      setTurns((current) => [...current, { role: 'assistant', text: json.reply!, links: json.links }])
+      setTurns((current) => [
+        ...current,
+        { role: 'assistant', text: json.reply!, links: json.links },
+      ])
     } catch {
       setError('אין קשר לעוזר כרגע')
     } finally {
@@ -91,34 +100,51 @@ export function RetainChat() {
 
   return (
     <section
-      aria-label="העוזר של ארי"
-      className="flex min-h-[28rem] flex-col rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-1)]"
+      aria-label={p('העוזר של ארי')}
+      className="flex flex-col rounded-[var(--radius-lg)] border border-border bg-surface"
     >
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <div>
-          <p className="t-section text-ink">העוזר של ארי</p>
-          <p className="t-meta text-ink-3">על הסניף שדורש אותך, ועל הכסף.</p>
+      <header className="flex items-center justify-between gap-3 px-4 pb-3 pt-4">
+        <div className="min-w-0">
+          <p className="t-section text-ink">{p('העוזר של ארי')}</p>
+          <p className="t-meta text-ink-3">{p('סניף דחוף והכסף שנרשם')}</p>
         </div>
-        <AgentHistoryButton pressed={history} onClick={() => setHistory((value) => !value)} />
-      </header>
-      {history ? (
-        <AgentHistoryList
-          threads={threads}
-          activeId={activeId}
-          onOpen={(id) => {
-            restore(id)
-            setHistory(false)
-          }}
-          onNew={beginNew}
+        <AgentHistoryButton
+          pressed={history}
+          onClick={() => setHistory((value) => !value)}
         />
+      </header>
+
+      {history ? (
+        <div className="border-t border-border">
+          <AgentHistoryList
+            threads={threads}
+            activeId={activeId}
+            onOpen={(id) => {
+              restore(id)
+              setHistory(false)
+            }}
+            onNew={beginNew}
+          />
+        </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-5 py-4">
-          <AgentTurns turns={turns} />
-          {pending ? <p className="t-meta text-ink-3">מסתכל על הרשת…</p> : null}
-          {error ? <p className="t-meta text-[var(--signal-critical)]">{error}</p> : null}
+        <div className="flex max-h-[22rem] min-h-[10rem] flex-col gap-2 overflow-y-auto border-t border-border px-4 py-3">
+          {turns.length === 0 && !pending ? (
+            <p className="t-body text-ink-2">
+              {p('שאלו על סניף, על סכום שמחכה, או על איחוד ביקור.')}
+            </p>
+          ) : (
+            <AgentTurns turns={turns} />
+          )}
+          {pending ? (
+            <p className="t-meta text-ink-3">{p('מסתכל על הרשת…')}</p>
+          ) : null}
+          {error ? (
+            <p className="t-meta text-[var(--signal-critical)]">{error}</p>
+          ) : null}
         </div>
       )}
-      <div className="flex flex-wrap gap-2 border-t border-border px-5 py-3">
+
+      <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
         <AgentCreate disabled={pending} onCreate={(message) => void ask(message)} />
         {STARTERS.map((starter) => (
           <Button
@@ -134,7 +160,7 @@ export function RetainChat() {
         ))}
       </div>
       <form
-        className="flex gap-2 px-5 pb-4"
+        className="flex gap-2 px-4 pb-4"
         onSubmit={(event) => {
           event.preventDefault()
           void ask(draft)
@@ -143,12 +169,12 @@ export function RetainChat() {
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="שאלה על הסניף או על הכסף"
-          aria-label="שאלה על הסניף או על הכסף"
-          className="t-body h-11 min-w-0 flex-1 rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
+          placeholder={p('שאלה על הסניף או על הכסף')}
+          aria-label={p('שאלה על הסניף או על הכסף')}
+          className="t-body h-11 min-w-0 flex-1 rounded-[var(--radius-md)] border border-border bg-canvas px-3 text-ink"
         />
         <Button type="submit" size="sm" disabled={pending || !draft.trim()}>
-          שליחה
+          {p('שליחה')}
         </Button>
       </form>
     </section>

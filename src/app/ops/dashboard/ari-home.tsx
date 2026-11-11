@@ -14,22 +14,14 @@ export type AriHomeStats = {
   awaitingApproval: number
 }
 
-function storeNeedsDecision(store: AriHomeStore): boolean {
-  return store.categories.some(
-    (category) => category.urgent || category.rows.some((row) => row.overdue),
-  )
-}
-
 function StoreFolder({
   store,
-  tone,
   open,
   onToggle,
   ticketCost,
   storeCost,
 }: {
   store: AriHomeStore
-  tone: 'now' | 'quiet'
   open: boolean
   onToggle: () => void
   ticketCost: Record<string, string>
@@ -46,18 +38,14 @@ function StoreFolder({
   return (
     <article
       data-active={open ? 'true' : undefined}
-      className={
-        tone === 'now'
-          ? 'overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-1)]'
-          : 'overflow-hidden rounded-[var(--radius-md)] bg-surface-sunken'
-      }
+      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-1)] transition-shadow hover:shadow-[var(--shadow-2)]"
     >
       <h3>
         <button
           type="button"
           aria-expanded={open}
           onClick={onToggle}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start"
+          className="flex min-h-[4.25rem] w-full items-center justify-between gap-3 px-4 py-3.5 text-start transition-colors hover:bg-surface-sunken/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--tenant)]"
         >
           <span className="min-w-0">
             <span className="t-body-strong block truncate text-ink">{store.name}</span>
@@ -65,12 +53,12 @@ function StoreFolder({
               <span className="t-meta t-num block text-ink-3">{store.code}</span>
             ) : null}
           </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span className="t-meta t-num text-ink-2">
-              <span className="t-num">{openHere}</span> {p('פתוחות')}
+          <span className="flex shrink-0 items-center gap-2.5">
+            <span className={cn('inline-flex min-w-10 items-center justify-center gap-1 rounded-full px-2.5 py-1 t-caption t-num font-semibold', openHere > 0 ? 'bg-[var(--tenant-soft)] text-[var(--tenant)]' : 'bg-surface-sunken text-ink-3')}>
+              <span>{openHere}</span><span>{p('פתוחות')}</span>
             </span>
             <ChevronDown
-              className={cn('h-4 w-4 text-ink-2 transition-transform', open && 'rotate-180')}
+              className={cn('h-4 w-4 text-ink-3 transition-transform duration-[var(--dur-1)]', open && 'rotate-180')}
               aria-hidden
             />
           </span>
@@ -89,7 +77,7 @@ function StoreFolder({
             <section
               key={category.key}
               className={cn(
-                'border-t border-border',
+                'border-t border-border/80',
                 !recorded && 'first:border-t-0',
               )}
             >
@@ -118,7 +106,7 @@ function StoreFolder({
                       <Link
                         href={row.href}
                         className={cn(
-                          'block min-w-0 px-4 py-2.5 hover:bg-surface/70',
+                          'block min-w-0 px-4 py-3 transition-colors hover:bg-surface-sunken/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[var(--tenant)]',
                           row.overdue && 'edge edge-overdue',
                         )}
                       >
@@ -182,11 +170,8 @@ export function AriHomeBoard({
   notice: string | null
 }) {
   const p = usePhrase()
-  const nowStores = model.stores.filter(storeNeedsDecision)
-  const quietStores = model.stores.filter((store) => !storeNeedsDecision(store))
-  const [openStore, setOpenStore] = useState<string | null>(
-    () => model.stores.find(storeNeedsDecision)?.id ?? model.stores[0]?.id ?? null,
-  )
+  const nowStores = model.stores
+  const [openStore, setOpenStore] = useState<string | null>(() => model.stores[0]?.id ?? null)
   const metrics: {
     href: string
     label: string
@@ -254,27 +239,22 @@ export function AriHomeBoard({
         </div>
       ) : null}
 
-      {model.stores.length === 0 ? (
-        <p className="t-title rounded-[var(--radius-md)] bg-surface-sunken px-4 py-8 text-center text-ink-2">
-          {p('הכל שקט')}
-        </p>
-      ) : (
+      {model.stores.length > 0 ? (
         <>
           {nowStores.length > 0 ? (
-            <section>
+            <section className="rounded-[var(--radius-xl)] border border-border/70 bg-surface-sunken/20 p-3 sm:p-4">
               <header className="mb-3 flex items-end justify-between gap-3">
                 <div>
-                  <h2 className="t-section text-ink">{p('עכשיו')}</h2>
+                  <h2 className="t-section text-ink">{p('תקלות לפי חנות')}</h2>
                   <span aria-hidden className="clay-rule" />
                 </div>
                 <span className="t-meta t-num text-ink-3">{nowStores.length}</span>
               </header>
-              <div className="store-stack">
+              <div className="store-stack grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {nowStores.map((store) => (
                   <StoreFolder
                     key={store.id}
                     store={store}
-                    tone="now"
                     open={openStore === store.id}
                     onToggle={() => setOpenStore(openStore === store.id ? null : store.id)}
                     ticketCost={ticketCost}
@@ -289,28 +269,11 @@ export function AriHomeBoard({
             </p>
           )}
 
-          {quietStores.length > 0 ? (
-            <section>
-              <header className="mb-3 flex items-end justify-between gap-3">
-                <h2 className="t-section text-ink-2">{p('שקט')}</h2>
-                <span className="t-meta t-num text-ink-3">{quietStores.length}</span>
-              </header>
-              <div className="flex flex-col gap-2">
-                {quietStores.map((store) => (
-                  <StoreFolder
-                    key={store.id}
-                    store={store}
-                    tone="quiet"
-                    open={openStore === store.id}
-                    onToggle={() => setOpenStore(openStore === store.id ? null : store.id)}
-                    ticketCost={ticketCost}
-                    storeCost={storeCost}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
         </>
+      ) : (
+        <p className="t-title rounded-[var(--radius-md)] bg-surface-sunken px-4 py-8 text-center text-ink-2">
+          {p('הכל שקט')}
+        </p>
       )}
 
       {model.moreStores > 0 ? (

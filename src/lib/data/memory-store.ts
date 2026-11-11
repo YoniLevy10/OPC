@@ -69,6 +69,7 @@ export type MemTicket = {
     body: string | null
     media_url?: string | null
     proof_role?: string | null
+    raw?: Record<string, unknown> | null
     created_at: string
   }[]
   events: {
@@ -1419,6 +1420,7 @@ export function memAddMessage(
     media_url?: string | null
     wa_message_id?: string | null
     proof_role?: string | null
+    raw?: Record<string, unknown> | null
   },
 ) {
   const ticket = store().tickets.get(ticketId)
@@ -1431,6 +1433,7 @@ export function memAddMessage(
     body: msg.body,
     media_url: msg.media_url ?? null,
     proof_role: msg.proof_role ?? null,
+    raw: msg.raw ?? null,
     created_at: new Date().toISOString(),
   }
   ticket.messages.push(row)
@@ -1825,6 +1828,49 @@ export function memTouchProfessional(id: string): MemProfessional | null {
   return row
 }
 
+export function memDeleteProfessional(id: string): MemProfessional | null {
+  const row = store().professionals.get(id)
+  if (!row || row.deleted_at) return null
+  const now = new Date().toISOString()
+  row.deleted_at = now
+  row.is_active = false
+  row.updated_at = now
+  return row
+}
+
+export function memUpdateProfessional(
+  id: string,
+  input: {
+    full_name: string
+    phone?: string | null
+    trade?: string | null
+    company_name?: string | null
+    notes?: string | null
+  },
+): MemProfessional | null {
+  const row = store().professionals.get(id)
+  if (!row || row.deleted_at) return null
+  const name = input.full_name.trim()
+  if (!name) throw new Error('שם איש מקצוע חובה')
+  const phone = input.phone?.replace(/[^\d+]/g, '') || null
+  if (phone) {
+    const clash = [...store().professionals.values()].find(
+      (p) => !p.deleted_at && p.phone === phone && p.id !== id,
+    )
+    if (clash) throw new Error('הטלפון כבר שמור על איש מקצוע אחר')
+  }
+  const now = new Date().toISOString()
+  row.full_name = name
+  row.phone = phone
+  if (input.trade !== undefined) row.trade = input.trade?.trim() || null
+  if (input.company_name !== undefined)
+    row.company_name = input.company_name?.trim() || null
+  if (input.notes !== undefined) row.notes = input.notes?.trim() || null
+  row.updated_at = now
+  row.is_active = true
+  return row
+}
+
 export function memGetVendor(id: string): MemVendor | undefined {
   return store().vendors.get(id)
 }
@@ -2033,4 +2079,9 @@ export function memFilterTickets(
     }
     return true
   })
+}
+
+
+export function memDeleteVendor(id: string): boolean {
+  return store().vendors.delete(id)
 }

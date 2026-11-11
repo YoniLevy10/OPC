@@ -21,6 +21,14 @@ function isProductionRuntime(): boolean {
   )
 }
 
+/**
+ * Internal desk archive — routes stay reachable by URL, never in product nav:
+ * - /ops/pilot (כמה נחסך)
+ * - /ops/alerts (מה דורש פעולה — decisions live on home)
+ * - /ops/approvals
+ * - /ops/assets
+ * - /ops/vendors
+ */
 export const ALL_NAV_TOOLS: NavTool[] = [
   { id: 'alerts', href: '/ops/alerts', label: 'מה דורש פעולה' },
   { id: 'inbox', href: '/ops/inbox', label: 'תיבת WhatsApp' },
@@ -31,7 +39,7 @@ export const ALL_NAV_TOOLS: NavTool[] = [
   { id: 'professionals', href: '/ops/professionals', label: 'אנשי מקצוע' },
   { id: 'assets', href: '/ops/assets', label: 'ציוד וחלקים' },
   { id: 'vendors', href: '/ops/vendors', label: 'ספקים' },
-  { id: 'activity', href: '/ops/activity', label: 'מה שכבר קרה' },
+  { id: 'activity', href: '/ops/activity', label: 'היסטוריה' },
   { id: 'reports', href: '/ops/reports', label: 'דוחות' },
   { id: 'users', href: '/ops/users', label: 'משתמשים' },
   { id: 'lab', href: '/ops/lab', label: 'מעבדה' },
@@ -45,10 +53,9 @@ export function canAccessUsers(actor: Actor | null): boolean {
   return actor.memberships.some((m) => canManageUsersRole(m.role))
 }
 
-export function canAccessVendors(actor: Actor | null): boolean {
-  if (isProductionRuntime()) return false
-  if (!actor) return true
-  return hasHq(actor)
+/** Internal archive — URL only. */
+export function canAccessVendors(_actor: Actor | null): boolean {
+  return false
 }
 
 /** Midrag contact book — HQ ops (Ari) */
@@ -57,17 +64,14 @@ export function canAccessProfessionals(actor: Actor | null): boolean {
   return hasHq(actor)
 }
 
-export function canAccessAssets(actor: Actor | null): boolean {
-  if (isProductionRuntime()) return false
-  if (!actor) return true
-  return hasHq(actor)
+/** Internal archive — URL only. */
+export function canAccessAssets(_actor: Actor | null): boolean {
+  return false
 }
 
-/** Archived savings math. Hidden on the production desk. */
-export function canAccessPilot(actor: Actor | null): boolean {
-  if (isProductionRuntime()) return false
-  if (!actor) return true
-  return hasHq(actor)
+/** Internal archive — כמה נחסך; URL only. */
+export function canAccessPilot(_actor: Actor | null): boolean {
+  return false
 }
 
 export function canAccessReports(actor: Actor | null): boolean {

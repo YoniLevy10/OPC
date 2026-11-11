@@ -5,7 +5,8 @@ import {
   requireActor,
 } from '@/lib/auth/request-actor'
 import { AuthError } from '@/lib/auth/types'
-import { requireStoresMutate, updateStore } from '@/modules/stores/service'
+import { listStores, requireStoresMutate, updateStore } from '@/modules/stores/service'
+import { canManageStore } from '@/lib/auth/store-scope'
 import { captureError } from '@/lib/monitoring'
 
 const patchSchema = z.object({
@@ -38,6 +39,10 @@ export async function PATCH(
     if (Object.keys(parsed.data).length === 0) {
       return NextResponse.json({ error: 'אין שדות לעדכון' }, { status: 400 })
     }
+    const { stores } = await listStores({ includeInactive: true })
+    const target = stores.find((s) => s.id === id)
+    if (!target) return NextResponse.json({ error: 'חנות לא נמצאה' }, { status: 404 })
+    if (!canManageStore(actor, target)) return NextResponse.json({ error: 'אין הרשאה' }, { status: 403 })
     const store = await updateStore(id, parsed.data)
     return NextResponse.json({ store })
   } catch (err) {

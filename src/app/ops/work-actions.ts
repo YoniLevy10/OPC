@@ -43,6 +43,9 @@ import { patchDevDocumentExpiry, patchDevDocumentReminders, patchDevDocumentTitl
 import { cleanDocumentTitle } from '@/modules/documents/rules'
 import { isTaskStatus } from '@/modules/tasks/status'
 import { notifyAri, notifyPhone } from '@/modules/notify/ari'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { supabaseReady } from '@/lib/data/memory-store'
+import { listDocuments, listFiles } from '@/lib/data/ops-ledger'
 
 async function actorName() {
   const actor = await getServerActor()
@@ -347,12 +350,68 @@ function expiryInputToIso(value: string): string | null {
 
 export async function renewDocumentAction(formData: FormData) {
   await actorName()
-  renewStoredDocument(documentIdFrom(formData), {
-    sourceUrl: String(formData.get('sourceUrl') || ''),
+  const documentId = documentIdFrom(formData)
+  const current = listDocuments().find((doc) => doc.id === documentId)
+  if (!current) throw new Error('מסמך לא נמצא')
+  const uploaded = formData.get('renewalFile')
+  const sourceUrlInput = String(formData.get('sourceUrl') || '').trim()
+  let sourceUrl = sourceUrlInput
+  let storagePath: string | null = null
+
+  if (uploaded instanceof File && uploaded.size > 0) {
+    if (uploaded.size > 15 * 1024 * 1024) throw new Error('הקובץ גדול מדי (מקסימום 15MB)')
+    const isPdf = uploaded.type === 'application/pdf' || uploaded.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) throw new Error('אפשר להעלות רק קובץ PDF')
+    if (!(await supabaseReady())) {
+      throw new Error('העלאת קובץ דורשת חיבור Supabase פעיל. אפשר להשתמש בקישור במצב מקומי.')
+    }
+    const safeName = uploaded.name.replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-100) || 'renewed-document.pdf'
+    storagePath = `renewals/${crypto.randomUUID()}-${safeName}`
+    const supabase = createAdminClient()
+    const bytes = Buffer.from(await uploaded.arrayBuffer())
+    const { error } = await supabase.storage.from('store-documents').upload(storagePath, bytes, {
+      contentType: 'application/pdf',
+      upsert: false,
+    })
+    if (error) throw new Error(`שמירת הקובץ נכשלה: ${error.message}`)
+    sourceUrl = `/api/ops/document-file/${documentId}-v${current.version + 1}`
+  }
+
+  if (!sourceUrl) throw new Error('יש להדביק קישור או לצרף מסמך חדש')
+  const renewed = renewStoredDocument(documentId, {
+    sourceUrl,
+    storagePath,
     extractedExpiry: String(formData.get('expiry') || '') || null,
   })
+  if (storagePath) await linkRenewalUpload(renewed.next, storagePath, uploaded instanceof File ? uploaded.name : 'מסמך מחודש.pdf')
   await mirrorDrive()
   await refresh('/ops/documents')
+}
+
+async function linkRenewalUpload(doc: ReturnType<typeof renewStoredDocument>['next'], storagePath: string, name: string) {
+  const file = {
+    client_id: `file-${doc.id}`, name, mime: 'application/pdf', source_url: doc.sourceUrl,
+    doc_type: doc.docType, store_code: doc.storeCode, status: doc.intakeStatus, reason: doc.intakeReason,
+    version_of: doc.previousId, deleted_in_source: false, extracted_text: null, stage: 'validate',
+    drive_file_id: null, storage_path: storagePath, drive_modified_time: null, origin: 'maintainos',
+    local_updated_at: new Date().toISOString(),
+  }
+  const ingested = {
+    id: `file-${doc.id}`, name, mime: 'application/pdf', sourceUrl: doc.sourceUrl, storagePath,
+    stage: 'validate' as const, docType: doc.docType, storeCode: doc.storeCode || null, extractedText: null,
+    status: doc.intakeStatus, reason: doc.intakeReason, versionOf: doc.previousId, deletedInSource: false,
+    driveFileId: null, driveModifiedTime: null, origin: 'maintainos' as const, localUpdatedAt: new Date().toISOString(),
+  }
+  const currentFiles = listFiles()
+  const existingIndex = currentFiles.findIndex((row) => row.id === ingested.id)
+  if (existingIndex >= 0) currentFiles[existingIndex] = ingested
+  else currentFiles.unshift(ingested)
+  if (!(await supabaseReady())) return
+  const supabase = createAdminClient()
+  const { error: fileError } = await supabase.from('ingested_files').upsert(file, { onConflict: 'client_id' })
+  if (fileError) throw new Error(`הקובץ הועלה אך רישומו נכשל: ${fileError.message}`)
+  const { error: docError } = await supabase.from('store_documents').update({ storage_path: storagePath, source_url: doc.sourceUrl }).eq('client_id', doc.id)
+  if (docError) throw new Error(`הקובץ הועלה אך קישורו למסמך נכשל: ${docError.message}`)
 }
 
 export async function ingestFileAction(formData: FormData) {
@@ -446,7 +505,7 @@ export async function addOutcomeAction(formData: FormData) {
     warrantyNote: String(formData.get('warranty') || '') || null,
     success: formData.get('success') === 'on',
   })
-  await refresh('/ops/vendors')
+  await refresh('/ops/professionals')
 }
 
 export async function correctCategoryAction(formData: FormData) {

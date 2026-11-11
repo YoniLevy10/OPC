@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { FaultPro } from '@/modules/professionals/match-fault'
 import type { VendorOutcome } from '@/modules/vendors/outcomes'
-import { intakeBundleHandoff, recommendBundles, type BundleFault } from './bundle'
+import {
+  intakeBundleHandoff,
+  recommendBundles,
+  sameStoreCompanionIds,
+  type BundleFault,
+} from './bundle'
 
 function fault(partial: Partial<BundleFault> & Pick<BundleFault, 'id' | 'summary'>): BundleFault {
   return {
@@ -173,6 +178,43 @@ describe('recommendBundles', () => {
       ],
     })
     expect(cards.find((card) => card.kind === 'urgent')?.ticketIds).toEqual(['a', 'b'])
+    const visit = sameStoreCompanionIds(
+      cards,
+      new Map([
+        ['a', 'store-1'],
+        ['b', 'store-2'],
+        ['c', 'store-3'],
+      ]),
+    )
+    expect(visit.a ?? []).not.toContain('b')
+    expect(visit.b ?? []).not.toContain('a')
+  })
+
+  it('offers a same-store companion on the visit, and leaves the other store out', () => {
+    const cards = recommendBundles({
+      open: [
+        fault({ id: 'a', summary: 'דחוף', priority: 'critical', regionId: 'north' }),
+        fault({ id: 'b', summary: 'כיור', priority: 'low' }),
+        fault({
+          id: 'c',
+          summary: 'בסניף אחר',
+          priority: 'low',
+          storeId: 'store-2',
+          storeName: 'נהריה',
+          regionId: 'north',
+        }),
+      ],
+    })
+    const ids = sameStoreCompanionIds(
+      cards,
+      new Map([
+        ['a', 'store-1'],
+        ['b', 'store-1'],
+        ['c', 'store-2'],
+      ]),
+    )
+    expect(ids.a).toContain('b')
+    expect(ids.a ?? []).not.toContain('c')
   })
 
   it('turns a repeat into a check, not another bundled call', () => {

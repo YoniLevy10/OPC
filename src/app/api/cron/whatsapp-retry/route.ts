@@ -66,6 +66,9 @@ export async function GET(request: Request) {
         error: result.error,
         metaErrorCode: result.errorCode,
         backend,
+        claimedAt: row.claimed_at,
+        attempts: row.attempts,
+        maxAttempts: row.max_attempts,
       })
 
       if (result.ok && !result.dryRun) sent += 1

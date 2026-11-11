@@ -18,10 +18,10 @@ export async function GET(
   ctx: { params: Promise<{ waId: string }> },
 ) {
   try {
-    await requireActor(request)
+    const actor = await requireActor(request)
     const { waId } = await ctx.params
     const { messages, ticketIds, openTickets, context, backend } =
-      await listSessionMessages(waId)
+      await listSessionMessages(waId, actor)
     return NextResponse.json({
       messages,
       ticketIds,
@@ -78,7 +78,7 @@ export async function POST(
   ctx: { params: Promise<{ waId: string }> },
 ) {
   try {
-    await requireActor(request)
+    const actor = await requireActor(request)
     const { waId } = await ctx.params
     let body: unknown
     try {
@@ -90,6 +90,7 @@ export async function POST(
     const asTemplate = templateSchema.safeParse(body)
     if (asTemplate.success) {
       const result = await sendSessionTemplate({
+        actor,
         waId,
         templateName: asTemplate.data.templateName,
         ticketId: asTemplate.data.ticketId ?? null,
@@ -111,6 +112,7 @@ export async function POST(
     }
 
     const result = await replyToSession({
+      actor,
       waId,
       text: parsed.data.text,
       ticketId: parsed.data.ticketId ?? null,
@@ -132,9 +134,9 @@ export async function DELETE(
   ctx: { params: Promise<{ waId: string }> },
 ) {
   try {
-    await requireActor(request)
+    const actor = await requireActor(request)
     const { waId } = await ctx.params
-    const result = await clearInboxSession(waId)
+    const result = await clearInboxSession(waId, actor)
     return NextResponse.json(result)
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)

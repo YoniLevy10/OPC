@@ -46,11 +46,16 @@ describe('whatsapp send-failures queue', () => {
 
     const { rows } = await listPendingWhatsAppFailures()
     expect(rows).toHaveLength(1)
+    const concurrentClaim = await listPendingWhatsAppFailures()
+    expect(concurrentClaim.rows).toHaveLength(0)
 
     await markWhatsAppFailureResult({
       id: rows[0].id,
       ok: true,
       backend: 'memory',
+      claimedAt: rows[0].claimed_at,
+      attempts: rows[0].attempts,
+      maxAttempts: rows[0].max_attempts,
     })
     const after = await listPendingWhatsAppFailures()
     expect(after.rows).toHaveLength(0)

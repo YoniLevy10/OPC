@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
+import * as ariNotify from '@/modules/notify/ari'
 import {
   memReset,
   memCreate,
@@ -132,6 +133,7 @@ describe('store confirm close', () => {
   })
 
   it('returns an approved visit to Ari when the store says it is not fixed', async () => {
+    const notify = vi.spyOn(ariNotify, 'notifyAri').mockResolvedValue(undefined)
     const store = israelStoresAsRows().find((s) => s.code === '6006')!
     const created = memCreate({
       store,
@@ -147,7 +149,13 @@ describe('store confirm close', () => {
       approvedBy: 'ארי',
     })
     await rejectStoreFix({ ticketId: created.id, actorLabel: 'מנהל חנות' })
-    expect(memGet(created.id)?.status).toBe('new')
+    const ticket = memGet(created.id)
+    expect(ticket?.status).toBe('new')
+    expect(ticket?.status).not.toBe('closed')
+    expect(ticket?.events.some((event) => event.event_type === 'store_rejected')).toBe(true)
+    expect(notify).toHaveBeenCalled()
+    expect(String(notify.mock.calls[0]?.[0])).toMatch(/חזרה לטיפול/)
+    notify.mockRestore()
   })
 
   it('blocks engaged close without the store, and allows Ari with a reason', async () => {

@@ -415,6 +415,8 @@ export default async function TicketDetailPage({
             searchUrl={midrag?.searchUrl ?? 'https://www.midrag.co.il/Search/InSector'}
             fallback={midrag?.fallback ?? true}
             companions={companions}
+            category={ticket.category || 'other'}
+            city={ticket.stores?.city ?? null}
           />
         </div>
       </div>

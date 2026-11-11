@@ -5,7 +5,7 @@ import {
   requireActor,
 } from '@/lib/auth/request-actor'
 import { AuthError, actorHasHqAccess } from '@/lib/auth/types'
-import { updateVendor } from '@/modules/vendors/service'
+import { deleteVendor, updateVendor } from '@/modules/vendors/service'
 import { captureError } from '@/lib/monitoring'
 
 const patchSchema = z.object({
@@ -15,6 +15,7 @@ const patchSchema = z.object({
   specialties: z.string().max(64).optional(),
   active: z.boolean().optional(),
   webhook_url: z.string().url().nullable().optional().or(z.literal('')),
+  notes: z.string().max(2000).nullable().optional(),
 })
 
 export async function PATCH(
@@ -42,5 +43,21 @@ export async function PATCH(
       { error: err instanceof Error ? err.message : 'שגיאה' },
       { status: 400 },
     )
+  }
+}
+
+
+export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const actor = await requireActor(request)
+    if (!actorHasHqAccess(actor)) throw new AuthError('אין הרשאת HQ', 403)
+    const { id } = await ctx.params
+    const deleted = await deleteVendor(id)
+    if (!deleted) return NextResponse.json({ error: 'לא נמצא' }, { status: 404 })
+    return NextResponse.json({ deleted: true })
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err)
+    captureError(err, { route: 'DELETE /api/vendors/[id]' })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'שגיאה' }, { status: 500 })
   }
 }

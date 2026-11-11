@@ -1,110 +1,147 @@
-import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
-import { OpsAppShell } from '@/components/layout/ops-app-shell'
-import { PageToolbar } from '@/components/layout/page-toolbar'
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { OpsAppShell } from "@/components/layout/ops-app-shell";
+import { PageToolbar } from "@/components/layout/page-toolbar";
+import { Panel, KeyValue, EmptyState } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/button";
+import { OpsPageHero } from "@/components/ops/ops-page-hero";
+import { StatusLabel } from "@/components/ui/signal";
+import { getServerActor } from "@/lib/auth/server-actor";
+import { shouldAllowDemoEntry } from "@/lib/auth/home-path";
+import { getStoreByCode } from "@/modules/stores/service";
+import { storeWhatsAppDeepLink } from "@/modules/stores/whatsapp-link";
+import { resolveWhatsAppBusinessPhone } from "@/modules/stores/business-phone";
+import { listTickets } from "@/modules/tickets/service";
+import { OPEN_TICKET_STATUSES } from "@/modules/tickets/constants";
+import { StoreEditControls } from "../store-edit-controls";
+import { StoreDirectoryPanel } from "../store-directory-panel";
+import { StoreAssetsPanel } from "./store-assets-panel";
+import { StoreSecondaryActions } from "./store-secondary-actions";
+import { StoreVisitDispatch } from "./store-visit-dispatch";
 import {
-  Panel,
-  KeyValue,
-  EmptyState,
-} from '@/components/ui/primitives'
-import { Button } from '@/components/ui/button'
-import { OpsPageHero } from '@/components/ops/ops-page-hero'
-import { StatusLabel } from '@/components/ui/signal'
-import { getServerActor } from '@/lib/auth/server-actor'
-import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
-import { getStoreByCode } from '@/modules/stores/service'
-import { storeWhatsAppDeepLink } from '@/modules/stores/whatsapp-link'
-import { resolveWhatsAppBusinessPhone } from '@/modules/stores/business-phone'
-import { listTickets } from '@/modules/tickets/service'
-import { OPEN_TICKET_STATUSES } from '@/modules/tickets/constants'
-import { StoreQrPanel } from '../store-qr-panel'
-import { StoreEditControls } from '../store-edit-controls'
-import { StoreDirectoryPanel } from '../store-directory-panel'
-import { StoreAssetsPanel } from './store-assets-panel'
-import { StoreSecondaryActions } from './store-secondary-actions'
-import { StoreVisitDispatch } from './store-visit-dispatch'
-import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
+  recommendBundles,
+  sameStoreCompanionIds,
+  type BundleFault,
+} from "@/modules/whatsapp/agent/bundle";
+import { PhoneFold, PhoneFoldStack } from "@/components/layout/phone-fold";
 import {
   areaManagerForStore,
   listAudits,
   listContactsForStore,
   spendForTicket,
-} from '@/lib/data/ops-ledger'
-import { executionBlockReason } from '@/modules/spend/policy'
-import { regionLabel } from '@/modules/stores/regions'
-import { getLocale } from '@/lib/i18n/server'
-import { phrase } from '@/lib/i18n/phrases'
-import { ticketDecision } from '@/modules/decisions/queue'
-import { listVendors } from '@/modules/vendors/service'
+} from "@/lib/data/ops-ledger";
+import { executionBlockReason } from "@/modules/spend/policy";
+import { regionLabel } from "@/modules/stores/regions";
+import { getLocale } from "@/lib/i18n/server";
+import { phrase } from "@/lib/i18n/phrases";
+import { ticketDecision } from "@/modules/decisions/queue";
+import { listVendors } from "@/modules/vendors/service";
+import { listProfessionals } from "@/modules/professionals/service";
+import { hydrateOpsLedger } from "@/lib/data/ops-db";
+import { listDocuments, listFiles } from "@/lib/data/ops-ledger";
+import {
+  DocumentCabinet,
+  preferStoredFiles,
+} from "@/app/ops/documents/document-cabinet";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 function displayNum(t: {
-  display_number?: string | null
-  number?: number | null
-  id: string
+  display_number?: string | null;
+  number?: number | null;
+  id: string;
 }) {
-  if (t.display_number?.trim()) return t.display_number
-  if (t.number != null) return `OC-${t.number}`
-  return t.id.slice(0, 8)
+  if (t.display_number?.trim()) return t.display_number;
+  if (t.number != null) return `OC-${t.number}`;
+  return t.id.slice(0, 8);
 }
 
 export default async function StoreDetailPage({
   params,
 }: {
-  params: Promise<{ code: string }>
+  params: Promise<{ code: string }>;
 }) {
-  const locale = await getLocale()
-  const p = (text: string) => phrase(locale, text)
-  const actor = await getServerActor()
+  const locale = await getLocale();
+  const p = (text: string) => phrase(locale, text);
+  const actor = await getServerActor();
   if (!actor && !shouldAllowDemoEntry()) {
-    redirect('/login')
+    redirect("/login");
   }
 
-  const { code: raw } = await params
-  const code = decodeURIComponent(raw).trim()
+  const { code: raw } = await params;
+  const code = decodeURIComponent(raw).trim();
 
-  const { store } = await getStoreByCode(code)
-  if (!store) notFound()
+  const { store } = await getStoreByCode(code);
+  if (!store) notFound();
 
-  const businessPhone = await resolveWhatsAppBusinessPhone()
+  const businessPhone = await resolveWhatsAppBusinessPhone();
   const deepLink = businessPhone
     ? storeWhatsAppDeepLink(store.code, businessPhone)
-    : null
+    : null;
   const canEdit =
     Boolean(
       actor?.memberships.some(
-        (m) => m.role === 'global_admin' || m.role === 'country_manager',
+        (m) => m.role === "global_admin" || m.role === "country_manager",
       ),
-    ) || shouldAllowDemoEntry()
+    ) || shouldAllowDemoEntry();
   const canDispatch = Boolean(
     actor?.memberships.some((m) =>
-      ['global_admin', 'global_maintenance', 'country_manager'].includes(m.role),
+      ["global_admin", "global_maintenance", "country_manager"].includes(
+        m.role,
+      ),
     ),
-  )
+  );
 
-  const [{ tickets }, vendorsResult] = await Promise.all([
+  const [{ tickets }, vendorsResult, prosResult] = await Promise.all([
     listTickets({
       storeCode: store.code,
       statuses: [...OPEN_TICKET_STATUSES],
       limit: 40,
     }).catch(() => ({
       tickets: [],
-      backend: 'memory' as const,
+      backend: "memory" as const,
     })),
     listVendors({ activeOnly: true }).catch(() => ({
       vendors: [],
-      backend: 'memory' as const,
+      backend: "memory" as const,
     })),
-  ])
+    listProfessionals().catch(() => ({
+      professionals: [] as Awaited<
+        ReturnType<typeof listProfessionals>
+      >["professionals"],
+    })),
+  ]);
 
-  const openTickets = tickets.filter((t) => t.store_id === store.id)
-  const openCount = openTickets.length
-  const recent = openTickets.slice(0, 12)
+  await hydrateOpsLedger();
+  const storeDocuments = preferStoredFiles(listDocuments()).filter(
+    (document) => document.storeCode?.trim() === store.code,
+  );
+  const openTickets = tickets.filter(
+    (t) => t.store_id === store.id || t.stores?.code === store.code,
+  );
+  const openCount = openTickets.length;
+  const recent = openTickets.slice(0, 12);
+  const companionIdsByTicket = sameStoreCompanionIds(
+    recommendBundles({
+      open: recent.map((ticket): BundleFault => ({
+        id: ticket.id,
+        storeId: ticket.store_id,
+        storeName: store.name,
+        category: ticket.category,
+        priority: ticket.priority,
+        status: ticket.status,
+        summary: ticket.title || ticket.description,
+        createdAt: ticket.created_at,
+        regionId: ticket.region_id,
+        urgent: ticket.urgent,
+      })),
+    }),
+    new Map(recent.map((ticket) => [ticket.id, ticket.store_id])),
+  );
 
   return (
     <OpsAppShell>
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-5 lg:max-w-6xl">
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-6xl">
         <PageToolbar
           backHref="/ops/stores"
           backLabel="חזרה לחנויות"
@@ -125,153 +162,195 @@ export default async function StoreDetailPage({
           title={store.name}
           status={
             openCount > 0
-              ? `${openCount} ${p('תקלות פתוחות בחנות זו')}`
+              ? `${openCount} ${p("תקלות פתוחות בחנות זו")}`
               : store.is_active === false
-                ? p('חנות מושבתת')
-                : p('אין תקלות פתוחות')
+                ? p("חנות מושבתת")
+                : p("אין תקלות פתוחות")
           }
         />
 
-        <div className="flex min-w-0 flex-col gap-5 lg:grid lg:grid-cols-2 lg:items-start">
-        <PhoneFoldStack>
-        <PhoneFold title="כתובת ואנשי קשר" summary={store.city ?? store.address ?? store.code}>
-        <Panel elevated>
-          <dl className="divide-y divide-border">
-            <KeyValue label="כתובת">{store.address ?? '—'}</KeyValue>
-            <KeyValue label="עיר">{store.city ?? '—'}</KeyValue>
-            <KeyValue label="טלפון חנות">{store.store_phone ?? '—'}</KeyValue>
-            <KeyValue label="מייל">{store.store_email ?? '—'}</KeyValue>
-            <KeyValue label="מנהל/ת">
-              {store.manager_name
-                ? `${store.manager_name}${store.manager_name_en ? ` · ${store.manager_name_en}` : ''}`
-                : '—'}
-            </KeyValue>
-            <KeyValue label="טלפון מנהל">{store.manager_phone ?? '—'}</KeyValue>
-            <KeyValue label="מנהל אזור">{store.area_manager ?? '—'}</KeyValue>
-            <KeyValue label="סטטוס">
-              {store.is_active === false ? 'מושבת' : 'פעיל'}
-            </KeyValue>
-          </dl>
-        </Panel>
-        </PhoneFold>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2 lg:items-start xl:grid-cols-12">
+          <div className="flex min-w-0 flex-col gap-3 lg:col-span-1 xl:col-span-7">
+            <PhoneFold
+              title="כתובת ואנשי קשר"
+              summary={store.city ?? store.address ?? store.code}
+            >
+              <Panel elevated>
+                <dl className="divide-y divide-border">
+                  <KeyValue label="כתובת">{store.address ?? "—"}</KeyValue>
+                  <KeyValue label="עיר">{store.city ?? "—"}</KeyValue>
+                  <KeyValue label="טלפון חנות">
+                    {store.store_phone ?? "—"}
+                  </KeyValue>
+                  <KeyValue label="מייל">{store.store_email ?? "—"}</KeyValue>
+                  <KeyValue label="מנהל/ת">
+                    {store.manager_name
+                      ? `${store.manager_name}${store.manager_name_en ? ` · ${store.manager_name_en}` : ""}`
+                      : "—"}
+                  </KeyValue>
+                  <KeyValue label="טלפון מנהל">
+                    {store.manager_phone ?? "—"}
+                  </KeyValue>
+                  <KeyValue label="מנהל אזור">
+                    {store.area_manager ?? "—"}
+                  </KeyValue>
+                  <KeyValue label="סטטוס">
+                    {store.is_active === false ? "מושבת" : "פעיל"}
+                  </KeyValue>
+                </dl>
+              </Panel>
+            </PhoneFold>
 
-        <Panel elevated className="overflow-hidden">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="t-section text-ink">תקלות פתוחות</p>
-            <Button asChild variant="ghost" size="sm">
-              <Link
-                href={`/ops/tickets?view=open&store=${encodeURIComponent(store.code)}`}
-              >
-                לתור המלא
-              </Link>
-            </Button>
+            <PhoneFold
+              title="תיקיית מסמכים"
+              summary={`${storeDocuments.length} מסמכים`}
+            >
+              <Panel elevated className="overflow-hidden">
+                <p className="t-section mb-3 text-ink">תיקיית מסמכים</p>
+                {storeDocuments.length > 0 ? (
+                  <DocumentCabinet
+                    documents={storeDocuments}
+                    files={listFiles()}
+                  />
+                ) : (
+                  <EmptyState
+                    title="אין מסמכים לסניף"
+                    description="מסמכים שיוקצו לסניף יופיעו כאן."
+                  />
+                )}
+              </Panel>
+            </PhoneFold>
+            {!canDispatch || recent.length === 0 ? (
+              <Panel elevated className="overflow-hidden">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="t-section text-ink">תקלות פתוחות</p>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link
+                      href={`/ops/tickets?view=open&store=${encodeURIComponent(store.code)}`}
+                    >
+                      לתור המלא
+                    </Link>
+                  </Button>
+                </div>
+                {recent.length === 0 ? (
+                  <EmptyState title="אין תקלות פתוחות בחנות זו" />
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {recent.map((t) => {
+                      const decision = ticketDecision(t, new Date(), locale);
+                      const verb =
+                        decision?.action.split("·")[0]?.trim() || p("לטפל");
+                      return (
+                        <li key={t.id}>
+                          <Link
+                            href={`/ops/tickets/${t.id}`}
+                            className="flex flex-col gap-1 px-1 py-3 transition-colors hover:bg-surface-sunken/40"
+                          >
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="t-caption t-num font-semibold text-ink">
+                                {displayNum(t)}
+                              </span>
+                              <StatusLabel status={t.status} />
+                            </div>
+                            <p className="t-body line-clamp-2 text-ink">
+                              {t.title || t.description}
+                            </p>
+                            <span className="t-meta text-ink">{verb}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </Panel>
+            ) : null}
           </div>
-          {recent.length === 0 ? (
-            <EmptyState title="אין תקלות פתוחות בחנות זו" />
-          ) : (
-            <ul className="divide-y divide-border">
-              {recent.map((t) => {
-                const decision = ticketDecision(t, new Date(), locale)
-                const verb =
-                  decision?.action.split('·')[0]?.trim() || p('לטפל')
-                return (
-                <li key={t.id}>
-                  <Link
-                    href={`/ops/tickets/${t.id}`}
-                    className="flex flex-col gap-1 px-1 py-3 transition-colors hover:bg-surface-sunken/40"
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="t-caption t-num font-semibold text-ink">
-                        {displayNum(t)}
-                      </span>
-                      <StatusLabel status={t.status} />
-                    </div>
-                    <p className="t-body line-clamp-2 text-ink">
-                      {t.title || t.description}
+
+          <div className="flex min-w-0 flex-col gap-3 lg:col-span-1 xl:col-span-5">
+            {canDispatch && recent.length > 0 ? (
+              <StoreVisitDispatch
+                storeId={store.id}
+                storeCode={store.code}
+                city={store.city}
+                region={store.region_id}
+                tickets={recent.map((t) => ({
+                  id: t.id,
+                  label: displayNum(t),
+                  title: t.title || t.description,
+                  spendBlock: executionBlockReason(spendForTicket(t.id)),
+                  category: t.category,
+                }))}
+                companionIdsByTicket={companionIdsByTicket}
+                vendors={(vendorsResult.vendors ?? []).map((v) => ({
+                  id: v.id,
+                  name: v.name,
+                  specialties: v.specialties,
+                  coverage: v.coverage_regions,
+                  phone: v.contact_phone,
+                }))}
+                professionals={prosResult.professionals.map((person) => ({
+                  id: person.id,
+                  full_name: person.full_name,
+                  phone: person.phone,
+                  trade: person.trade,
+                }))}
+              />
+            ) : null}
+          </div>
+
+          <div className="grid min-w-0 gap-3 lg:col-span-2 xl:col-span-12 lg:grid-cols-2">
+            <PhoneFold title="ציוד" summary={store.name}>
+              <StoreAssetsPanel storeId={store.id} storeCode={store.code} />
+            </PhoneFold>
+
+            <PhoneFold
+              title="סניף ואנשי קשר"
+              summary={store.manager_name ?? store.area_manager ?? "—"}
+            >
+              <Panel elevated>
+                <p className="t-section mb-3 text-ink">סניף ואנשי קשר</p>
+                <StoreDirectoryPanel
+                  storeId={store.id}
+                  code={store.code}
+                  canEdit={
+                    Boolean(
+                      actor?.memberships.some((m) => m.role === "global_admin"),
+                    ) || shouldAllowDemoEntry()
+                  }
+                  contacts={listContactsForStore(store.id, store.code)}
+                  areaManager={
+                    store.area_manager ??
+                    areaManagerForStore(store.id, store.code)
+                  }
+                />
+                {listAudits()
+                  .filter((row) => row.entityId === store.id)
+                  .slice(0, 6)
+                  .map((row) => (
+                    <p key={row.id} className="t-meta mt-2 text-ink-3">
+                      {row.actor} · {row.field}: {row.previous || "—"} →{" "}
+                      {row.next}
                     </p>
-                    <span className="t-meta text-ink">{verb}</span>
-                  </Link>
-                </li>
-                )
-              })}
-            </ul>
-          )}
-        </Panel>
+                  ))}
+              </Panel>
+            </PhoneFold>
 
-        {canDispatch && recent.length > 0 ? (
-          <StoreVisitDispatch
-            storeId={store.id}
-            storeCode={store.code}
-            city={store.city}
-            region={store.region_id}
-            tickets={recent.map((t) => ({
-              id: t.id,
-              label: displayNum(t),
-              title: t.title || t.description,
-              spendBlock: executionBlockReason(spendForTicket(t.id)),
-              category: t.category,
-            }))}
-            vendors={(vendorsResult.vendors ?? []).map((v) => ({
-              id: v.id,
-              name: v.name,
-              specialties: v.specialties,
-              coverage: v.coverage_regions,
-              phone: v.contact_phone,
-            }))}
-          />
-        ) : null}
-
-        <PhoneFold title="הורדת QR" summary={store.code}>
-        <Panel elevated className="overflow-hidden" id="store-qr">
-          <p className="t-section mb-3 text-ink">הורדת QR</p>
-          <StoreQrPanel code={store.code} deepLink={deepLink} />
-        </Panel>
-        </PhoneFold>
-
-        <PhoneFold title="ציוד" summary={store.name}>
-        <StoreAssetsPanel storeId={store.id} storeCode={store.code} />
-        </PhoneFold>
-
-        <PhoneFold title="סניף ואנשי קשר" summary={store.manager_name ?? store.area_manager ?? '—'}>
-        <Panel elevated>
-          <p className="t-section mb-3 text-ink">סניף ואנשי קשר</p>
-          <StoreDirectoryPanel
-            storeId={store.id}
-            code={store.code}
-            canEdit={
-              Boolean(actor?.memberships.some((m) => m.role === 'global_admin')) ||
-              shouldAllowDemoEntry()
-            }
-            contacts={listContactsForStore(store.id, store.code)}
-            areaManager={store.area_manager ?? areaManagerForStore(store.id, store.code)}
-          />
-          {listAudits()
-            .filter((row) => row.entityId === store.id)
-            .slice(0, 6)
-            .map((row) => (
-              <p key={row.id} className="t-meta mt-2 text-ink-3">
-                {row.actor} · {row.field}: {row.previous || '—'} → {row.next}
-              </p>
-            ))}
-        </Panel>
-        </PhoneFold>
-
-        {canEdit ? (
-          <PhoneFold title="עריכה" summary={store.name}>
-          <Panel elevated id="store-edit">
-            <p className="t-section mb-3 text-ink">עריכה</p>
-            <StoreEditControls
-              id={store.id}
-              name={store.name}
-              city={store.city}
-              isActive={store.is_active !== false}
-            />
-          </Panel>
-          </PhoneFold>
-        ) : null}
-        </PhoneFoldStack>
+            {canEdit ? (
+              <PhoneFold title="עריכה" summary={store.name}>
+                <Panel elevated id="store-edit">
+                  <p className="t-section mb-3 text-ink">עריכה</p>
+                  <StoreEditControls
+                    id={store.id}
+                    name={store.name}
+                    city={store.city}
+                    isActive={store.is_active !== false}
+                  />
+                </Panel>
+              </PhoneFold>
+            ) : null}
+          </div>
         </div>
       </div>
     </OpsAppShell>
-  )
+  );
 }

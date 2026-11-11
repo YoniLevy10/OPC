@@ -790,6 +790,313 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'סגור את הסוכן': { en: 'Close the agent', fr: "Fermer l'agent" },
   'פתח את הסוכן': { en: 'Open the agent', fr: "Ouvrir l'agent" },
   'בקשה לא תקינה': { en: 'Invalid request', fr: 'Demande invalide' },
+
+  // בעלי מקצוע
+  'בעלי מקצוע': { en: 'Professionals', fr: 'Professionnels' },
+  'ספר קשר לתיאום, וספקים לשיגור כשצריך.': {
+    en: 'A contact book for coordination, and vendors to dispatch when needed.',
+    fr: 'Un carnet de contacts pour coordonner, et des fournisseurs à envoyer au besoin.',
+  },
+  בספר: { en: 'In the book', fr: 'Dans le carnet' },
+  'ספקים פעילים': { en: 'Active vendors', fr: 'Fournisseurs actifs' },
+  מועדפים: { en: 'Preferred', fr: 'Préférés' },
+  'מקצועות מידרג': { en: 'Midrag trades', fr: 'Métiers Midrag' },
+  'מעבר מהיר': { en: 'Quick jump', fr: 'Accès rapide' },
+  'ספר קשר': { en: 'Contact book', fr: 'Carnet de contacts' },
+  'מידרג או הוספה ידנית — חיוג מהיר בפעם הבאה': {
+    en: 'Midrag or manual add — quick dial next time',
+    fr: 'Midrag ou ajout manuel — appel rapide la prochaine fois',
+  },
+  'חיפוש במידרג': { en: 'Search Midrag', fr: 'Recherche Midrag' },
+  'חיפוש איש מקצוע במידרג': {
+    en: 'Search a professional on Midrag',
+    fr: 'Chercher un professionnel sur Midrag',
+  },
+  'כל מקצועות מידרג · בחרו תחום ועיר · שמרו אנשי קשר לדירוג מהיר בחזרה.': {
+    en: 'All Midrag trades · pick a field and city · save contacts for a faster rank next time.',
+    fr: 'Tous les métiers Midrag · choisissez un domaine et une ville · enregistrez les contacts pour un classement plus rapide.',
+  },
+  'סינון מקצוע': { en: 'Filter trade', fr: 'Filtrer le métier' },
+  'חשמל, מזגן, מנעולן…': {
+    en: 'Electrician, AC, locksmith…',
+    fr: 'Électricien, clim, serrurier…',
+  },
+  'למשל חיפה, אשדוד, נתניה': {
+    en: 'e.g. Haifa, Ashdod, Netanya',
+    fr: 'ex. Haïfa, Ashdod, Netanya',
+  },
+  'ממופה למידרג: {label}': {
+    en: 'Mapped on Midrag: {label}',
+    fr: 'Correspondance Midrag : {label}',
+  },
+  'פתח במידרג': { en: 'Open Midrag', fr: 'Ouvrir Midrag' },
+  'שמירה לספר אנשי מקצוע': {
+    en: 'Save to the professionals book',
+    fr: 'Enregistrer dans le carnet des professionnels',
+  },
+  'מידרג לא משתף מספרים אוטומטית לאתר חיצוני. אחרי שמצאתם שם וטלפון במידרג — העתיקו לכאן ושמרו. בפעם הבאה: חיוג מהיר מהספר.': {
+    en: 'Midrag does not share numbers with external sites. After you find a name and phone on Midrag — paste them here and save. Next time: quick dial from the book.',
+    fr: 'Midrag ne partage pas les numéros avec des sites externes. Après avoir trouvé un nom et un téléphone sur Midrag — collez-les ici et enregistrez. La prochaine fois : appel rapide depuis le carnet.',
+  },
+  'שמור לדירוג מהיר': {
+    en: 'Save for fast ranking',
+    fr: 'Enregistrer pour un classement rapide',
+  },
+  'נשמר מחיפוש מידרג': {
+    en: 'Saved from Midrag search',
+    fr: 'Enregistré depuis une recherche Midrag',
+  },
+  'פותח מידרג חיצוני. מעתיקים שם וטלפון ושומרים לספר.': {
+    en: 'Opens Midrag externally. Copy name and phone, then save to the book.',
+    fr: 'Ouvre Midrag en externe. Copiez le nom et le téléphone, puis enregistrez dans le carnet.',
+  },
+  'הוספה ידנית': { en: 'Add manually', fr: 'Ajout manuel' },
+  'שם וטלפון — בלי מידרג.': {
+    en: 'Name and phone — without Midrag.',
+    fr: 'Nom et téléphone — sans Midrag.',
+  },
+  'מקצוע (אופציונלי)': { en: 'Trade (optional)', fr: 'Métier (optionnel)' },
+  'שמור לספר': { en: 'Save to book', fr: 'Enregistrer dans le carnet' },
+  שמורים: { en: 'Saved', fr: 'Enregistrés' },
+  ריק: { en: 'Empty', fr: 'Vide' },
+  '{count} אנשי מקצוע': {
+    en: '{count} professionals',
+    fr: '{count} professionnels',
+  },
+  'חפשו במידרג או הוסיפו ידנית — ואפשר למחוק מהספר בכל עת.': {
+    en: 'Search Midrag or add manually — you can delete from the book anytime.',
+    fr: 'Cherchez sur Midrag ou ajoutez manuellement — vous pouvez supprimer du carnet à tout moment.',
+  },
+  'ספקים לשיגור': { en: 'Vendors to dispatch', fr: 'Fournisseurs à envoyer' },
+  '{active} פעילים · {preferred} מועדפים — לשליחה דרך המערכת': {
+    en: '{active} active · {preferred} preferred — for system dispatch',
+    fr: '{active} actifs · {preferred} préférés — pour l’envoi système',
+  },
+  'תוצאות טיפול': { en: 'Job outcomes', fr: 'Résultats d’intervention' },
+  'מחיר, איכות וזמן הגעה — לדירוג מהיר בפעם הבאה': {
+    en: 'Price, quality, and arrival time — for a faster rank next time',
+    fr: 'Prix, qualité et délai d’arrivée — pour un classement plus rapide la prochaine fois',
+  },
+  'שם ספק / בעל מקצוע': {
+    en: 'Vendor / professional name',
+    fr: 'Nom du fournisseur / professionnel',
+  },
+  'סוג תקלה': { en: 'Fault type', fr: 'Type de panne' },
+  מחיר: { en: 'Price', fr: 'Prix' },
+  'דקות הגעה': { en: 'Arrival minutes', fr: 'Minutes d’arrivée' },
+  'איכות 1–5': { en: 'Quality 1–5', fr: 'Qualité 1–5' },
+  איכות: { en: 'Quality', fr: 'Qualité' },
+  אחריות: { en: 'Warranty', fr: 'Garantie' },
+  הצליח: { en: 'Succeeded', fr: 'Réussi' },
+  'שמירת תוצאה': { en: 'Save outcome', fr: 'Enregistrer le résultat' },
+  'עדיין אין תוצאות שמורות.': {
+    en: 'No saved outcomes yet.',
+    fr: 'Aucun résultat enregistré pour l’instant.',
+  },
+  'הזינו שם איש מקצוע': {
+    en: 'Enter a professional’s name',
+    fr: 'Saisissez le nom du professionnel',
+  },
+  'איש המקצוע נשמר': {
+    en: 'Professional saved',
+    fr: 'Professionnel enregistré',
+  },
+  'השמירה נכשלה': { en: 'Save failed', fr: 'Échec de l’enregistrement' },
+  'איש המקצוע עודכן': {
+    en: 'Professional updated',
+    fr: 'Professionnel mis à jour',
+  },
+  'העריכה נכשלה': { en: 'Edit failed', fr: 'Échec de la modification' },
+  'איש המקצוע נמחק': {
+    en: 'Professional deleted',
+    fr: 'Professionnel supprimé',
+  },
+  'המחיקה נכשלה': { en: 'Delete failed', fr: 'Échec de la suppression' },
+  'לא עודכן דירוג': { en: 'Rank not updated', fr: 'Classement non mis à jour' },
+  'עריכת איש מקצוע': {
+    en: 'Edit professional',
+    fr: 'Modifier le professionnel',
+  },
+  'שם, טלפון ומקצוע בספר': {
+    en: 'Name, phone, and trade in the book',
+    fr: 'Nom, téléphone et métier dans le carnet',
+  },
+  מקצוע: { en: 'Trade', fr: 'Métier' },
+  'שמור שינויים': { en: 'Save changes', fr: 'Enregistrer les modifications' },
+  'מחיקת איש המקצוע': {
+    en: 'Delete professional',
+    fr: 'Supprimer le professionnel',
+  },
+  התקשר: { en: 'Call', fr: 'Appeler' },
+  וואטסאפ: { en: 'WhatsApp', fr: 'WhatsApp' },
+  'אין טלפון': { en: 'No phone', fr: 'Pas de téléphone' },
+  ערוך: { en: 'Edit', fr: 'Modifier' },
+  'שימוש אחד': { en: 'One use', fr: 'Une utilisation' },
+  '{count} שימושים': { en: '{count} uses', fr: '{count} utilisations' },
+  'נשמר לאחרונה': { en: 'Saved recently', fr: 'Enregistré récemment' },
+  'איש מקצוע ממידרג': {
+    en: 'Midrag professional',
+    fr: 'Professionnel Midrag',
+  },
+  'למחוק את {name} מהספר?': {
+    en: 'Delete {name} from the book?',
+    fr: 'Supprimer {name} du carnet ?',
+  },
+
+  // ביקור / אישור
+  'תכנון ביקור': { en: 'Plan a visit', fr: 'Planifier une visite' },
+  'תכנן ביקור': { en: 'Plan visit', fr: 'Planifier la visite' },
+  'תכנן ביקור ושלח לחנות': {
+    en: 'Plan visit and send to store',
+    fr: 'Planifier la visite et envoyer au magasin',
+  },
+  'מידרג באזור': { en: 'Midrag nearby', fr: 'Midrag à proximité' },
+  'חיפוש כללי במידרג': {
+    en: 'General Midrag search',
+    fr: 'Recherche Midrag générale',
+  },
+  'חיפוש במידרג · חזרה לאישור': {
+    en: 'Midrag search · back to approval',
+    fr: 'Recherche Midrag · retour à l’approbation',
+  },
+  'בחרו תחום ועיר, פתחו במידרג, ואז חזרו לטופס האישור עם שם וטלפון.': {
+    en: 'Pick a trade and city, open Midrag, then return to the approval form with name and phone.',
+    fr: 'Choisissez un métier et une ville, ouvrez Midrag, puis revenez au formulaire d’approbation avec nom et téléphone.',
+  },
+  'פתח במידרג וחזרו לאישור': {
+    en: 'Open Midrag and return to approval',
+    fr: 'Ouvrir Midrag et revenir à l’approbation',
+  },
+  'אחרי השיחה — הזינו שם וטלפון בטופס האישור למטה. השמירה לספר אנשי מקצוע תתבצע אוטומטית בשליחה.': {
+    en: 'After the call — enter name and phone in the approval form below. Saving to the book happens automatically on send.',
+    fr: 'Après l’appel — saisissez nom et téléphone dans le formulaire d’approbation ci-dessous. L’enregistrement dans le carnet se fait automatiquement à l’envoi.',
+  },
+  'שם אחרי השיחה': { en: 'Name after the call', fr: 'Nom après l’appel' },
+  'אם לא בחרת מהרשימה': {
+    en: 'If you did not pick from the list',
+    fr: 'Si vous n’avez pas choisi dans la liste',
+  },
+  'המספר שארי קיבל': {
+    en: 'The number Ari received',
+    fr: 'Le numéro qu’Ari a reçu',
+  },
+  'העבודה שסוכמה': { en: 'Agreed work', fr: 'Travail convenu' },
+  'מה בעל המקצוע יעשה': {
+    en: 'What the professional will do',
+    fr: 'Ce que le professionnel fera',
+  },
+  'מחיר שסוכם (אופציונלי)': {
+    en: 'Agreed price (optional)',
+    fr: 'Prix convenu (optionnel)',
+  },
+  'אשר ושלח למנהל החנות': {
+    en: 'Approve and send to the store manager',
+    fr: 'Approuver et envoyer au responsable du magasin',
+  },
+  'טווח מידרג הוא לא המחיר שאושר.': {
+    en: 'Midrag range is not the approved price.',
+    fr: 'La fourchette Midrag n’est pas le prix approuvé.',
+  },
+  'לסגור באותו ביקור': {
+    en: 'Close in the same visit',
+    fr: 'Clôturer dans la même visite',
+  },
+  'לא דחוף': { en: 'Not urgent', fr: 'Pas urgent' },
+  'סמן כלא דחוף': { en: 'Mark not urgent', fr: 'Marquer non urgent' },
+  'סמן כדחוף': { en: 'Mark urgent', fr: 'Marquer urgent' },
+  'ארי יצא. מנהל החנות מתאם.': {
+    en: 'Ari is done. The store manager coordinates.',
+    fr: 'Ari a terminé. Le responsable du magasin coordonne.',
+  },
+  'המחיר נעול. שינוי דורש ביטול וחזרה לתור.': {
+    en: 'Price is locked. Changing it requires cancel and return to the queue.',
+    fr: 'Le prix est verrouillé. Pour changer, il faut annuler et revenir dans la file.',
+  },
+  'בטל אישור': { en: 'Cancel approval', fr: 'Annuler l’approbation' },
+  'מחיר טרם סוכם': { en: 'Price not set yet', fr: 'Prix pas encore fixé' },
+  'נשאר בתור. ייכנס להצעת שילוב כשתהיה דחופה באותה חנות או מחוז.': {
+    en: 'Stays in the queue. It joins a bundle when something urgent hits the same store or region.',
+    fr: 'Reste dans la file. Il rejoindra un regroupement quand une urgence touchera le même magasin ou la même zone.',
+  },
+  'דברו איתי במידרג': { en: 'Talk on Midrag', fr: 'Discuter sur Midrag' },
+  'זמינות לא צוינה': { en: 'Availability not listed', fr: 'Disponibilité non indiquée' },
+  'מידרג לא נפתח עכשיו. ': {
+    en: 'Midrag is unavailable right now. ',
+    fr: 'Midrag est indisponible pour le moment. ',
+  },
+  'אין תוצאות באזור. ': {
+    en: 'No results in the area. ',
+    fr: 'Aucun résultat dans la zone. ',
+  },
+  'השתמשו בחיפוש הכללי או בחיפוש לפי מקצוע.': {
+    en: 'Use the general search or search by trade.',
+    fr: 'Utilisez la recherche générale ou par métier.',
+  },
+  טווח: { en: 'range', fr: 'fourchette' },
+
+  // כמה נחסך
+  'כמה נחסך': { en: 'How much saved', fr: 'Combien d’économies' },
+  'הכסף שנרשם, והסניף שדורש אותך.': {
+    en: 'The money recorded, and the store that needs you.',
+    fr: 'L’argent enregistré, et le magasin qui a besoin de vous.',
+  },
+  'נחסך מאיחוד ביקור': {
+    en: 'Saved by combining a visit',
+    fr: 'Économisé en regroupant une visite',
+  },
+  'ביקור אחד נרשם זול יותר משתי קריאות נפרדות על אותן תקלות.': {
+    en: 'One visit was recorded cheaper than two separate calls on the same faults.',
+    fr: 'Une visite a été enregistrée moins chère que deux appels séparés sur les mêmes pannes.',
+  },
+  'חיסכון נספר כשיש הצעת מחיר לכל תקלה, וביקור אחד זול יותר משתיהן.': {
+    en: 'Savings count when each fault has a quote, and one visit is cheaper than both.',
+    fr: 'Les économies comptent quand chaque panne a un devis, et qu’une visite coûte moins que les deux.',
+  },
+  'מדדים תפעוליים': { en: 'Ops metrics', fr: 'Indicateurs d’exploitation' },
+  'זמן, חזרות וקליטה — בלי קופסאות ריקות': {
+    en: 'Time, repeats, and intake — without empty boxes',
+    fr: 'Temps, répétitions et saisie — sans cases vides',
+  },
+  'חציון שעות טיפול': {
+    en: 'Median resolve hours',
+    fr: 'Médiane des heures de traitement',
+  },
+  'חציון שעות לאישור': {
+    en: 'Median approval hours',
+    fr: 'Médiane des heures d’approbation',
+  },
+  'תקלות חוזרות': { en: 'Repeat faults', fr: 'Pannes répétées' },
+  'פניות מחוץ למערכת': {
+    en: 'Outside-system contacts',
+    fr: 'Contacts hors système',
+  },
+  'קליטה נקייה': { en: 'Clean intake', fr: 'Saisie propre' },
+  'תיקוני סיווג': { en: 'Classification fixes', fr: 'Corrections de classification' },
+  'העוזר של ארי': { en: 'Ari’s assistant', fr: 'L’assistant d’Ari' },
+  'סניף דחוף והכסף שנרשם': {
+    en: 'Urgent store and recorded money',
+    fr: 'Magasin urgent et argent enregistré',
+  },
+  'שאלו על סניף, על סכום שמחכה, או על איחוד ביקור.': {
+    en: 'Ask about a store, waiting spend, or combining a visit.',
+    fr: 'Demandez un magasin, un montant en attente, ou un regroupement de visite.',
+  },
+  'מסתכל על הרשת…': { en: 'Looking at the network…', fr: 'Consultation du réseau…' },
+  'איזה סניף הכי דחוף?': {
+    en: 'Which store is most urgent?',
+    fr: 'Quel magasin est le plus urgent ?',
+  },
+  'כמה מחכה?': { en: 'How much is waiting?', fr: 'Combien est en attente ?' },
+  'שאלה על הסניף או על הכסף': {
+    en: 'A question about the store or the money',
+    fr: 'Une question sur le magasin ou l’argent',
+  },
+  מחכה: { en: 'Waiting', fr: 'En attente' },
+  חזרות: { en: 'Repeats', fr: 'Répétitions' },
+  'הצעות שנרשמו לפי סוג': {
+    en: 'Quotes recorded by type',
+    fr: 'Devis enregistrés par type',
+  },
 }
 
 export function phrase(

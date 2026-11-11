@@ -1,19 +1,17 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 function isProdLike() {
-  // Explicit test/ops override — avoids mutating read-only NODE_ENV in Vitest
+  // Explicit test override — avoids mutating read-only NODE_ENV in Vitest
   if (process.env.MAINTAINOS_WA_PROD_STRICT === '1') return true
   return (
-    process.env.NODE_ENV === 'production' &&
-    process.env.MAINTAINOS_FORCE_MEMORY !== '1' &&
-    process.env.MAINTAINOS_WA_DEV_BYPASS !== '1'
+    process.env.NODE_ENV === 'production'
   )
 }
 
 /**
  * Verify Meta X-Hub-Signature-256.
  * Production: WHATSAPP_APP_SECRET required; unsigned → reject.
- * Dev/demo: secret optional (explicit dry-run / local bypass).
+ * Non-production demo: secret optional only when not configured.
  */
 export function verifyWhatsAppSignature(
   rawBody: string,

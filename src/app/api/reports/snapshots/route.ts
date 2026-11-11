@@ -4,6 +4,7 @@ import {
   requireActor,
 } from '@/lib/auth/request-actor'
 import { AuthError } from '@/lib/auth/types'
+import { organizationForReportSnapshot, reportSnapshotTicketScope } from '@/modules/reports/snapshot-authorization'
 import { scopeTicketsForActor } from '@/lib/auth/ticket-scope'
 import {
   computeDashboardKpis,
@@ -14,7 +15,6 @@ import { listTickets } from '@/modules/tickets/service'
 import type { QueueTicket } from '@/modules/tickets/queue'
 import {
   createReportSnapshot,
-  defaultOrganizationId,
   listReportSnapshots,
 } from '@/modules/reports/snapshots'
 import { captureError } from '@/lib/monitoring'
@@ -32,14 +32,15 @@ function monthRange(month: string): { from: string; to: string; label: string } 
   return { from, to, label: `${y}-${String(mo).padStart(2, '0')}` }
 }
 
-function orgIdForActor(actor: Awaited<ReturnType<typeof requireActor>>): string {
-  return actor.memberships[0]?.organization_id ?? defaultOrganizationId()
+function organizationDenied() {
+  return NextResponse.json({ error: 'אין הרשאה לארגון הדוחות' }, { status: 403 })
 }
 
 export async function GET(request: Request) {
   try {
     const actor = await requireActor(request)
-    const orgId = orgIdForActor(actor)
+    const orgId = organizationForReportSnapshot(actor)
+    if (!orgId) return organizationDenied()
     const { snapshots, backend } = await listReportSnapshots(orgId)
     return NextResponse.json({ snapshots, backend })
   } catch (err) {
@@ -52,6 +53,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const actor = await requireActor(request)
+    const orgId = organizationForReportSnapshot(actor)
+    if (!orgId) return organizationDenied()
     const limited = checkRateLimit(`report-snapshot:${actor.id}`, 5, 60_000)
     if (!limited.allowed) {
       return NextResponse.json({ error: 'יותר מדי בקשות' }, { status: 429 })
@@ -97,10 +100,16 @@ export async function POST(request: Request) {
       )
     }
 
-    const [result] = await Promise.all([
-      listTickets({ limit: 5000 }),
-    ])
-    const fetched = (result.tickets ?? []) as unknown as QueueTicket[]
+    const ticketScope = reportSnapshotTicketScope(actor, orgId)
+    const fetched: QueueTicket[] = []
+    // listTickets caps a single query at 1000; page until exhausted to avoid quiet truncation.
+    for (let offset = 0; ; offset += 1000) {
+      const result = await listTickets({ limit: 1000, organizationId: orgId, storeIds: ticketScope.storeIds, offset })
+      if (result.error) throw new Error(result.error)
+      const page = (result.tickets ?? []) as unknown as QueueTicket[]
+      fetched.push(...page)
+      if (page.length < 1000) break
+    }
     let scoped = scopeTicketsForActor(actor, fetched)
     scoped = filterTicketsByDateRange(scoped, from, to)
 
@@ -109,7 +118,7 @@ export async function POST(request: Request) {
     const format = body.format === 'xlsx' ? 'xlsx' : 'pdf'
 
     const snapshot = await createReportSnapshot({
-      organizationId: orgIdForActor(actor),
+      organizationId: orgId,
       periodStart: from,
       periodEnd: to,
       label,

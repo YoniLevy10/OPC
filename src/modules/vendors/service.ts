@@ -2,6 +2,7 @@ import { createSystemClient } from '@/lib/supabase/system'
 import { isSupabaseSchemaError } from '@/lib/supabase/schema-fallback'
 import {
   memCreateVendor,
+  memDeleteVendor,
   memGetVendor,
   memListVendors,
   memUpdateVendor,
@@ -220,4 +221,16 @@ export async function getVendorSecret(id: string): Promise<MemVendor | undefined
     return undefined
   }
   return rowToMem(data)
+}
+
+
+export async function deleteVendor(id: string): Promise<boolean> {
+  if (!(await supabaseReady())) return memDeleteVendor(id)
+  const supabase = createSystemClient('vendors_delete')
+  const { data, error } = await supabase.from('vendors').delete().eq('id', id).select('id').maybeSingle()
+  if (error) {
+    if (isSupabaseSchemaError(error)) return memDeleteVendor(id)
+    throw new Error(error.message)
+  }
+  return Boolean(data)
 }

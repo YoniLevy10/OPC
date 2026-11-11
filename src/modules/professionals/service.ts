@@ -1,8 +1,10 @@
 import { createSystemClient } from '@/lib/supabase/system'
 import { isSupabaseSchemaError } from '@/lib/supabase/schema-fallback'
 import {
+  memDeleteProfessional,
   memListProfessionals,
   memTouchProfessional,
+  memUpdateProfessional,
   memUpsertProfessional,
   MEM_ORG_ID,
   supabaseReady,
@@ -257,6 +259,144 @@ export async function touchProfessional(id: string): Promise<{
       }
     }
     throw error
+  }
+
+  return {
+    backend: 'supabase',
+    professional: toPublic(rowToMem(data as Record<string, unknown>)),
+  }
+}
+
+export async function updateProfessional(
+  id: string,
+  input: ProfessionalInput,
+): Promise<{ professional: Professional | null; backend: 'memory' | 'supabase' }> {
+  const trimmed = id.trim()
+  if (!trimmed) {
+    return { professional: null, backend: 'memory' }
+  }
+  const name = input.full_name.trim()
+  if (!name) throw new Error('שם איש מקצוע חובה')
+
+  if (!(await supabaseReady())) {
+    try {
+      const row = memUpdateProfessional(trimmed, input)
+      return {
+        backend: 'memory',
+        professional: row ? toPublic(row) : null,
+      }
+    } catch (err) {
+      throw err instanceof Error ? err : new Error('העריכה נכשלה')
+    }
+  }
+
+  const supabase = createSystemClient('professionals_update')
+  const phone = input.phone?.replace(/[^\d+]/g, '') || null
+  const now = new Date().toISOString()
+
+  if (phone) {
+    const { data: clash } = await supabase
+      .from('professionals')
+      .select('id')
+      .eq('organization_id', MEM_ORG_ID)
+      .eq('phone', phone)
+      .is('deleted_at', null)
+      .neq('id', trimmed)
+      .maybeSingle()
+    if (clash) throw new Error('הטלפון כבר שמור על איש מקצוע אחר')
+  }
+
+  const { data, error } = await supabase
+    .from('professionals')
+    .update({
+      full_name: name,
+      phone,
+      trade: input.trade?.trim() || null,
+      company_name: input.company_name?.trim() || null,
+      notes: input.notes?.trim() || null,
+      updated_at: now,
+      is_active: true,
+    })
+    .eq('id', trimmed)
+    .eq('organization_id', MEM_ORG_ID)
+    .is('deleted_at', null)
+    .select('*')
+    .maybeSingle()
+
+  if (error) {
+    if (isSupabaseSchemaError(error)) {
+      const row = memUpdateProfessional(trimmed, input)
+      return {
+        backend: 'memory',
+        professional: row ? toPublic(row) : null,
+      }
+    }
+    throw error
+  }
+
+  if (!data) {
+    const row = memUpdateProfessional(trimmed, input)
+    return {
+      backend: 'memory',
+      professional: row ? toPublic(row) : null,
+    }
+  }
+
+  return {
+    backend: 'supabase',
+    professional: toPublic(rowToMem(data as Record<string, unknown>)),
+  }
+}
+
+export async function deleteProfessional(id: string): Promise<{
+  professional: Professional | null
+  backend: 'memory' | 'supabase'
+}> {
+  const trimmed = id.trim()
+  if (!trimmed) {
+    return { professional: null, backend: 'memory' }
+  }
+
+  if (!(await supabaseReady())) {
+    const row = memDeleteProfessional(trimmed)
+    return {
+      backend: 'memory',
+      professional: row ? toPublic(row) : null,
+    }
+  }
+
+  const supabase = createSystemClient('professionals_delete')
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('professionals')
+    .update({
+      deleted_at: now,
+      is_active: false,
+      updated_at: now,
+    })
+    .eq('id', trimmed)
+    .eq('organization_id', MEM_ORG_ID)
+    .is('deleted_at', null)
+    .select('*')
+    .maybeSingle()
+
+  if (error) {
+    if (isSupabaseSchemaError(error)) {
+      const row = memDeleteProfessional(trimmed)
+      return {
+        backend: 'memory',
+        professional: row ? toPublic(row) : null,
+      }
+    }
+    throw error
+  }
+
+  if (!data) {
+    const row = memDeleteProfessional(trimmed)
+    return {
+      backend: 'memory',
+      professional: row ? toPublic(row) : null,
+    }
   }
 
   return {

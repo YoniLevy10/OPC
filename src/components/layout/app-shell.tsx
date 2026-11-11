@@ -5,10 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity,
   BarChart3,
-  Bell,
-  CheckSquare,
   Ellipsis,
   FileText,
   Inbox,
@@ -17,12 +14,10 @@ import {
   PanelRightClose,
   PanelRightOpen,
   MessageSquare,
-  Package,
   ScrollText,
   Settings,
   Store,
   Truck,
-  UserRound,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -88,24 +83,6 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'תפעול',
     items: [
-      {
-        href: '/ops/pilot',
-        label: 'כמה נחסך',
-        icon: Activity,
-        match: '/ops/pilot',
-      },
-      {
-        href: '/ops/tasks',
-        label: 'משימות',
-        icon: CheckSquare,
-        match: '/ops/tasks',
-      },
-      {
-        href: '/ops/alerts',
-        label: 'מה דורש פעולה',
-        icon: Bell,
-        match: '/ops/alerts',
-      },
       { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
       {
         href: '/ops/inbox',
@@ -115,39 +92,15 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
       },
       {
         href: '/ops/professionals',
-        label: 'אנשי מקצוע',
-        icon: UserRound,
+        label: 'בעלי מקצוע',
+        icon: Truck,
         match: '/ops/professionals',
       },
       {
-        href: '/ops/documents',
-        label: 'מסמכים',
-        icon: FileText,
-        match: '/ops/documents',
-      },
-      {
-        href: '/ops/assets',
-        label: 'ציוד וחלקים',
-        icon: Package,
-        match: '/ops/assets',
-      },
-      {
-        href: '/ops/vendors',
-        label: 'ספקים',
-        icon: Truck,
-        match: '/ops/vendors',
-      },
-      {
         href: '/ops/activity',
-        label: 'מה שכבר קרה',
+        label: 'היסטוריה',
         icon: ScrollText,
         match: '/ops/activity',
-      },
-      {
-        href: '/ops/reports',
-        label: 'דוחות',
-        icon: BarChart3,
-        match: '/ops/reports',
       },
     ],
   },
@@ -175,10 +128,10 @@ const HREF_KEY: Record<string, MessageKey> = {
   '/ops/stores': 'nav.stores',
   '/ops/inbox': 'nav.whatsapp',
   '/ops/professionals': 'nav.professionals',
+  '/ops/vendors': 'nav.vendors',
   '/ops/documents': 'nav.documents',
   '/ops/inventory': 'nav.inventory',
   '/ops/assets': 'nav.assets',
-  '/ops/vendors': 'nav.vendors',
   '/ops/activity': 'nav.activity',
   '/ops/reports': 'nav.reports',
   '/ops/pilot': 'nav.pilot',
@@ -208,6 +161,11 @@ function filterToolGroups(tools: NavTool[]) {
     ...group,
     items: group.items.filter((item) => allowed.has(item.href)),
   })).filter((group) => group.items.length > 0)
+}
+
+function toolGroupLabelKey(label: string): MessageKey {
+  if (label === 'מערכת') return 'nav.system'
+  return 'nav.operations'
 }
 
 function alertCount(href: string, notices: DeskNotices): number {
@@ -404,7 +362,7 @@ export function AppShell({
               className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-[var(--radius-md)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--tenant)]"
             >
               <TenantMark />
-              <p className="t-body-strong truncate text-ink">MILO</p>
+              <p className="t-body-strong truncate text-ink">OPC</p>
             </Link>
             <button
               type="button"
@@ -430,7 +388,7 @@ export function AppShell({
           {toolGroups.map((group) => (
             <div key={group.label} className="mt-6">
               <p className="t-caption mb-2 px-2.5 text-ink-3">
-                {group.label === 'מערכת' ? t('nav.system') : t('nav.operations')}
+                {t(toolGroupLabelKey(group.label))}
               </p>
               <ul className="flex flex-col gap-1">
                 {group.items.map((item) => (
@@ -621,7 +579,7 @@ export function AppShell({
         {toolGroups.map((group) => (
           <div key={group.label} className="mb-4">
             <p className="t-caption mb-1.5 px-3 text-ink-3">
-              {group.label === 'מערכת' ? t('nav.system') : t('nav.operations')}
+              {t(toolGroupLabelKey(group.label))}
             </p>
             <ul className="flex flex-col gap-0.5">
               {group.items.map((item) => (

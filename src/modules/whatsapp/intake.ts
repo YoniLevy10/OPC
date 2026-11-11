@@ -473,9 +473,7 @@ async function markProcessed(
   })
   if (error) {
     if (error.code === '23505') return false
-    console.error('[whatsapp] dedupe insert failed', error.message)
-    if (error.message?.includes('processed_webhooks')) return true
-    return false
+    throw new Error(`processed_webhooks insert failed: ${error.message}`)
   }
   return true
 }

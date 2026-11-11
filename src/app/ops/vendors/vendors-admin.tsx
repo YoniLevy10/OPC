@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react'
 import Link from 'next/link'
-import { ChevronDown, MessageCircle, Phone, Plus } from 'lucide-react'
+import { ChevronDown, MessageCircle, Phone, Plus, Pencil, Star, Trash2 } from 'lucide-react'
 import { formatIsraeliPhoneDisplay, normalizePhoneDigits } from '@/lib/phone'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select, Textarea } from '@/components/ui/input'
@@ -109,6 +109,9 @@ export function VendorsAdmin({
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingVendor, setEditingVendor] = useState<VendorRow | null>(null)
+  const [rating, setRating] = useState(0)
+  const [personalNote, setPersonalNote] = useState('')
   const [dispatchOpen, setDispatchOpen] = useState(false)
 
   const [name, setName] = useState('')
@@ -120,6 +123,63 @@ export function VendorsAdmin({
 
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+
+  function editVendor(v: VendorRow) {
+    setEditingVendor(v)
+    const match = v.notes?.match(/(?:^|\n)\[דירוג אישי: ([1-5])\](?:\n([\s\S]*))?/)
+    setRating(Number(match?.[1] ?? 0))
+    setPersonalNote(match ? (match[2] ?? '') : (v.notes ?? ''))
+  }
+
+  async function saveVendorEdit() {
+    if (!editingVendor) return
+    setBusy(true)
+    try {
+      const cleanNotes = personalNote.trim()
+      const notes = `${rating ? `[דירוג אישי: ${rating}]\n` : ''}${cleanNotes}`.trim() || null
+      const response = await fetch(`/api/vendors/${editingVendor.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'השמירה נכשלה')
+      setEditingVendor(null)
+      setNotice('פרטי הספק נשמרו')
+      await load()
+    } catch (err) { setError(err instanceof Error ? err.message : 'השמירה נכשלה') } finally { setBusy(false) }
+  }
+
+  async function saveVendorDetails(vendor: VendorRow, nextRating: number, nextNote: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const cleanNotes = nextNote.trim()
+      const notes = `${nextRating ? `[דירוג אישי: ${nextRating}]\n` : ''}${cleanNotes}`.trim() || null
+      const response = await fetch(`/api/vendors/${vendor.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'השמירה נכשלה')
+      setNotice('הדירוג וההערה נשמרו')
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'השמירה נכשלה')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteVendor() {
+    if (!editingVendor || !window.confirm(`למחוק את ${editingVendor.name}?`)) return
+    setBusy(true)
+    try {
+      const response = await fetch(`/api/vendors/${editingVendor.id}`, { method: 'DELETE' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'המחיקה נכשלה')
+      setEditingVendor(null)
+      setNotice('הספק נמחק')
+      await load()
+    } catch (err) { setError(err instanceof Error ? err.message : 'המחיקה נכשלה') } finally { setBusy(false) }
+  }
 
   const [dispatchTicketId, setDispatchTicketId] = useState('')
   const [dispatchVendorId, setDispatchVendorId] = useState(
@@ -216,23 +276,6 @@ export function VendorsAdmin({
     }
   }
 
-  async function toggleActive(v: VendorRow) {
-    setBusy(true)
-    try {
-      const res = await fetch(`/api/vendors/${v.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !v.active }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'עדכון נכשל')
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'עדכון נכשל')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function onDispatch(e: FormEvent) {
     e.preventDefault()
@@ -368,6 +411,20 @@ export function VendorsAdmin({
           </form>
         </Panel>
       ) : null}
+
+      <Modal open={editingVendor != null} onOpenChange={(open) => { if (!open) setEditingVendor(null) }} title="עריכת ספק" description="דירוג אישי והערה פנימית" className="w-[min(92vw,520px)]">
+        <div className="grid gap-4">
+          <div>
+            <p className="t-meta mb-2 text-ink-2">דירוג אישי</p>
+            <div className="flex gap-2" role="radiogroup" aria-label="דירוג ספק">
+              {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" role="radio" aria-checked={rating === value} aria-label={`${value} כוכבים`} onClick={() => setRating(value)} className="rounded-md p-1 text-[var(--tenant)]"><Star className="h-7 w-7" fill={rating >= value ? 'currentColor' : 'none'} aria-hidden /></button>)}
+            </div>
+          </div>
+          <Field label="הערה אישית שלי" htmlFor="vendor-personal-note"><Textarea id="vendor-personal-note" rows={4} value={personalNote} onChange={(event) => setPersonalNote(event.target.value)} placeholder="רשמו הערה פנימית על העבודה עם הספק…" /></Field>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => void saveVendorEdit()}>שמירת העריכה</Button>
+          <Button type="button" variant="critical" disabled={busy} onClick={() => void deleteVendor()}><Trash2 className="h-4 w-4" aria-hidden /> מחיקת ספק</Button>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}
@@ -536,16 +593,8 @@ export function VendorsAdmin({
                           {' · '}
                           {v.open_tickets} פתוחות
                         </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          disabled={busy}
-                          onClick={() => void toggleActive(v)}
-                        >
-                          {v.active ? 'השבתה' : 'הפעלה'}
-                        </Button>
-                        <VendorExpand v={v} />
+                        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => editVendor(v)}><Pencil className="h-4 w-4" aria-hidden /> עריכה</Button>
+                        <VendorExpand v={v} onSave={saveVendorDetails} busy={busy} />
                       </div>
                     ) : null}
                   </div>
@@ -606,9 +655,9 @@ export function VendorsAdmin({
                               size="sm"
                               variant="secondary"
                               disabled={busy}
-                              onClick={() => void toggleActive(v)}
+                              onClick={() => editVendor(v)}
                             >
-                              {v.active ? 'השבתה' : 'הפעלה'}
+                              עריכה
                             </Button>
                           </TD>
                         </TR>
@@ -618,7 +667,7 @@ export function VendorsAdmin({
                               colSpan={5}
                               className="bg-surface-sunken/40 px-0 align-middle"
                             >
-                              <VendorExpand v={v} />
+                              <VendorExpand v={v} onSave={saveVendorDetails} busy={busy} />
                             </td>
                           </TR>
                         ) : null}
@@ -635,41 +684,79 @@ export function VendorsAdmin({
   )
 }
 
-function VendorExpand({ v }: { v: VendorRow }) {
+function VendorExpand({
+  v,
+  onSave,
+  busy,
+}: {
+  v: VendorRow
+  onSave: (vendor: VendorRow, rating: number, note: string) => Promise<void>
+  busy: boolean
+}) {
+  const match = v.notes?.match(/(?:^|\n)\[דירוג אישי: ([1-5])\](?:\n([\s\S]*))?/)
+  const [rating, setRating] = useState(Number(match?.[1] ?? 0))
+  const [note, setNote] = useState(match ? (match[2] ?? '') : (v.notes ?? ''))
+
   return (
-    <div className="space-y-3 px-4 py-3">
-      <div>
-        <p className="t-caption mb-1.5 text-ink-3">היסטוריית שיגורים אחרונה</p>
+    <div className="grid gap-4 px-4 py-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(20rem,1.4fr)_minmax(14rem,1fr)]">
+      <section className="grid gap-2">
+        <p className="t-caption text-ink-3">דירוג והערה אישית</p>
+        <div className="flex gap-2" role="radiogroup" aria-label={`דירוג ספק ${v.name}`}>
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={rating === value}
+              aria-label={`${value} כוכבים`}
+              onClick={() => setRating(rating === value ? 0 : value)}
+              className="rounded-md p-1 text-[var(--tenant)] hover:bg-surface"
+            >
+              <Star className="h-6 w-6" fill={rating >= value ? 'currentColor' : 'none'} aria-hidden />
+            </button>
+          ))}
+        </div>
+        <Textarea
+          aria-label={`הערה אישית על ${v.name}`}
+          rows={2}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="הערה פנימית על העבודה עם הספק…"
+        />
+        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void onSave(v, rating, note)}>
+          שמירת דירוג והערה
+        </Button>
+      </section>
+
+      <section className="grid gap-2">
+        <p className="t-caption text-ink-3">היסטוריית שיגורים אחרונה</p>
         {v.recent.length === 0 ? (
           <p className="t-meta text-ink-3">אין שיגורים עדיין</p>
         ) : (
           <ul className="space-y-1.5">
             {v.recent.slice(0, 5).map((r) => (
               <li key={`${r.ticket_id}-${r.created_at}`} className="t-meta text-ink-2">
-                <Link
-                  href={`/ops/tickets/${r.ticket_id}`}
-                  className="text-[var(--tenant)] hover:underline"
-                >
+                <Link href={`/ops/tickets/${r.ticket_id}`} className="text-[var(--tenant)] hover:underline">
                   {r.ticket_display || r.ticket_id.slice(0, 8)}
                 </Link>
                 <span className="t-caption t-num text-ink-3"> · {fmtShort(r.created_at)}</span>
+                {r.status ? <span className="t-caption text-ink-3"> · {r.status}</span> : null}
               </li>
             ))}
           </ul>
         )}
-      </div>
-      <details className="t-caption text-ink-3">
+      </section>
+
+      <details className="t-caption self-start text-ink-3">
         <summary className="cursor-pointer hover:text-ink-2">פרטים טכניים</summary>
-        <dl className="mt-2 grid gap-1 sm:grid-cols-2">
+        <dl className="mt-2 grid gap-1">
           <div>
             <dt className="text-ink-3">HMAC</dt>
             <dd className="t-meta text-ink-2">{v.has_hmac ? 'מוגדר' : 'לא הוגדר'}</dd>
           </div>
           <div>
             <dt className="text-ink-3">Webhook</dt>
-            <dd className="t-meta truncate text-ink-2" dir="ltr">
-              {v.webhook_url || '—'}
-            </dd>
+            <dd className="t-meta truncate text-ink-2" dir="ltr">{v.webhook_url || '—'}</dd>
           </div>
         </dl>
       </details>

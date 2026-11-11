@@ -208,12 +208,28 @@ function Paper({
       {!doc.renewed ? (
         <details className="doc-renew">
           <summary>חידוש</summary>
-          <form action={renewDocumentAction} className="mt-2 grid gap-2">
+          <form action={renewDocumentAction} className="mt-2 grid gap-2" encType="multipart/form-data">
             <input type="hidden" name="documentId" value={doc.id} />
-            <Input name="sourceUrl" placeholder="קישור למסמך המעודכן" aria-label="קישור למסמך המעודכן" required />
+            <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
+              <label className="grid min-w-0 gap-1">
+                <span className="t-caption text-ink-2">העלאת PDF</span>
+                <input
+                  className="field-text w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-foreground"
+                  type="file"
+                  name="renewalFile"
+                  accept="application/pdf,.pdf"
+                  aria-label="העלה מסמך מחודש"
+                />
+              </label>
+              <label className="grid min-w-0 gap-1">
+                <span className="t-caption text-ink-2">או קישור למסמך</span>
+                <Input name="sourceUrl" placeholder="הדביקו קישור מעודכן" aria-label="קישור למסמך המעודכן" dir="ltr" />
+              </label>
+            </div>
+            <p className="t-caption text-ink-3">אפשר לבחור או לגרור PDF, או להדביק קישור למסמך המעודכן.</p>
             <Input name="expiry" type="date" aria-label="תוקף חדש" />
             <Button type="submit" size="sm">
-              חידוש
+              חידוש ושמירה בתיקיית המסמכים
             </Button>
           </form>
         </details>
@@ -233,6 +249,7 @@ function fileFor(doc: StoreDocument, byId: Map<string, IngestedFile>): IngestedF
 
 /** A link that opens the certificate itself. Mail threads are not the file. */
 function documentFileHref(doc: StoreDocument, filesOnDisk: Set<string>): string | null {
+  if (doc.storagePath) return `/api/ops/document-file/${doc.id}`
   const url = doc.sourceUrl?.trim() ?? ''
   if (url.startsWith('/') && !url.includes('..')) return url
   if (/^https?:\/\//i.test(url) && !/mail\.google\.com|google\.com\/mail/i.test(url)) return url

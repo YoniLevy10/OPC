@@ -2,7 +2,9 @@ import { readFile } from 'fs/promises'
 import { join, sep } from 'path'
 import { NextResponse } from 'next/server'
 import { authErrorResponse, requireActor } from '@/lib/auth/request-actor'
+import { listDocuments } from '@/lib/data/ops-ledger'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canReadStoreDocument } from '@/modules/documents/store-document-access'
 
 const ID = /^ari-cert-[a-f0-9]{24}$/
 const BUCKET = 'store-documents'
@@ -15,30 +17,38 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params
-  if (!ID.test(id)) return new NextResponse(null, { status: 404 })
+  const docs = listDocuments()
+  const listed = docs.find((doc) => doc.id === id) ?? null
+  const baseId = listed?.previousId ? docs.find((doc) => doc.id === listed.previousId)?.id : id.replace(/-v\d+$/, '')
+  const baseDoc = listed ?? docs.find((doc) => doc.id === baseId) ?? null
+  const fileDoc = listed?.storagePath ? listed : baseDoc
+  if (!listed && !ID.test(id) && !baseDoc) return new NextResponse(null, { status: 404 })
   let actor
   try {
     actor = await requireActor(request)
   } catch (err) {
     return authErrorResponse(err)
   }
-  const hq = actor.memberships.some((membership) =>
-    ['global_admin', 'global_maintenance', 'country_manager', 'regional_manager'].includes(
-      membership.role,
-    ),
-  )
-  if (!hq) {
-    const storeId = await documentStoreId(id)
-    const allowed = actor.memberships.some(
-      (membership) => membership.store_id && membership.store_id === storeId,
-    )
-    if (!allowed) return new NextResponse(null, { status: 403 })
+  const storeId = baseDoc?.storeId || (await documentStoreId(id))
+  if (!canReadStoreDocument(actor.memberships, storeId || null, storeId ? await documentStoreScope(storeId) : null)) {
+    return new NextResponse(null, { status: 403 })
   }
+  if (!fileDoc?.storagePath && !ID.test(id)) return new NextResponse(null, { status: 404 })
 
-  const stored = await fileFromBucket(id)
+  const stored = fileDoc?.storagePath
+    ? await fileFromStoragePath(fileDoc.storagePath, fileDoc.id)
+    : await fileFromBucket(id)
   if (stored) return stored
   if (process.env.NODE_ENV === 'production') return new NextResponse(null, { status: 404 })
   return fileFromDisk(id)
+}
+
+async function documentStoreScope(id: string) {
+  try {
+    const supabase = createAdminClient()
+    const { data } = await supabase.from('stores').select('id, organization_id, country_id, region_id').eq('id', id).maybeSingle()
+    return data ? { id: data.id, organization_id: data.organization_id, country_id: data.country_id, region_id: data.region_id } : null
+  } catch { return null }
 }
 
 async function documentStoreId(id: string): Promise<string | null> {
@@ -65,19 +75,20 @@ async function fileFromBucket(id: string): Promise<NextResponse | null> {
       .maybeSingle()
     const storagePath = row?.storage_path ? String(row.storage_path) : ''
     if (error || !storagePath || storagePath.includes('..')) return null
-    const { data, error: downloadError } = await supabase.storage.from(BUCKET).download(storagePath)
-    if (downloadError || !data) return null
-    const { data: named } = await supabase
-      .from('ingested_files')
-      .select('name')
-      .eq('storage_path', storagePath)
-      .limit(1)
-    const name = named?.[0]?.name ? String(named[0].name) : 'certificate.pdf'
-    const bytes = Buffer.from(await data.arrayBuffer())
-    return pdfResponse(bytes, name)
+    return await fileFromStoragePath(storagePath, id, supabase)
   } catch {
     return null
   }
+}
+
+async function fileFromStoragePath(storagePath: string, id: string, client = createAdminClient()): Promise<NextResponse | null> {
+  try {
+    const { data, error } = await client.storage.from(BUCKET).download(storagePath)
+    if (error || !data) return null
+    const { data: named } = await client.from('ingested_files').select('name').eq('storage_path', storagePath).limit(1)
+    const name = named?.[0]?.name ? String(named[0].name) : `${id}.pdf`
+    return pdfResponse(Buffer.from(await data.arrayBuffer()), name)
+  } catch { return null }
 }
 
 async function fileFromDisk(id: string): Promise<NextResponse> {

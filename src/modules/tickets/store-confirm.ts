@@ -14,6 +14,7 @@ import {
   cancelEngagement,
 } from '@/modules/engagements/service'
 import { notifyReporter } from '@/modules/notifications/lifecycle-notify'
+import { notifyAri } from '@/modules/notify/ari'
 import {
   isQualityHoldActive,
   formatQualityHoldHe,
@@ -259,9 +260,11 @@ export async function rejectStoreFix(input: {
   })
   if (row.status === 'engaged') {
     await cancelEngagement(input.ticketId)
+    await notifyReturnedToTreatment(input.ticketId, reason)
     return { id: input.ticketId, status: 'new' }
   }
   const reopened = await updateStatus(input.ticketId, 'in_progress')
+  await notifyReturnedToTreatment(input.ticketId, reason)
   return { id: reopened.id, status: reopened.status }
 }
 
@@ -278,10 +281,28 @@ async function rejectStoreFixMemoryFallback(
   memAddEvent(ticket.id, 'store_rejected', { by: actorLabel, reason }, null)
   if (ticket.status === 'engaged') {
     await cancelEngagement(ticket.id)
+    await notifyReturnedToTreatment(ticket.id, reason)
     return { id: ticket.id, status: 'new' }
   }
   const reopened = await updateStatus(ticket.id, 'in_progress')
+  await notifyReturnedToTreatment(ticket.id, reason)
   return { id: reopened.id, status: reopened.status }
+}
+
+async function notifyReturnedToTreatment(ticketId: string, reason: string) {
+  try {
+    const ticket = await getById(ticketId)
+    const place = ticket?.stores?.name || ticket?.stores?.code || 'החנות'
+    const display =
+      ticket?.display_number ||
+      (ticket?.number != null ? `OC-${ticket.number}` : ticketId.slice(0, 8))
+    await notifyAri(
+      `${place}: התקלה ${display} לא נפתרה. היא חזרה לטיפול. ${reason}`,
+      { ticketId, kind: 'store_rejected' },
+    )
+  } catch {
+    /* The fault is already back in the queue. A missed alert can be retried. */
+  }
 }
 
 export {

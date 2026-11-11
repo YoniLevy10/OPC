@@ -10,7 +10,7 @@ import {
   listStores,
   requireStoresMutate,
 } from '@/modules/stores/service'
-import { MEM_COUNTRY_ID, MEM_ORG_ID } from '@/lib/data/memory-store'
+import { resolveStoreCreationScope } from '@/lib/auth/store-scope'
 import { captureError } from '@/lib/monitoring'
 
 const createSchema = z.object({
@@ -51,20 +51,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Memory / IL pilot defaults when omitted
-    const countryMembership = actor.memberships.find(
-      (m) => m.role === 'country_manager' && m.country_id,
-    )
+    const scope = resolveStoreCreationScope(actor, parsed.data)
     const store = await createStore({
       ...parsed.data,
-      country_id:
-        parsed.data.country_id ??
-        countryMembership?.country_id ??
-        MEM_COUNTRY_ID,
-      organization_id:
-        parsed.data.organization_id ??
-        actor.memberships[0]?.organization_id ??
-        MEM_ORG_ID,
+      ...scope,
       region_id: parsed.data.region_id ?? 'ta',
     })
     return NextResponse.json({ store }, { status: 201 })

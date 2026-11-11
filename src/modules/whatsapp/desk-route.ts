@@ -114,20 +114,19 @@ async function applyAriDecision(
   }
   if (decision === 'needs_info') {
     return {
-      reply: `על ${place} חסר מחיר או טלפון. כתוב: אשר 450 0501234567 שם.`,
+      reply: `על ${place} חסר טלפון. כתוב: אשר 0501234567 שם (מחיר אופציונלי).`,
       storeReply: null,
     }
   }
   const parsed = parseEngagementApproval(text ?? '')
-  if (parsed.amount == null || !parsed.phone) {
+  if (!parsed.phone) {
     const missing = [
-      parsed.amount == null ? 'מחיר' : null,
       parsed.phone == null ? 'טלפון' : null,
     ]
       .filter(Boolean)
       .join(' ו')
     return {
-      reply: `על ${place} חסר ${missing}. כתוב: אשר 450 0501234567 שם.`,
+      reply: `על ${place} חסר ${missing}. כתוב: אשר 0501234567 שם (מחיר אופציונלי).`,
       storeReply: null,
     }
   }
@@ -136,13 +135,13 @@ async function applyAriDecision(
       ticketId: waiting.id,
       professionalName: parsed.name || 'איש מקצוע',
       professionalPhone: parsed.phone,
-      approvedAmount: parsed.amount,
+      approvedAmount: parsed.amount ?? undefined,
       approvedBy: 'ארי',
     })
     return {
       reply: locked.handoff?.ok
-        ? `נעלתי ${locked.approvedAmount} ש״ח ל${locked.professionalName}. ${locked.handoff.line}.`
-        : `נעלתי ${locked.approvedAmount} ש״ח ל${locked.professionalName}. ${locked.handoff?.line ?? 'ההודעה למנהל החנות לא יצאה.'}`,
+        ? `אישרתי את ${locked.professionalName}. ${locked.handoff.line}.`
+        : `אישרתי את ${locked.professionalName}. ${locked.handoff?.line ?? 'ההודעה למנהל החנות לא יצאה.'}`,
       storeReply: null,
     }
   } catch (error) {

@@ -18,7 +18,7 @@ export default async function ActivityPage() {
     <OpsAppShell>
       <div className="flex flex-col gap-5 stagger">
         <OpsPageHero
-          title="מה שכבר קרה"
+          title="היסטוריה"
           status={
             events.length === 0
               ? 'אין אירועים עדיין'

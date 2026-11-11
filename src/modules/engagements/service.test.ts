@@ -61,9 +61,11 @@ describe('lockEngagement', () => {
     expect(locked.status).toBe('locked')
     expect(memGet(ticket.id)?.status).toBe('engaged')
     expect(memGet(side.id)?.status).toBe('engaged')
-    expect(memGet(ticket.id)?.messages.some((row) => row.body?.includes('ארי אישר'))).toBe(
-      true,
-    )
+    const handoffBody = memGet(ticket.id)?.messages.find((row) => row.body?.includes('ארי אישר'))?.body ?? ''
+    expect(handoffBody).toContain('ארי אישר שאיש המקצוע יגיע לטפל בתקלות:')
+    expect(handoffBody).toContain(ticket.display_number || ticket.id.slice(0, 8))
+    expect(handoffBody).toContain(side.display_number || side.id.slice(0, 8))
+    expect(handoffBody).toContain('מחיר שאושר')
     expect(locked.handoff?.ok).toBe(false)
     expect(locked.handoff?.line).toMatch(/לא נמסרה|לא יצאה|נשמרו/)
     await expect(
@@ -79,6 +81,28 @@ describe('lockEngagement', () => {
     await cancelEngagement(ticket.id)
     expect(memGet(ticket.id)?.status).toBe('new')
     expect(memGet(side.id)?.status).toBe('new')
+  })
+
+  it('allows an ad-hoc professional without a price and omits the price line', async () => {
+    const store = DEMO_STORES[0]
+    if (!store) throw new Error('missing demo store')
+    const ticket = memCreate({
+      store,
+      description: 'תקלה ללא מחיר שסוכם',
+      priority: 'high',
+      category: 'other',
+    })
+    const locked = await lockEngagement({
+      ticketId: ticket.id,
+      professionalName: 'דני בעל מקצוע',
+      professionalPhone: '0501234567',
+      approvedBy: 'ארי',
+    })
+    expect(locked.approvedAmount).toBe(0)
+    const body = memGet(ticket.id)?.messages.find((row) => row.body?.includes('ארי אישר'))?.body ?? ''
+    expect(body).toContain('דני בעל מקצוע')
+    expect(body).toContain('0501234567')
+    expect(body).not.toContain('מחיר שאושר')
   })
 })
 

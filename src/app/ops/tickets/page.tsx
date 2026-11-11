@@ -37,7 +37,11 @@ import { listVendors } from '@/modules/vendors/service'
 import { listOutcomes, spendForTicket } from '@/lib/data/ops-ledger'
 import { hydrateOpsLedger } from '@/lib/data/ops-db'
 import { listProfessionals } from '@/modules/professionals/service'
-import { recommendBundles, type BundleFault } from '@/modules/whatsapp/agent/bundle'
+import {
+  recommendBundles,
+  sameStoreCompanionIds,
+  type BundleFault,
+} from '@/modules/whatsapp/agent/bundle'
 import { presentRecommendations } from '@/modules/recommendations/present'
 import { TicketStoreGroups } from './ticket-store-groups'
 import { executionBlockReason } from '@/modules/spend/policy'
@@ -181,24 +185,26 @@ export default async function TicketsPage({
   for (const ticket of rows) {
     if (ticket.store_id && ticket.stores?.code) storeCodes[ticket.store_id] = ticket.stores.code
   }
-  const bundleCards =
+  const rawBundles =
     view === 'resolved'
       ? []
-      : presentRecommendations(
-          recommendBundles({
-            open: rows.map(toFault),
-            outcomes: listOutcomes(),
-            professionals: pros.professionals.map((pro) => ({
-              id: pro.id,
-              full_name: pro.full_name,
-              phone: pro.phone,
-              trade: pro.trade,
-              notes: pro.notes,
-              use_count: pro.use_count,
-            })),
-          }),
-          storeCodes,
-        )
+      : recommendBundles({
+          open: rows.map(toFault),
+          outcomes: listOutcomes(),
+          professionals: pros.professionals.map((pro) => ({
+            id: pro.id,
+            full_name: pro.full_name,
+            phone: pro.phone,
+            trade: pro.trade,
+            notes: pro.notes,
+            use_count: pro.use_count,
+          })),
+        })
+  const bundleCards = presentRecommendations(rawBundles, storeCodes)
+  const companionIdsByTicket = sameStoreCompanionIds(
+    rawBundles,
+    new Map(rows.map((ticket) => [ticket.id, ticket.store_id || ''])),
+  )
 
   const baseHref = queueHref(queueFilters)
 
@@ -317,6 +323,7 @@ export default async function TicketsPage({
               trade: person.trade,
             }))}
             storeFilter={storeCode}
+            companionIdsByTicket={companionIdsByTicket}
           >
             <Panel flush elevated className="overflow-hidden">
               {rows.length === 0 ? (

@@ -17,10 +17,13 @@ import {
   type MidragSector,
 } from '@/modules/vendors/midrag/catalog'
 import { cn } from '@/lib/utils'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 /**
  * Midrag professional search — full profession catalog (149) + city,
- * then open Midrag in a new tab. Also save contact to ranked book.
+ * then open Midrag in a new tab.
+ * - book (default): also save contact to ranked book
+ * - handoff: close and return to the ticket approval form (no duplicate save UI)
  */
 export function MidragSearchAction({
   category,
@@ -31,6 +34,8 @@ export function MidragSearchAction({
   onOpenChange,
   hideTrigger = false,
   onSaved,
+  mode = 'book',
+  returnToId = 'ticket-actions',
 }: {
   category: string
   city?: string | null
@@ -41,7 +46,11 @@ export function MidragSearchAction({
   hideTrigger?: boolean
   /** Called after a professional is saved to the contact book. */
   onSaved?: () => void
+  mode?: 'book' | 'handoff'
+  /** Scroll target after opening Midrag in handoff mode. */
+  returnToId?: string
 }) {
+  const p = usePhrase()
   const toast = useToast()
   const allSectors = useMemo(() => midragSectorsForSelect(), [])
   const defaultSector = useMemo(
@@ -129,7 +138,7 @@ export function MidragSearchAction({
           onClick={openSheet}
         >
           <Search className="h-3.5 w-3.5" aria-hidden />
-          חיפוש במידרג
+          {mode === 'handoff' ? p('חיפוש כללי במידרג') : p('חיפוש במידרג')}
         </Button>
       )}
 
@@ -139,20 +148,30 @@ export function MidragSearchAction({
           if (next) openSheet()
           else setOpen(false)
         }}
-        title="חיפוש איש מקצוע במידרג"
+        title={
+          mode === 'handoff'
+            ? p('חיפוש במידרג · חזרה לאישור')
+            : p('חיפוש איש מקצוע במידרג')
+        }
         detent="full"
       >
         <div className="flex flex-col gap-4 pb-4">
           <p className="t-meta text-ink-2">
-            כל מקצועות מידרג · בחרו תחום ועיר · שמרו אנשי קשר לדירוג מהיר בחזרה.
+            {mode === 'handoff'
+              ? p(
+                  'בחרו תחום ועיר, פתחו במידרג, ואז חזרו לטופס האישור עם שם וטלפון.',
+                )
+              : p(
+                  'כל מקצועות מידרג · בחרו תחום ועיר · שמרו אנשי קשר לדירוג מהיר בחזרה.',
+                )}
           </p>
 
           <label className="flex flex-col gap-1.5">
-            <span className="t-caption text-ink-2">סינון מקצוע</span>
+            <span className="t-caption text-ink-2">{p('סינון מקצוע')}</span>
             <Input
               value={sectorQuery}
               onChange={(e) => setSectorQuery(e.target.value)}
-              placeholder="חשמל, מזגן, מנעולן…"
+              placeholder={p('חשמל, מזגן, מנעולן…')}
               autoComplete="off"
             />
           </label>
@@ -182,63 +201,91 @@ export function MidragSearchAction({
           </div>
 
           <label className="flex flex-col gap-1.5">
-            <span className="t-caption text-ink-2">עיר</span>
+            <span className="t-caption text-ink-2">{p('עיר')}</span>
             <Input
               value={draftCity}
               onChange={(e) => setDraftCity(e.target.value)}
-              placeholder="למשל חיפה, אשדוד, נתניה"
+              placeholder={p('למשל חיפה, אשדוד, נתניה')}
               autoComplete="address-level2"
             />
             {cityMatch ? (
               <span className="t-caption text-ink-3">
-                ממופה למידרג: {cityMatch.midragLabel}
+                {p('ממופה למידרג: {label}', { label: cityMatch.midragLabel })}
               </span>
             ) : null}
           </label>
 
           <Button asChild variant="primary" size="touch" className="w-full">
-            <a href={midragUrl} target="_blank" rel="noopener noreferrer">
+            <a
+              href={midragUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (mode !== 'handoff') return
+                setOpen(false)
+                window.setTimeout(() => {
+                  document
+                    .getElementById(returnToId)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                  document
+                    .querySelector<HTMLInputElement>(
+                      `#${returnToId} input[name="professional_name"]`,
+                    )
+                    ?.focus()
+                }, 120)
+              }}
+            >
               <ExternalLink className="h-4 w-4" aria-hidden />
-              פתח במידרג
-              {selected ? ` · ${selected.label}` : ''}
+              {mode === 'handoff'
+                ? `${p('פתח במידרג וחזרו לאישור')}${selected ? ` · ${selected.label}` : ''}`
+                : `${p('פתח במידרג')}${selected ? ` · ${selected.label}` : ''}`}
             </a>
           </Button>
 
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface-sunken/60 p-3 space-y-3">
-            <p className="t-body-strong text-ink flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-[var(--tenant)]" aria-hidden />
-              שמירה לספר אנשי מקצוע
+          {mode === 'handoff' ? (
+            <p className="t-caption text-ink-3">
+              {p(
+                'אחרי השיחה — הזינו שם וטלפון בטופס האישור למטה. השמירה לספר אנשי מקצוע תתבצע אוטומטית בשליחה.',
+              )}
             </p>
-            <p className="t-caption text-ink-2">
-              מידרג לא משתף מספרים אוטומטית לאתר חיצוני. אחרי שמצאתם שם וטלפון
-              במידרג — העתיקו לכאן ושמרו. בפעם הבאה: חיוג מהיר מהספר.
-            </p>
-            <Input
-              value={saveName}
-              onChange={(e) => setSaveName(e.target.value)}
-              placeholder="שם מלא"
-              autoComplete="name"
-            />
-            <Input
-              value={savePhone}
-              onChange={(e) => setSavePhone(e.target.value)}
-              placeholder="טלפון"
-              inputMode="tel"
-              autoComplete="tel"
-              dir="ltr"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              className="w-full"
-              disabled={saving}
-              onClick={() => void saveProfessional()}
-            >
-              <Phone className="h-3.5 w-3.5" aria-hidden />
-              {saving ? 'שומר…' : 'שמור לדירוג מהיר'}
-            </Button>
-          </div>
+          ) : (
+            <div className="space-y-3 rounded-[var(--radius-lg)] border border-border bg-surface-sunken/60 p-3">
+              <p className="t-body-strong flex items-center gap-2 text-ink">
+                <UserPlus className="h-4 w-4 text-[var(--tenant)]" aria-hidden />
+                {p('שמירה לספר אנשי מקצוע')}
+              </p>
+              <p className="t-caption text-ink-2">
+                {p(
+                  'מידרג לא משתף מספרים אוטומטית לאתר חיצוני. אחרי שמצאתם שם וטלפון במידרג — העתיקו לכאן ושמרו. בפעם הבאה: חיוג מהיר מהספר.',
+                )}
+              </p>
+              <Input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder={p('שם מלא')}
+                autoComplete="name"
+              />
+              <Input
+                value={savePhone}
+                onChange={(e) => setSavePhone(e.target.value)}
+                placeholder={p('טלפון')}
+                inputMode="tel"
+                autoComplete="tel"
+                dir="ltr"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="touch"
+                className="w-full"
+                disabled={saving}
+                onClick={() => void saveProfessional()}
+              >
+                <Phone className="h-3.5 w-3.5" aria-hidden />
+                {saving ? p('שומר…') : p('שמור לדירוג מהיר')}
+              </Button>
+            </div>
+          )}
         </div>
       </BottomSheet>
     </div>

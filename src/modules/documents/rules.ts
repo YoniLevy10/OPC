@@ -224,7 +224,7 @@ function shiftMonthsUtc(iso: string, months: number): string {
 /** A renewal closes only after a new file is attached and marked ingested. */
 export function renewDocument(
   current: StoreDocument,
-  nextFile: { sourceUrl: string; extractedExpiry: string | null },
+  nextFile: { sourceUrl: string; storagePath?: string | null; extractedExpiry: string | null },
   now = new Date().toISOString(),
 ): { closed: StoreDocument; next: StoreDocument } {
   if (!nextFile.sourceUrl.trim()) {
@@ -235,6 +235,7 @@ export function renewDocument(
     ...current,
     id: `${current.id}-v${current.version + 1}`,
     sourceUrl: nextFile.sourceUrl,
+    storagePath: nextFile.storagePath ?? null,
     extractedExpiry: nextFile.extractedExpiry,
     intakeStatus: nextFile.extractedExpiry ? 'ingested' : 'needs_review',
     intakeReason: nextFile.extractedExpiry ? null : 'תאריך התוקף לא ברור',

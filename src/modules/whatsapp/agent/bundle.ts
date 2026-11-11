@@ -268,6 +268,29 @@ export function recommendBundles(input: {
   )
 }
 
+/**
+ * Companions Ari can add to one visit. A card may mention another store in the
+ * same district; a visit row has one store_id, so those stay off the plan.
+ */
+export function sameStoreCompanionIds(
+  cards: BundleCard[],
+  storeIdByTicket: ReadonlyMap<string, string>,
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const card of cards) {
+    for (const id of card.ticketIds) {
+      const storeId = storeIdByTicket.get(id)
+      if (!storeId) continue
+      const companions = card.ticketIds.filter((other) => {
+        if (other === id) return false
+        return storeIdByTicket.get(other) === storeId
+      })
+      out[id] = [...new Set([...(out[id] ?? []), ...companions])]
+    }
+  }
+  return out
+}
+
 /** Whether the store's own person should get the faults now. The manager's WhatsApp stays the ticket confirmation. */
 export function intakeBundleHandoff(input: {
   storeId: string

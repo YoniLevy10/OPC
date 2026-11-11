@@ -91,7 +91,7 @@ describe('WhatsApp desk loop', () => {
       msg({ text: 'לאשר', waId: ARI, messageId: 'ari-approve' }),
       dry,
     )
-    expect(decided.reply).toMatch(/אין תקלה דחופה|חסר מחיר/)
+    expect(decided.reply).toContain('על כרמיאל חסר טלפון.')
     expect(decided.storeReply).toBeNull()
     const after = listSpends().find((row) => row.id === spend?.id)
     expect(after?.status).toBe('pending')
@@ -114,7 +114,7 @@ describe('WhatsApp desk loop', () => {
       }),
       dry,
     )
-    expect(decided.reply).toContain('נעלתי 450')
+    expect(decided.reply).toContain('אישרתי את פבל.')
     expect(decided.reply).toContain('פבל')
     const ticket = memListTickets().find((row) => row.id === created.ticketId)
     expect(ticket?.status).toBe('engaged')

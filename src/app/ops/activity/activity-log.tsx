@@ -159,154 +159,57 @@ export function ActivityLog({ events }: { events: AuditEvent[] }) {
     }))
   }, [filtered])
 
-  const first = groups[0]
   const filterOn = Boolean(actionType || actor || date || entity)
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-3">
+        <div>
+          <h2 className="t-section text-ink">יומן פעילות</h2>
+          <p className="t-meta text-ink-2">{filtered.length} אירועים · מסודרים לפי זמן</p>
+        </div>
+        <span className="rounded-full bg-[var(--tenant-soft)] px-3 py-1 t-caption text-[var(--tenant)]">{filterOn ? 'סינון פעיל' : 'כל הפעילות'}</span>
+      </div>
       {filtered.length === 0 ? (
         <Panel flush elevated className="overflow-hidden">
-          <EmptyState
-            title="אין אירועים"
-            description={
-              filterOn
-                ? 'נסו לשנות את הסינון.'
-                : 'פעולות על תקלות יופיעו כאן כיומן מרכזי.'
-            }
-          />
+          <EmptyState title="אין אירועים" description={filterOn ? 'נסו לשנות את הסינון.' : 'פעולות על תקלות יופיעו כאן כיומן מרכזי.'} />
         </Panel>
-      ) : first ? (
+      ) : (
         <Panel flush elevated className="overflow-hidden">
-          <section>
-            <h2 className="t-caption border-b border-border bg-surface-sunken/80 px-4 py-2 text-ink-3">
-              {first.label}
-              <span className="t-num ms-2">{first.items.length}</span>
-            </h2>
-            <ul>
-              {first.items.slice(0, 1).map((e) => (
-                <li key={e.id} className="flex gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="t-body-strong text-ink">{phraseEvent(e)}</p>
-                    <p className="t-meta mt-0.5 text-ink-2">
-                      {e.ticket_display || e.ticket_id ? (
-                        <Link href={`/ops/tickets/${e.ticket_id}`} className="text-[var(--tenant)] hover:underline">
-                          {e.ticket_display || e.ticket_id.slice(0, 8)}
-                        </Link>
-                      ) : (
-                        '—'
-                      )}
-                      <span className="text-ink-3">
-                        {' · '}
-                        {actorLabel(e.actor_id)}
-                      </span>
-                    </p>
-                  </div>
-                  <time dateTime={e.created_at} className="t-caption t-num shrink-0 text-ink-3">
-                    {fmtTime(e.created_at)}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <div className="divide-y divide-border">
+            {groups.map((group) => (
+              <section key={group.key}>
+                <h2 className="sticky top-0 z-10 border-b border-border bg-surface-sunken/90 px-4 py-2 t-caption text-ink-2 backdrop-blur">{group.label}<span className="ms-2 t-num text-ink-3">{group.items.length}</span></h2>
+                <ul className="divide-y divide-border/70">
+                  {group.items.map((event) => (
+                    <li key={event.id} className="flex gap-3 px-4 py-3 transition-colors hover:bg-surface-sunken/30">
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--tenant)]" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="t-body-strong text-ink">{phraseEvent(event)}</p>
+                        <p className="t-meta mt-0.5 text-ink-2">
+                          {event.ticket_display || event.ticket_id ? <Link href={`/ops/tickets/${event.ticket_id}`} className="text-[var(--tenant)] hover:underline">{event.ticket_display || event.ticket_id.slice(0, 8)}</Link> : '—'}
+                          <span className="text-ink-3">{' · '}{actorLabel(event.actor_id)}</span>
+                        </p>
+                      </div>
+                      <time dateTime={event.created_at} className="t-caption t-num shrink-0 text-ink-3">{fmtTime(event.created_at)}</time>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
         </Panel>
-      ) : null}
+      )}
 
       <PhoneFoldStack>
         <PhoneFold title="סינון" summary={filterOn ? 'פעיל' : 'הכל'}>
-          <div className="flex min-w-0 flex-col gap-3">
-            <Field label="סוג פעולה" htmlFor="activity-type">
-              <Select
-                id="activity-type"
-                value={actionType}
-                onChange={(e) => setActionType(e.target.value)}
-                className="w-full min-w-0"
-              >
-                <option value="">הכל</option>
-                {types.map((t) => (
-                  <option key={t} value={t}>
-                    {EVENT_HE[t] ?? t}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="משתמש" htmlFor="activity-actor">
-              <Select
-                id="activity-actor"
-                value={actor}
-                onChange={(e) => setActor(e.target.value)}
-                className="w-full min-w-0"
-              >
-                <option value="">הכל</option>
-                <option value="__system__">מערכת</option>
-                {actors.map((id) => (
-                  <option key={id} value={id}>
-                    {actorLabel(id)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="תאריך" htmlFor="activity-date">
-              <Input
-                id="activity-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full min-w-0 max-w-full"
-              />
-            </Field>
-            <Field label="תקלה / ישות" htmlFor="activity-entity">
-              <Input
-                id="activity-entity"
-                value={entity}
-                onChange={(e) => setEntity(e.target.value)}
-                placeholder="מספר תקלה…"
-                className="w-full min-w-0"
-              />
-            </Field>
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+            <Field label="סוג פעולה" htmlFor="activity-type"><Select id="activity-type" value={actionType} onChange={(e) => setActionType(e.target.value)} className="w-full min-w-0"><option value="">הכל</option>{types.map((t) => <option key={t} value={t}>{EVENT_HE[t] ?? t}</option>)}</Select></Field>
+            <Field label="משתמש" htmlFor="activity-actor"><Select id="activity-actor" value={actor} onChange={(e) => setActor(e.target.value)} className="w-full min-w-0"><option value="">הכל</option><option value="__system__">מערכת</option>{actors.map((id) => <option key={id} value={id}>{actorLabel(id)}</option>)}</Select></Field>
+            <Field label="תאריך" htmlFor="activity-date"><Input id="activity-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full min-w-0" /></Field>
+            <Field label="תקלה / ישות" htmlFor="activity-entity"><Input id="activity-entity" value={entity} onChange={(e) => setEntity(e.target.value)} placeholder="מספר תקלה…" className="w-full min-w-0" /></Field>
           </div>
         </PhoneFold>
-        {filtered.length > 1 ? (
-          <PhoneFold
-            title="שאר האירועים"
-            summary={`${filtered.length - 1}`}
-          >
-            <div className="divide-y divide-border">
-              {groups.map((g, index) => (
-                <section key={g.key}>
-                  <h2 className="t-caption px-1 py-2 text-ink-3">
-                    {g.label}
-                    <span className="t-num ms-2">{g.items.length}</span>
-                  </h2>
-                  <ul>
-                    {g.items.slice(index === 0 ? 1 : 0).map((e) => (
-                      <li key={e.id} className="flex gap-3 py-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="t-body-strong text-ink">{phraseEvent(e)}</p>
-                          <p className="t-meta mt-0.5 text-ink-2">
-                            {e.ticket_display || e.ticket_id ? (
-                              <Link href={`/ops/tickets/${e.ticket_id}`} className="text-[var(--tenant)] hover:underline">
-                                {e.ticket_display || e.ticket_id.slice(0, 8)}
-                              </Link>
-                            ) : (
-                              '—'
-                            )}
-                            <span className="text-ink-3">
-                              {' · '}
-                              {actorLabel(e.actor_id)}
-                            </span>
-                          </p>
-                        </div>
-                        <time dateTime={e.created_at} className="t-caption t-num shrink-0 text-ink-3">
-                          {fmtTime(e.created_at)}
-                        </time>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          </PhoneFold>
-        ) : null}
       </PhoneFoldStack>
     </div>
   )

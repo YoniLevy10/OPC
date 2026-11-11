@@ -27,7 +27,7 @@ export async function lockPlannedVisitAction(input: {
   ticketIds: string[]
   professionalName: string
   professionalPhone: string
-  approvedAmount: number
+  approvedAmount?: number
   scope?: string | null
 }): Promise<{ ok: boolean; line: string }> {
   const actor = await actorName()
@@ -47,6 +47,7 @@ export async function lockPlannedVisitAction(input: {
   revalidatePath('/ops/approvals')
   revalidatePath('/ops/dashboard')
   revalidatePath('/ops/reports')
+  revalidatePath('/ops/professionals')
   for (const id of ids) revalidatePath(`/store/tickets/${id}`)
   return {
     ok: locked.handoff?.ok ?? false,
@@ -72,7 +73,7 @@ export async function lockEngagementAction(formData: FormData) {
     midragSpId: midragSpId || null,
     professionalName,
     professionalPhone: String(formData.get('professional_phone') ?? ''),
-    approvedAmount: Number(formData.get('approved_amount')),
+    approvedAmount: formData.get('approved_amount') ? Number(formData.get('approved_amount')) : undefined,
     approvedBy: actor.name,
     scope: String(formData.get('scope') ?? '') || null,
   })
@@ -80,6 +81,7 @@ export async function lockEngagementAction(formData: FormData) {
   revalidatePath('/ops/approvals')
   revalidatePath('/ops/dashboard')
   revalidatePath('/ops/reports')
+  revalidatePath('/ops/professionals')
 }
 
 export async function cancelEngagementAction(formData: FormData) {

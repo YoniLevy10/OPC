@@ -33,6 +33,13 @@ describe('recurring maintenance', () => {
     const open = listTasks().filter((row) => row.title === 'בדיקת כיבוי אש' && !row.done)
     expect(open).toHaveLength(1)
     expect(open[0]?.repeatDays).toBe(30)
+    expect(task.status).toBe('done')
+    expect(task.nextOpened).toBe(true)
+    expect(open[0]?.status).toBe('open')
+    expect(open[0]?.nextOpened).toBe(false)
+    // Re-saving a completed recurring task must not open another successor.
+    setTaskStatus(task.id, 'done')
+    expect(listTasks().filter((row) => row.title === 'בדיקת כיבוי אש' && !row.done)).toHaveLength(1)
   })
 })
 

@@ -14,8 +14,8 @@ import { captureError } from '@/lib/monitoring'
 
 export async function GET(request: Request) {
   try {
-    await requireActor(request)
-    const { sessions, backend } = await listInboxSessions()
+    const actor = await requireActor(request)
+    const { sessions, backend } = await listInboxSessions(actor)
     return NextResponse.json({ sessions, backend })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)
@@ -37,16 +37,17 @@ const patchSchema = z
 
 export async function PATCH(request: Request) {
   try {
-    await requireActor(request)
+    const actor = await requireActor(request)
     const parsed = patchSchema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })
     }
     const session =
       parsed.data.status !== undefined
-        ? await markSessionInboxStatus(parsed.data.wa_id, parsed.data.status)
+        ? await markSessionInboxStatus(parsed.data.wa_id, actor, parsed.data.status)
         : await setSessionTakeover(
             parsed.data.wa_id,
+            actor,
             parsed.data.human_takeover!,
           )
     return NextResponse.json({ session })

@@ -35,6 +35,7 @@ export type WhatsAppSendFailureRow = {
   max_attempts: number
   next_retry_at: string
   status: 'pending' | 'sent' | 'exhausted' | 'cancelled'
+  claimed_at?: string | null
   last_error: string | null
 }
 
@@ -127,34 +128,33 @@ export async function listPendingWhatsAppFailures(limit = 40): Promise<{
 }> {
   const now = new Date().toISOString()
   if (!(await supabaseReady()) || process.env.MAINTAINOS_FORCE_MEMORY === '1') {
+    const claimCutoff = Date.now() - 5 * 60_000
     const rows = [...memFailures.values()]
-      .filter((r) => r.status === 'pending' && r.next_retry_at <= now)
+      .filter(
+        (r) =>
+          r.status === 'pending' &&
+          r.next_retry_at <= now &&
+          (!r.claimed_at || Date.parse(r.claimed_at) < claimCutoff),
+      )
       .slice(0, limit)
+    for (const row of rows) row.claimed_at = now
     return { rows, backend: 'memory' }
   }
 
   const supabase = createSystemClient('wa_send_fail_list')
-  const { data, error } = await supabase
-    .from('whatsapp_send_failures')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('next_retry_at', now)
-    .order('next_retry_at', { ascending: true })
-    .limit(limit)
+  const { data, error } = await supabase.rpc('claim_whatsapp_send_failures', {
+    p_limit: limit,
+  })
 
   if (error) {
     if (isSupabaseSchemaError(error)) {
-      const rows = [...memFailures.values()]
-        .filter((r) => r.status === 'pending' && r.next_retry_at <= now)
-        .slice(0, limit)
-      return { rows, backend: 'memory' }
+      // Never fall back to unclaimed sends: that can duplicate delivery under
+      // overlapping cron invocations. Cron reports the missing migration.
+      throw new Error('WhatsApp retry claim migration is not installed')
     }
     throw new Error(error.message)
   }
-  return {
-    rows: (data ?? []) as WhatsAppSendFailureRow[],
-    backend: 'supabase',
-  }
+  return { rows: (data ?? []) as WhatsAppSendFailureRow[], backend: 'supabase' }
 }
 
 export async function markWhatsAppFailureResult(input: {
@@ -163,10 +163,14 @@ export async function markWhatsAppFailureResult(input: {
   error?: string | null
   metaErrorCode?: number | null
   backend: 'memory' | 'supabase'
+  claimedAt?: string | null
+  attempts: number
+  maxAttempts: number
 }): Promise<void> {
   if (input.backend === 'memory' || input.id.startsWith('mem_')) {
     const row = memFailures.get(input.id)
     if (!row) return
+    row.claimed_at = null
     if (input.ok) {
       row.status = 'sent'
       memFailures.set(input.id, row)
@@ -191,44 +195,36 @@ export async function markWhatsAppFailureResult(input: {
   }
 
   const supabase = createSystemClient('wa_send_fail_mark')
-  if (input.ok) {
-    await supabase
-      .from('whatsapp_send_failures')
-      .update({
-        status: 'sent',
-        updated_at: new Date().toISOString(),
-        last_error: null,
-      })
-      .eq('id', input.id)
-    return
-  }
+  const claimedAt = input.claimedAt
+  if (!claimedAt) throw new Error('WhatsApp retry result is missing its claim')
 
-  const { data: existing } = await supabase
-    .from('whatsapp_send_failures')
-    .select('attempts, max_attempts')
-    .eq('id', input.id)
-    .maybeSingle()
-
-  const attempts = (existing?.attempts ?? 0) + 1
-  const maxAttempts = existing?.max_attempts ?? 5
+  const attempts = input.attempts + (input.ok ? 0 : 1)
   const exhausted =
-    attempts >= maxAttempts ||
+    attempts >= input.maxAttempts ||
     isNonRetryableWhatsAppMetaError(input.metaErrorCode ?? undefined)
   const mins = backoffMinutes(attempts)
-
-  await supabase
+  const update = input.ok
+    ? { status: 'sent', claimed_at: null, last_error: null, updated_at: new Date().toISOString() }
+    : {
+        attempts,
+        last_error: input.error ?? null,
+        meta_error_code: input.metaErrorCode ?? null,
+        status: exhausted ? 'exhausted' : 'pending',
+        claimed_at: null,
+        next_retry_at: exhausted
+          ? new Date().toISOString()
+          : new Date(Date.now() + mins * 60_000).toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+  const { data, error } = await supabase
     .from('whatsapp_send_failures')
-    .update({
-      attempts,
-      last_error: input.error ?? null,
-      meta_error_code: input.metaErrorCode ?? null,
-      status: exhausted ? 'exhausted' : 'pending',
-      next_retry_at: exhausted
-        ? new Date().toISOString()
-        : new Date(Date.now() + mins * 60_000).toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq('id', input.id)
+    .eq('status', 'pending')
+    .eq('claimed_at', claimedAt)
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('WhatsApp retry claim expired before result was saved')
 }
 
 /** Test helper */

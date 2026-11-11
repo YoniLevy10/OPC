@@ -11,6 +11,7 @@ import {
   buildVisitIdempotencyKey,
   scheduledAtToIso,
   useSubmitGuard,
+  type VisitBookPerson,
   type VisitResult,
 } from '@/app/ops/tickets/visit-confirm-sheet'
 import { lockPlannedVisitAction } from '@/app/ops/tickets/engagement-actions'
@@ -37,6 +38,8 @@ export function StoreVisitDispatch({
   region,
   tickets,
   vendors,
+  professionals = [],
+  companionIdsByTicket = {},
 }: {
   storeId: string
   storeCode: string
@@ -44,23 +47,42 @@ export function StoreVisitDispatch({
   region?: string | null
   tickets: TicketOpt[]
   vendors: VendorOpt[]
+  professionals?: VisitBookPerson[]
+  companionIdsByTicket?: Record<string, string[]>
 }) {
   const router = useRouter()
   const toast = useToast()
   const [, startTransition] = useTransition()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState(false)
-  const [vendorId, setVendorId] = useState(vendors[0]?.id ?? '')
   const [notes, setNotes] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
   const [result, setResult] = useState<VisitResult | null>(null)
-  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
+  const [includedSuggestionIds, setIncludedSuggestionIds] = useState<string[]>([])
+  const [plannedTicketIds, setPlannedTicketIds] = useState<string[]>([])
   const { busy, run } = useSubmitGuard()
 
   const selectedList = useMemo(
     () => tickets.filter((t) => selected.has(t.id)),
     [tickets, selected],
   )
+  const suggestions = useMemo(() => {
+    const ids = new Set<string>()
+    for (const ticket of selectedList) {
+      for (const id of companionIdsByTicket[ticket.id] ?? []) {
+        if (!selected.has(id) && tickets.some((row) => row.id === id)) ids.add(id)
+      }
+    }
+    return tickets.filter((ticket) => ids.has(ticket.id))
+  }, [selectedList, selected, tickets, companionIdsByTicket])
+
+  function planTicketIds() {
+    const selectedIds = selectedList.map((ticket) => ticket.id)
+    const extra = includedSuggestionIds.filter(
+      (id) => suggestions.some((row) => row.id === id) && !selectedIds.includes(id),
+    )
+    return [...selectedIds, ...extra]
+  }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -73,106 +95,83 @@ export function StoreVisitDispatch({
 
   function openSheet() {
     if (selectedList.length === 0) return
+    const included = suggestions.map((row) => row.id)
+    setIncludedSuggestionIds(included)
     setResult(null)
-    setIdempotencyKey(
-      buildVisitIdempotencyKey({
-        storeId,
-        vendorId: vendorId || vendors[0]?.id || '',
-        ticketIds: selectedList.map((t) => t.id),
-      }),
-    )
+    setPlannedTicketIds([])
     setOpen(true)
   }
 
-  async function postVisit(opts?: {
+  async function createPlannedVisit(opts?: {
     retryFailedOnly?: boolean
     retryTicketIds?: string[]
   }) {
-    if (selectedList.length === 0) return
-    const key =
-      idempotencyKey ??
-      buildVisitIdempotencyKey({
-        storeId,
-        vendorId,
-        ticketIds: selectedList.map((t) => t.id),
-      })
-    setIdempotencyKey(key)
-
-    await run(async () => {
-      const res = await fetch('/api/ops/visits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          storeId,
-          ticketIds: selectedList.map((t) => t.id),
-          notes: notes.trim() || undefined,
-          scheduledAt: scheduledAtToIso(scheduledAt),
-          idempotencyKey: key,
-          retryFailedOnly: opts?.retryFailedOnly ?? false,
-          retryTicketIds: opts?.retryTicketIds,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok && res.status !== 207) {
-        toast.push({
-          title:
-            typeof data.error === 'string'
-              ? data.error
-              : res.status === 400
-                ? 'בקשה לא תקינה — בדקו מזהי חנות/תקלה/ספק'
-                : 'שיגור הביקור נכשל',
-          tone: 'critical',
-        })
-        return
-      }
-      const visit = data.visit as VisitResult | undefined
-      if (!visit?.items) {
-        toast.push({ title: 'תשובה לא תקינה מהשרת', tone: 'critical' })
-        return
-      }
-      setResult(visit)
-      const failed = visit.items.filter((i) => i.can_retry).length
-      if (visit.status === 'planned') {
-        toast.push({
-          title: `ביקור תוכנן לחנות #${storeCode}`,
-          tone: 'success',
-        })
-        setSelected(new Set())
-        startTransition(() => router.refresh())
-      } else if (failed > 0) {
-        toast.push({
-          title: `שיגור חלקי · ${failed} נכשלו`,
-          tone: 'critical',
-        })
-        startTransition(() => router.refresh())
-      } else {
-        startTransition(() => router.refresh())
-      }
+    const ids =
+      opts?.retryFailedOnly && plannedTicketIds.length > 0
+        ? plannedTicketIds
+        : planTicketIds()
+    if (ids.length === 0) throw new Error('אין תקלות לביקור')
+    setPlannedTicketIds(ids)
+    const key = buildVisitIdempotencyKey({
+      storeId,
+      ticketIds: ids,
     })
+
+    const res = await fetch('/api/ops/visits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        storeId,
+        ticketIds: ids,
+        notes: notes.trim() || undefined,
+        scheduledAt: scheduledAtToIso(scheduledAt),
+        idempotencyKey: key,
+        retryFailedOnly: opts?.retryFailedOnly ?? false,
+        retryTicketIds: opts?.retryTicketIds,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok && res.status !== 207) {
+      throw new Error(
+        typeof data.error === 'string' ? data.error : 'תכנון הביקור נכשל',
+      )
+    }
+    const visit = data.visit as VisitResult | undefined
+    if (!visit?.items) throw new Error('תשובה לא תקינה מהשרת')
+    return visit
   }
 
-  async function lockVisit(input: {
+  async function planAndHandoff(input: {
     name: string
     phone: string
     amount: number
     scope: string
   }) {
-    let line = 'האישור נכשל'
+    let line = 'השליחה לחנות נכשלה'
     let ok = false
     await run(async () => {
       try {
-        const result = await lockPlannedVisitAction({
-          ticketIds: selectedList.map((ticket) => ticket.id),
+        const ticketIds = planTicketIds()
+        setPlannedTicketIds(ticketIds)
+        await createPlannedVisit()
+        const locked = await lockPlannedVisitAction({
+          ticketIds,
           professionalName: input.name,
           professionalPhone: input.phone,
           approvedAmount: input.amount,
           scope: input.scope,
         })
-        ok = result.ok
-        line = result.line
-        toast.push({ title: result.line, tone: result.ok ? 'success' : 'critical' })
-        if (result.ok) startTransition(() => router.refresh())
+        ok = true
+        line = locked.line
+        toast.push({
+          title: locked.line,
+          tone: locked.ok ? 'success' : 'critical',
+        })
+        setSelected(new Set())
+        setOpen(false)
+        setResult(null)
+        startTransition(() => router.refresh())
       } catch (error) {
         line = error instanceof Error ? error.message : line
         toast.push({ title: line, tone: 'critical' })
@@ -181,11 +180,36 @@ export function StoreVisitDispatch({
     return { ok, line }
   }
 
+  async function retryVisit(opts: {
+    retryFailedOnly?: boolean
+    retryTicketIds?: string[]
+  }) {
+    await run(async () => {
+      try {
+        const visit = await createPlannedVisit(opts)
+        setResult(visit)
+        const failed = visit.items.filter((i) => i.can_retry).length
+        if (failed > 0) {
+          toast.push({
+            title: `שיגור חלקי · ${failed} נכשלו`,
+            tone: 'critical',
+          })
+        }
+        startTransition(() => router.refresh())
+      } catch (error) {
+        toast.push({
+          title: error instanceof Error ? error.message : 'ניסיון חוזר נכשל',
+          tone: 'critical',
+        })
+      }
+    })
+  }
+
   return (
     <Panel elevated>
       <p className="t-section mb-1 text-ink">תכנון ביקור</p>
       <p className="t-caption mb-3 text-ink-3">
-        סמנו תקלות בחנות זו. בעל המקצוע והמחיר ננעלים אחרי השיחה.
+        סמנו תקלות בחנות זו. הזינו איש מקצוע; המחיר אופציונלי.
       </p>
       <ul className="mb-3 space-y-2">
         {tickets.map((t) => (
@@ -216,7 +240,7 @@ export function StoreVisitDispatch({
       </ul>
       {vendors.length === 0 ? (
         <p className="t-body mb-2 text-[var(--signal-warning)]" role="status">
-          אין ספקים פעילים לשיגור — הוסיפו ספק במאגר
+          אין ספקים פעילים לשיגור אוטומטי — אפשר להזין איש מקצוע ידנית
         </p>
       ) : null}
       <Button
@@ -224,7 +248,7 @@ export function StoreVisitDispatch({
         variant="primary"
         size="touch"
         className="w-full"
-        disabled={selectedList.length === 0 || vendors.length === 0}
+        disabled={selectedList.length === 0}
         onClick={openSheet}
       >
         <Truck className="h-4 w-4" aria-hidden />
@@ -244,33 +268,25 @@ export function StoreVisitDispatch({
         city={city}
         region={region}
         category={selectedList[0]?.category}
-        vendorId={vendorId}
-        onVendorIdChange={(id) => {
-          setVendorId(id)
-          setIdempotencyKey(
-            buildVisitIdempotencyKey({
-              storeId,
-              vendorId: id,
-              ticketIds: selectedList.map((t) => t.id),
-            }),
-          )
-        }}
         notes={notes}
         onNotesChange={setNotes}
         scheduledAt={scheduledAt}
         onScheduledAtChange={setScheduledAt}
+        suggestions={suggestions}
+        includedSuggestionIds={includedSuggestionIds}
+        onIncludedSuggestionIdsChange={setIncludedSuggestionIds}
+        professionals={professionals}
         busy={busy}
         canSubmit={selectedList.length > 0}
         result={result}
-        onSubmit={() => void postVisit()}
-        onRetryFailed={() => void postVisit({ retryFailedOnly: true })}
+        onRetryFailed={() => void retryVisit({ retryFailedOnly: true })}
         onRetryTicket={(ticketId) =>
-          void postVisit({
+          void retryVisit({
             retryFailedOnly: true,
             retryTicketIds: [ticketId],
           })
         }
-        onLock={lockVisit}
+        onLock={planAndHandoff}
       />
     </Panel>
   )

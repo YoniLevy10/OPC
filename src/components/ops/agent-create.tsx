@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ClipboardList, Plus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function AgentCreate({
@@ -16,14 +17,17 @@ export function AgentCreate({
 
   if (!kind) {
     return (
-      <>
-        <Button type="button" size="sm" variant="secondary" disabled={disabled} onClick={() => setKind('task')}>
-          משימה חדשה
+      <div className="grid w-full grid-cols-3 gap-2 border-t border-border px-3 py-3 sm:px-4">
+        <Button type="button" size="sm" variant="secondary" className="h-auto min-h-10 whitespace-normal px-2 py-2 text-center" disabled={disabled} onClick={() => setKind('task')}>
+          <ClipboardList className="h-4 w-4 shrink-0" aria-hidden /> משימה חדשה
         </Button>
-        <Button type="button" size="sm" variant="secondary" disabled={disabled} onClick={() => setKind('ticket')}>
-          תקלה חדשה
+        <Button type="button" size="sm" variant="secondary" className="h-auto min-h-10 whitespace-normal px-2 py-2 text-center" disabled={disabled} onClick={() => setKind('ticket')}>
+          <Plus className="h-4 w-4 shrink-0" aria-hidden /> תקלה חדשה
         </Button>
-      </>
+        <Button type="button" size="sm" variant="secondary" className="h-auto min-h-10 whitespace-normal px-2 py-2 text-center" disabled={disabled} onClick={() => onCreate('איזה סניף הכי דחוף?')}>
+          <Sparkles className="h-4 w-4 shrink-0" aria-hidden /> מה דחוף?
+        </Button>
+      </div>
     )
   }
 

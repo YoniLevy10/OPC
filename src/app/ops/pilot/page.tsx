@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import { OpsAppShell } from '@/components/layout/ops-app-shell'
 import { OpsPageHero } from '@/components/ops/ops-page-hero'
-import { Panel, KeyValue } from '@/components/ui/primitives'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 import { listTickets } from '@/modules/tickets/service'
 import { findRecurrences } from '@/modules/tickets/recurrence'
 import { computePilotMetrics, type PilotSample } from '@/modules/pilot/metrics'
@@ -11,13 +12,14 @@ import { pilotMoney } from '@/modules/pilot/value'
 import { categorySpendBars, moneyBars } from '@/modules/pilot/story'
 import { formatIls } from '@/modules/spend/true-cost'
 import { RetainChat } from './retain-chat'
-import { ValueBars } from './value-charts'
+import { MoneyTiles, ValueBars } from './value-charts'
 import { listClassificationCorrections, listFiles, listSpends } from '@/lib/data/ops-ledger'
-import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PilotPage() {
+  const locale = await getLocale()
+  const p = (text: string) => phrase(locale, text)
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
   const { tickets } = await listTickets({ limit: 300 }).catch(() => ({
@@ -77,61 +79,98 @@ export default async function PilotPage() {
     if (ticket.id) categoryByTicketId[ticket.id] = ticket.category || 'other'
   }
   const tradeBars = categorySpendBars(spends, categoryByTicketId)
-  const savedLine =
-    money.bundleSaved > 0
-      ? formatIls(money.bundleSaved)
-      : 'עדיין אין חיסכון שנספר'
+  const hasSaved = money.bundleSaved > 0
+  const savedLine = hasSaved ? formatIls(money.bundleSaved) : '—'
+  const opsMetrics = [
+    {
+      label: p('חציון שעות טיפול'),
+      value: metrics.medianResolveHours?.toFixed(1) ?? '—',
+    },
+    {
+      label: p('חציון שעות לאישור'),
+      value: metrics.medianApprovalHours?.toFixed(1) ?? '—',
+    },
+    { label: p('תקלות חוזרות'), value: String(metrics.repeats) },
+    { label: p('פניות מחוץ למערכת'), value: String(metrics.outsideSystem) },
+    {
+      label: p('קליטה נקייה'),
+      value:
+        metrics.cleanIngestRate == null
+          ? '—'
+          : `${Math.round(metrics.cleanIngestRate * 100)}%`,
+    },
+    {
+      label: p('תיקוני סיווג'),
+      value: String(listClassificationCorrections().length),
+    },
+  ]
 
   return (
     <OpsAppShell>
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 md:gap-5">
         <OpsPageHero
           title="כמה נחסך"
           status="הכסף שנרשם, והסניף שדורש אותך."
         />
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
-        <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-[var(--shadow-1)]">
-          <p className="t-caption text-ink-3">נחסך</p>
-          <p className="t-title t-num mt-1 text-ink">{savedLine}</p>
-          <p className="t-body mt-2 text-ink-2">
-            {money.bundleSaved > 0
-              ? 'ביקור אחד נרשם זול יותר משתי קריאות נפרדות על אותן תקלות.'
-              : 'חיסכון נספר כשעל אותן תקלות יש הצעת מחיר לכל תקלה, וביקור אחד זול יותר משתיהן.'}
-          </p>
-          <PhoneFoldStack>
-          <PhoneFold title="פירוט" summary={savedLine}>
-          <div className="mt-5 flex flex-col gap-6">
-            <ValueBars title="סכומים שנרשמו" bars={moneyBars(money)} />
-            <ValueBars title="הצעות שנרשמו לפי סוג" bars={tradeBars} />
+
+        <section className="rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-4 md:px-5 md:py-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="t-caption text-ink-3">{p('נחסך מאיחוד ביקור')}</p>
+              <p
+                className={`t-title t-num mt-1 ${hasSaved ? 'text-ink' : 'text-ink-3'}`}
+              >
+                {savedLine}
+              </p>
+            </div>
+            <p className="t-body max-w-md text-ink-2">
+              {hasSaved
+                ? p('ביקור אחד נרשם זול יותר משתי קריאות נפרדות על אותן תקלות.')
+                : p(
+                    'חיסכון נספר כשיש הצעת מחיר לכל תקלה, וביקור אחד זול יותר משתיהן.',
+                  )}
+            </p>
           </div>
-          <p className="t-body mt-4 text-ink">
-            העלות של כל תיקון נראית לפני שיוצא בעל מקצוע. תקלה שחוזרת נשארת עם המחיר שלה, ואפשר לעצור את הביקור הבא.
-          </p>
-          </PhoneFold>
-          </PhoneFoldStack>
+
+          <div className="mt-5">
+            <MoneyTiles
+              bars={moneyBars(money).map((bar) => ({
+                ...bar,
+                label: p(bar.label),
+              }))}
+            />
+          </div>
+
+          {tradeBars.length > 0 ? (
+            <div className="mt-5 border-t border-border pt-5">
+              <ValueBars title={p('הצעות שנרשמו לפי סוג')} bars={tradeBars} />
+            </div>
+          ) : null}
         </section>
-        <RetainChat />
+
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(17rem,0.95fr)] lg:gap-5">
+          <section className="rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-4 md:px-5">
+            <p className="t-section text-ink">{p('מדדים תפעוליים')}</p>
+            <p className="t-meta mt-1 text-ink-3">
+              {p('זמן, חזרות וקליטה — בלי קופסאות ריקות')}
+            </p>
+            <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {opsMetrics.map((row) => (
+                <li
+                  key={row.label}
+                  className="flex min-h-[4.5rem] flex-col justify-between rounded-[var(--radius-lg)] border border-border px-3.5 py-3"
+                >
+                  <span className="t-meta text-ink-3">{row.label}</span>
+                  <span className="t-num mt-2 text-[1.25rem] font-semibold leading-none text-ink">
+                    {row.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <RetainChat />
         </div>
-        <PhoneFold title="מדדים תפעוליים" summary={savedLine}>
-        <Panel elevated>
-          <dl className="divide-y divide-border">
-            <KeyValue label="חציון שעות טיפול">
-              {metrics.medianResolveHours?.toFixed(1) ?? '—'}
-            </KeyValue>
-            <KeyValue label="חציון שעות לאישור">
-              {metrics.medianApprovalHours?.toFixed(1) ?? '—'}
-            </KeyValue>
-            <KeyValue label="תקלות חוזרות">{metrics.repeats}</KeyValue>
-            <KeyValue label="פניות מחוץ למערכת">{metrics.outsideSystem}</KeyValue>
-            <KeyValue label="קליטה נקייה">
-              {metrics.cleanIngestRate == null
-                ? '—'
-                : `${Math.round(metrics.cleanIngestRate * 100)}%`}
-            </KeyValue>
-            <KeyValue label="תיקוני סיווג">{listClassificationCorrections().length}</KeyValue>
-          </dl>
-        </Panel>
-        </PhoneFold>
       </div>
     </OpsAppShell>
   )

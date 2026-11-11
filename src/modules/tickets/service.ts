@@ -192,6 +192,9 @@ export type ListTicketsQuery = {
   /** Profile id, or `none` for unassigned. */
   assignedTo?: string
   q?: string
+  organizationId?: string
+  storeIds?: string[] | null
+  offset?: number
   /** Optional user-scoped Supabase client (RLS). */
   client?: SupabaseClient
 }
@@ -217,8 +220,11 @@ async function queryTicketsList(
     storeCode?: string
     assignedTo?: string
     q?: string
+    organizationId?: string
+    storeIds?: string[] | null
   },
   limit: number,
+  offset = 0,
 ): Promise<{ rows: TicketRow[]; error: string | null }> {
   const storeJoin = filters.storeCode
     ? 'stores!inner(code, name, city)'
@@ -228,8 +234,13 @@ async function queryTicketsList(
     .select(`${LIST_SELECT_BASE}, ${storeJoin}`)
     .order('created_at', { ascending: false })
     // Search still filters in memory — fetch a modest oversample, not 4×.
-    .limit(Math.min(Math.max(limit * (filters.q ? 2 : 1), 1), 1000))
+    .range(offset, offset + Math.min(Math.max(limit * (filters.q ? 2 : 1), 1), 1000) - 1)
 
+  if (filters.organizationId) query = query.eq('organization_id', filters.organizationId)
+  if (filters.storeIds) {
+    if (filters.storeIds.length === 0) return { rows: [], error: null }
+    query = query.in('store_id', filters.storeIds)
+  }
   if (filters.statuses && filters.statuses.length > 0) {
     query = query.in('status', filters.statuses)
   } else if (filters.status) {
@@ -253,7 +264,12 @@ async function queryTicketsList(
       .from('tickets')
       .select(`${lean}, ${storeJoin}`)
       .order('created_at', { ascending: false })
-      .limit(Math.min(Math.max(limit * (filters.q ? 2 : 1), 1), 1000))
+      .range(offset, offset + Math.min(Math.max(limit * (filters.q ? 2 : 1), 1), 1000) - 1)
+    if (filters.organizationId) retry = retry.eq('organization_id', filters.organizationId)
+    if (filters.storeIds) {
+      if (filters.storeIds.length === 0) return { rows: [], error: null }
+      retry = retry.in('store_id', filters.storeIds)
+    }
     if (filters.statuses && filters.statuses.length > 0) {
       retry = retry.in('status', filters.statuses)
     } else if (filters.status) {
@@ -310,12 +326,14 @@ export async function listTickets(
     storeCode: opts.storeCode,
     assignedTo: opts.assignedTo,
     q: opts.q,
+    organizationId: opts.organizationId,
+    storeIds: opts.storeIds,
   }
 
   if (await supabaseReady()) {
     const primary = opts.client ?? createSystemClient('tickets_service')
     const primaryMode: 'user' | 'system' = opts.client ? 'user' : 'system'
-    let result = await queryTicketsList(primary, filters, limit)
+    let result = await queryTicketsList(primary, filters, limit, opts.offset)
 
     // User RLS client often fails (policy / embed) — fall back to system + app scope.
     if (result.error && opts.client) {
@@ -326,6 +344,7 @@ export async function listTickets(
         createSystemClient('tickets_service'),
         filters,
         limit,
+        opts.offset,
       )
       if (!result.error) {
         return {
@@ -357,8 +376,11 @@ export async function listTickets(
     }
   }
 
-  const memRows = memFilterTickets(memListTickets(), filters)
-    .slice(0, limit)
+  const memRows = memFilterTickets(memListTickets().filter((ticket) =>
+    (!opts.organizationId || ticket.organization_id === opts.organizationId) &&
+    (opts.storeIds == null || opts.storeIds.includes(ticket.store_id)),
+  ), filters)
+    .slice(opts.offset ?? 0, (opts.offset ?? 0) + limit)
     .map((t) => slimListTicketRow(t as unknown as TicketRow))
   return {
     tickets: memRows as unknown as TicketRow[],

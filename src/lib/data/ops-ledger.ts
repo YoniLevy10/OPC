@@ -734,7 +734,7 @@ export function setDocumentExpiry(id: string, extractedExpiry: string): StoreDoc
 
 export function renewStoredDocument(
   id: string,
-  nextFile: { sourceUrl: string; extractedExpiry: string | null },
+  nextFile: { sourceUrl: string; storagePath?: string | null; extractedExpiry: string | null },
 ) {
   const current = ledger.documents.find((row) => row.id === id)
   if (!current) throw new Error('מסמך לא נמצא')
