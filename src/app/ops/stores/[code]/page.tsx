@@ -23,7 +23,7 @@ import {
   sameStoreCompanionIds,
   type BundleFault,
 } from "@/modules/whatsapp/agent/bundle";
-import { PhoneFold, PhoneFoldStack } from "@/components/layout/phone-fold";
+import { PhoneFold } from "@/components/layout/phone-fold";
 import {
   areaManagerForStore,
   listAudits,
@@ -296,6 +296,19 @@ export default async function StoreDetailPage({
                 }))}
               />
             ) : null}
+            {canEdit ? (
+              <PhoneFold title="עריכה" summary={store.name}>
+                <Panel elevated id="store-edit">
+                  <p className="t-section mb-3 text-ink">עריכה</p>
+                  <StoreEditControls
+                    id={store.id}
+                    name={store.name}
+                    city={store.city}
+                    isActive={store.is_active !== false}
+                  />
+                </Panel>
+              </PhoneFold>
+            ) : null}
           </div>
 
           <div className="grid min-w-0 gap-3 lg:col-span-2 xl:col-span-12 lg:grid-cols-2">
@@ -335,19 +348,6 @@ export default async function StoreDetailPage({
               </Panel>
             </PhoneFold>
 
-            {canEdit ? (
-              <PhoneFold title="עריכה" summary={store.name}>
-                <Panel elevated id="store-edit">
-                  <p className="t-section mb-3 text-ink">עריכה</p>
-                  <StoreEditControls
-                    id={store.id}
-                    name={store.name}
-                    city={store.city}
-                    isActive={store.is_active !== false}
-                  />
-                </Panel>
-              </PhoneFold>
-            ) : null}
           </div>
         </div>
       </div>

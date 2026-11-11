@@ -18,7 +18,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/input'
+import { Input, Select, Textarea } from '@/components/ui/input'
 import {
   EmptyState,
   ErrorState,
@@ -40,6 +40,7 @@ import { HUMAN_PAUSE_WINDOW_MINUTES } from '@/modules/whatsapp/human-pause'
 type Session = {
   wa_id: string
   store_code: string | null
+  store_id?: string | null
   store_name?: string | null
   customer_name?: string | null
   display_name?: string
@@ -90,6 +91,7 @@ type OpenTicket = {
 type SessionContext = {
   store_name: string | null
   store_code: string | null
+  store_id?: string | null
   customer_name: string | null
   wa_display: string
   openTickets: OpenTicket[]
@@ -179,6 +181,9 @@ export function InboxClient() {
   const [selected, setSelected] = useState<string | null>(waFromUrl)
   const [mobileShowThread, setMobileShowThread] = useState(Boolean(waFromUrl))
   const [reply, setReply] = useState('')
+  const [stores, setStores] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [editCustomerName, setEditCustomerName] = useState('')
+  const [editStoreId, setEditStoreId] = useState('')
 
   const threadEndRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
@@ -214,6 +219,10 @@ export function InboxClient() {
 
   useEffect(() => {
     void loadSessions()
+    void fetch('/api/stores').then(async (res) => {
+      const json = await res.json()
+      if (res.ok) setStores(json.stores ?? [])
+    }).catch(() => undefined)
   }, [loadSessions])
 
   useEffect(() => {
@@ -382,6 +391,30 @@ export function InboxClient() {
   }
 
   const active = sessions.find((s) => s.wa_id === selected) ?? null
+  useEffect(() => {
+    if (!active) return
+    setEditCustomerName(context?.customer_name ?? active.customer_name ?? '')
+    setEditStoreId(active.store_id ?? '')
+  }, [active, context])
+
+  async function saveContactDetails() {
+    if (!active) return
+    setBusy(true)
+    setNotice(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/inbox/sessions', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wa_id: active.wa_id, store_id: editStoreId || null, customer_name: editCustomerName.trim() || null }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'שמירה נכשלה')
+      setNotice('פרטי הלקוח והסניף נשמרו')
+      await Promise.all([loadSessions(), loadThread(active.wa_id)])
+    } catch (err) { setError(err instanceof Error ? err.message : 'שמירה נכשלה') }
+    finally { setBusy(false) }
+  }
+
   const linkedTickets = openTickets.length
     ? openTickets
     : ticketIds.map((id) => ({
@@ -497,6 +530,16 @@ export function InboxClient() {
           <p dir="ltr" className="t-caption t-num mt-1 text-ink-3">
             {context?.wa_display || active.wa_id}
           </p>
+          <div className="mt-3 space-y-2">
+            <label className="t-caption block text-ink-3" htmlFor="inbox-customer-name">שם לקוח</label>
+            <Input id="inbox-customer-name" value={editCustomerName} onChange={(event) => setEditCustomerName(event.target.value)} maxLength={120} placeholder="שם לקוח" disabled={busy} />
+            <label className="t-caption block text-ink-3" htmlFor="inbox-store-link">חיבור לסניף</label>
+            <Select id="inbox-store-link" value={editStoreId} onChange={(event) => setEditStoreId(event.target.value)} disabled={busy}>
+              <option value="">ללא סניף</option>
+              {stores.map((store) => <option key={store.id} value={store.id}>#{store.code} · {store.name}</option>)}
+            </Select>
+            <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void saveContactDetails()}>שמירת פרטים</Button>
+          </div>
         </div>
 
         <div>

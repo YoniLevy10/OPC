@@ -268,6 +268,7 @@ export type MemSession = {
   /** Absolute end of the private ops window for this wa_id. */
   human_takeover_until?: string | null
   last_inbound?: string | null
+  customer_name?: string | null
 }
 
 /** Operational asset health — optional; UI may also derive from open tickets. */
@@ -1517,6 +1518,7 @@ export function memUpsertSession(
         ? session.human_takeover_until
         : (existing?.human_takeover_until ?? null),
     last_inbound: session.last_inbound ?? existing?.last_inbound ?? null,
+    customer_name: session.customer_name !== undefined ? session.customer_name : (existing?.customer_name ?? null),
   }
   store().sessions.set(full.wa_id, full)
   return full

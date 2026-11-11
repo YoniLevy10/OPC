@@ -52,6 +52,8 @@ export function SystemStatusBanner({
   }, [])
 
   if (level === 'partial' || level === 'unknown') return null
+  // A healthy production state is the default; keep the banner only for incidents.
+  if (process.env.NODE_ENV === 'production' && level === 'ok') return null
 
   const label = LEVEL_LABEL[level]
 

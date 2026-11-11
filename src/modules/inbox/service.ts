@@ -2,6 +2,7 @@ import { createSystemClient } from '@/lib/supabase/system'
 import type { Actor } from '@/lib/auth/types'
 import { AuthError, testAuthAllowed } from '@/lib/auth/types'
 import { canAccessInboxSession } from './authorization'
+import { canonicalStoreCode } from '@/modules/stores/israel-stores'
 import {
   isMissingColumnError,
   isMissingTableError,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/supabase/schema-fallback'
 import {
   memListSessions,
+  memGetSession,
   memSetSessionTakeover,
   memUpsertSession,
   memAddInboxMessage,
@@ -53,7 +55,7 @@ function sanitizeOptionalUuid(
 }
 
 const SESSION_SELECT_FULL =
-  'wa_id, country_id, store_id, store_code, state, pending_description, expires_at, updated_at, human_takeover, human_takeover_until, last_inbound'
+  'wa_id, country_id, store_id, store_code, customer_name, state, pending_description, expires_at, updated_at, human_takeover, human_takeover_until, last_inbound'
 const SESSION_SELECT_LEGACY =
   'wa_id, country_id, store_id, store_code, state, pending_description, expires_at, updated_at'
 
@@ -87,6 +89,7 @@ function mapSessionRow(
         ? null
         : String(row.store_id),
     store_code: (row.store_code as string | null) ?? null,
+    customer_name: (row.customer_name as string | null) ?? null,
     state: row.state as InboxSession['state'],
     pending_description: (row.pending_description as string | null) ?? null,
     expires_at: String(row.expires_at ?? ''),
@@ -313,7 +316,7 @@ function enrichMemorySessions(sessions: InboxSession[]): InboxSessionView[] {
       lastMessage: last?.body ?? session.last_inbound ?? null,
       lastDirection: last?.direction ?? (session.last_inbound ? 'inbound' : null),
       openPriorities: open.map((t) => t.priority),
-      customerName: customer,
+      customerName: session.customer_name ?? customer,
     })
   })
 }
@@ -576,6 +579,52 @@ export async function setSessionTakeover(
   return mapSessionRow(data as Record<string, unknown>)
 }
 
+/** Assign an inbox number to a store, after checking both session and target scope. */
+export async function assignSessionStore(
+  waId: string,
+  storeId: string | null | undefined,
+  customerName: string | null | undefined,
+  actor: Actor,
+): Promise<{ wa_id: string; store_id: string | null; store_code: string | null }> {
+  await assertSessionAccess(waId, actor)
+
+  if (!(await supabaseReady())) {
+    if (!testAuthAllowed()) throw new AuthError('Inbox backend unavailable', 503)
+    const session = memGetSession(waId)
+    if (!session) throw new AuthError('השיחה לא נמצאה', 404)
+    if (storeId === undefined) {
+      const updated = memUpsertSession({ ...session, ...(customerName !== undefined ? { customer_name: customerName } : {}) })
+      return { wa_id: waId, store_id: updated.store_id, store_code: updated.store_code }
+    }
+    if (storeId) {
+      const store = memListStores().find((item) => item.id === storeId)
+      if (!store || !canAccessInboxSession(actor, { store_id: store.id, country_id: store.country_id, region_id: store.region_id, organization_id: store.organization_id })) throw new AuthError('אין הרשאה לסניף זה', 403)
+      const updated = memUpsertSession({ ...session, store_id: store.id, store_code: store.code, ...(customerName !== undefined ? { customer_name: customerName } : {}) })
+      return { wa_id: waId, store_id: updated.store_id, store_code: updated.store_code }
+    }
+    const updated = memUpsertSession({ ...session, store_id: null, store_code: null, ...(customerName !== undefined ? { customer_name: customerName } : {}) })
+    return { wa_id: waId, store_id: updated.store_id, store_code: updated.store_code }
+  }
+
+  const supabase = createSystemClient('inbox_assign_store')
+  if (storeId === undefined) {
+    const { data: current, error: currentError } = await supabase.from('intake_sessions').select('store_id, store_code').eq('wa_id', waId).single()
+    if (currentError) throw new Error(currentError.message)
+    storeId = (current.store_id as string | null) ?? null
+  }
+  if (!storeId) {
+    const { data, error } = await supabase.from('intake_sessions').update({ store_id: null, store_code: null, ...(customerName !== undefined ? { customer_name: customerName } : {}), updated_at: new Date().toISOString() }).eq('wa_id', waId).select('wa_id, store_id, store_code').single()
+    if (error) throw new Error(error.message)
+    return data as { wa_id: string; store_id: string | null; store_code: string | null }
+  }
+  const { data: store, error: storeError } = await supabase.from('stores').select('id, code, country_id, region_id, organization_id').eq('id', storeId).maybeSingle()
+  if (storeError || !store) throw new AuthError('הסניף לא נמצא', 404)
+  if (!canAccessInboxSession(actor, { store_id: store.id, country_id: store.country_id, region_id: store.region_id, organization_id: store.organization_id })) throw new AuthError('אין הרשאה לסניף זה', 403)
+  const { data, error } = await supabase.from('intake_sessions').update({ store_id: store.id, store_code: canonicalStoreCode(store.code), ...(customerName !== undefined ? { customer_name: customerName } : {}), updated_at: new Date().toISOString() }).eq('wa_id', waId).select('wa_id, store_id, store_code').single()
+  if (error) throw new Error(error.message)
+  return data as { wa_id: string; store_id: string | null; store_code: string | null }
+}
+
 /**
  * Private ops window for one chat only (bot stays on elsewhere).
  * waiting → open/extend 30m pause for this wa_id
@@ -613,7 +662,7 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
       session?.store_code ?? null,
     )
     const customer_name =
-      memListTickets().find((t) => t.reporter_phone === waId && t.stores?.id === session.store_id && t.organization_id === memListStores().find((store) => store.id === session.store_id)?.organization_id)?.reporter_name ??
+      session.customer_name ?? memListTickets().find((t) => t.reporter_phone === waId && t.stores?.id === session.store_id && t.organization_id === memListStores().find((store) => store.id === session.store_id)?.organization_id)?.reporter_name ??
       null
     for (const id of openTickets.map((t) => t.id)) {
       if (!ticketIds.includes(id)) ticketIds.push(id)
@@ -659,7 +708,7 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
       .limit(20),
     supabase
       .from('intake_sessions')
-      .select('store_id, store_code')
+      .select('store_id, store_code, customer_name')
       .eq('wa_id', waId)
       .maybeSingle(),
   ])
@@ -689,7 +738,7 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
           ),
           store_code: session?.store_code ?? null,
           customer_name:
-            memListTickets().find((t) => t.reporter_phone === waId && t.stores?.id === session?.store_id && t.organization_id === memListStores().find((store) => store.id === session?.store_id)?.organization_id)
+            session?.customer_name ?? memListTickets().find((t) => t.reporter_phone === waId && t.stores?.id === session?.store_id && t.organization_id === memListStores().find((store) => store.id === session?.store_id)?.organization_id)
               ?.reporter_name ?? null,
           wa_display: formatWaDisplay(waId),
           openTickets,
@@ -773,6 +822,7 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
     (sessionRow?.store_code as string | null) ?? null,
   )
   const customer_name =
+    (sessionRow?.customer_name as string | null) ??
     tickets.find((t) => t.reporter_name)?.reporter_name ?? null
 
   return {

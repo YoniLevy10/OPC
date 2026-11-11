@@ -7,6 +7,7 @@ import {
 import { AuthError } from '@/lib/auth/types'
 import {
   listInboxSessions,
+  assignSessionStore,
   markSessionInboxStatus,
   setSessionTakeover,
 } from '@/modules/inbox/service'
@@ -28,10 +29,12 @@ const patchSchema = z
   .object({
     wa_id: z.string().min(5),
     human_takeover: z.boolean().optional(),
+    store_id: z.string().uuid().nullable().optional(),
+    customer_name: z.string().trim().max(120).nullable().optional(),
     /** handled = bot/closed; waiting = human takeover */
     status: z.enum(['handled', 'waiting']).optional(),
   })
-  .refine((d) => d.human_takeover !== undefined || d.status !== undefined, {
+  .refine((d) => d.human_takeover !== undefined || d.status !== undefined || d.store_id !== undefined || d.customer_name !== undefined, {
     message: 'human_takeover or status required',
   })
 
@@ -41,6 +44,10 @@ export async function PATCH(request: Request) {
     const parsed = patchSchema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })
+    }
+    if (parsed.data.store_id !== undefined || parsed.data.customer_name !== undefined) {
+      const session = await assignSessionStore(parsed.data.wa_id, parsed.data.store_id, parsed.data.customer_name, actor)
+      return NextResponse.json({ session })
     }
     const session =
       parsed.data.status !== undefined

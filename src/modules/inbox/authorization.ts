@@ -1,7 +1,8 @@
 import type { Actor } from '@/lib/auth/types'
 
 type InboxScope = {
-  store_id: string | null
+  store_id?: string | null
+  id?: string
   country_id: string | null
   region_id?: string | null
   organization_id?: string | null
