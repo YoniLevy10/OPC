@@ -47,7 +47,7 @@ export function buildProAssignmentSms(input: {
       .join('\n')
   }
 
-  let detailLine: string | null =
+  const detailLine: string | null =
     titles.length > 0 ? titles.join(' · ') : null
   let text = compose(detailLine)
 
