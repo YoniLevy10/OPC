@@ -53,8 +53,8 @@ function StoreFolder({
           className={cn(
             'flex w-full text-start transition-colors hover:bg-surface-sunken/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--tenant)]',
             open
-              ? 'min-h-[4.25rem] items-center justify-between gap-3 px-4 py-3.5'
-              : 'h-full min-h-[5.5rem] flex-col justify-between gap-2 px-3 py-3',
+              ? 'min-h-[3.75rem] items-center justify-between gap-3 px-4 py-3'
+              : 'h-full min-h-[4.5rem] flex-col justify-between gap-1.5 px-3 py-2.5',
           )}
         >
           <span className="min-w-0 w-full">
@@ -244,22 +244,24 @@ export function AriHomeBoard({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+      <div className="phone-metrics grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
         {metrics.map((metric) => (
           <Link
             key={metric.label}
             href={metric.href}
-            className="flex min-h-[5.75rem] min-w-0 flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-4"
+            className="flex min-h-[3.75rem] min-w-0 flex-col justify-between rounded-[var(--radius-lg)] border border-border bg-surface px-3 py-2.5 md:min-h-[5.25rem] md:px-4 md:py-4"
           >
             <span
               className={cn(
-                't-num block text-[2.125rem] font-semibold leading-none tracking-tight',
+                't-display t-num block text-[1.5rem] font-semibold leading-none tracking-tight md:text-[2rem]',
                 metric.accent ? 'text-[var(--tenant)]' : 'text-ink',
               )}
             >
               {metric.value}
             </span>
-            <span className="t-body mt-3 block text-ink-2">{metric.label}</span>
+            <span className="t-caption mt-1.5 block text-ink-2 md:mt-3 md:text-[13.5px] md:font-normal md:leading-[1.5]">
+              {metric.label}
+            </span>
           </Link>
         ))}
       </div>

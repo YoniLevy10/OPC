@@ -59,7 +59,7 @@ export function PhoneTabBar({
                   active ? 'nav-pill-active' : 'text-ink-3',
                 )}
               >
-                <Icon className="h-6 w-6" aria-hidden />
+                <Icon className="h-5 w-5" aria-hidden />
                 <span className="t-caption">{item.label}</span>
               </Link>
             </li>

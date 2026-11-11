@@ -483,54 +483,32 @@ body {
 }
 
 /*
-  Phone reading size. Desktop stays dense.
-  Body at 17px so a phone session does not strain the eyes.
+  Phone / PWA density — normal app scale, not large-print reading mode.
+  Prior inflation (34px titles, 17px body, 68px tab bar, stacked 36px KPIs)
+  made standalone home-screen installs feel zoomed and left the store list
+  barely visible. Keep a modest readability bump; leave chrome at iOS-like size.
 */
 @media (max-width: 1023px) {
   :root {
-    --bottomnav-h: 68px;
-    --tap: 52px;
+    --bottomnav-h: 58px;
+    --tap: 44px;
     --sheet-bottom: calc(var(--bottomnav-h) + var(--bottomnav-gap) + var(--safe-b) + 8px);
   }
 
-  .t-display {
-    font-size: 34px;
-  }
-  .t-title {
-    font-size: 22px;
-    line-height: 1.3;
-  }
-  .t-section {
-    font-size: 17px;
-    line-height: 1.35;
-  }
-  .ops-page-hero-compact .ops-page-hero-title {
-    font-size: 1.75rem;
-    font-weight: 700;
-  }
-  .t-lead {
-    font-size: 18px;
-    line-height: 1.4;
-    font-weight: 600;
-  }
   .t-body,
   .t-body-strong {
-    font-size: 17px;
-    line-height: 1.5;
-  }
-  .t-meta {
     font-size: 15px;
     line-height: 1.45;
   }
-  .t-caption {
+  .t-meta {
     font-size: 13px;
-    line-height: 1.35;
+    line-height: 1.4;
   }
   .t-control {
-    font-size: 16px;
+    font-size: 15px;
   }
   .t-control-lg {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .scroll-edge-fade {
@@ -547,32 +525,42 @@ body {
   }
 
   .op-row-kicker {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 650;
     line-height: 1.35;
     color: var(--ink);
   }
 
   .phone-metrics {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .phone-metrics > a,
   .phone-metrics > div {
-    min-height: 4.75rem;
-    flex-direction: row;
-    align-items: center;
+    min-height: 3.75rem;
+    flex-direction: column;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
-    padding-inline: 1.15rem;
+    gap: 0.35rem;
+    padding-inline: 0.85rem;
   }
   .phone-metrics .t-display {
-    font-size: 36px;
+    font-size: 1.5rem;
   }
   .phone-metrics .t-caption {
-    font-size: 17px;
+    font-size: 0.72rem;
     font-weight: 600;
-    line-height: 1.3;
-    color: var(--ink);
+    line-height: 1.25;
+    color: var(--ink-2);
+  }
+
+  /* Compact HQ greeting — keep the title band short so the store grid shows */
+  .ops-page-hero-compact .ops-page-hero-title {
+    font-size: 1.25rem;
+    line-height: 1.25;
+    min-height: 0;
+  }
+  .ops-page-hero-compact {
+    padding-block: 0.15rem;
   }
 
   .phone-sheet {
@@ -600,8 +588,8 @@ body {
   }
 
   .phone-tabbar .t-caption {
-    font-size: 15px;
-    font-weight: 650;
+    font-size: 11px;
+    font-weight: 600;
     letter-spacing: 0;
   }
 

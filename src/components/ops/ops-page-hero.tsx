@@ -96,10 +96,12 @@ export function OpsPageHero({
           <h1 className="ops-page-hero-title large-title-hero-title text-ink">
             {p(title)}
           </h1>
-          <span aria-hidden className="ops-page-hero-rule" />
-          <div className="ops-page-hero-status t-body mt-1.5 line-clamp-3 text-ink-2 md:mt-2 md:line-clamp-1">
-            {statusText}
-          </div>
+          {compact ? null : <span aria-hidden className="ops-page-hero-rule" />}
+          {compact && (!status || status === '\u00a0') ? null : (
+            <div className="ops-page-hero-status t-body mt-1.5 line-clamp-3 text-ink-2 md:mt-2 md:line-clamp-1">
+              {statusText}
+            </div>
+          )}
           {footer ? (
             <div className="mt-2.5 flex flex-wrap items-center gap-3">{footer}</div>
           ) : null}
