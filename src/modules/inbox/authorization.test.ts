@@ -16,11 +16,21 @@ describe('inbox session authorization', () => {
     expect(canAccessInboxSession(actor('store_manager'), session)).toBe(true)
     expect(canAccessInboxSession(actor('store_employee'), session)).toBe(true)
   })
-  it('denies cross-tenant scopes and never uses phone identity as scope', () => {
+  it('denies cross-tenant scopes for non-admin roles', () => {
     expect(canAccessInboxSession(actor('country_manager'), { ...session, country_id: 'other' })).toBe(false)
     expect(canAccessInboxSession(actor('regional_manager'), { ...session, region_id: 'south' })).toBe(false)
     expect(canAccessInboxSession(actor('store_employee'), { ...session, store_id: 's2' })).toBe(false)
     expect(canAccessInboxSession(actor('internal_technician'), session)).toBe(false)
-    expect(canAccessInboxSession(actor('global_admin'), { ...session, organization_id: 'other' })).toBe(false)
+  })
+
+  it('lets global_admin into every inbox session', () => {
+    expect(
+      canAccessInboxSession(actor('global_admin', { country_id: null }), {
+        ...session,
+        organization_id: 'other',
+        country_id: 'fr',
+        store_id: 's9',
+      }),
+    ).toBe(true)
   })
 })

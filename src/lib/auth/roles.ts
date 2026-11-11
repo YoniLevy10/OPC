@@ -31,7 +31,7 @@ export const PRODUCT_ROLE_LABELS_HE: Record<ProductRole, string> = {
 /** Short “who can what” for the Users admin (OC pilot: HQ = Ari only). */
 export const PRODUCT_ROLE_HELP_HE: Record<ProductRole, string> = {
   global_admin:
-    'ארי / HQ — גישה מלאה למרכז השליטה (משתמשים, הגדרות, חנויות)',
+    'ארי / HQ — גישה להכל במערכת (בלי הגבלת סניף או מדינה)',
   global_maintenance:
     'לא נדרש בפיילוט ארי־יחיד — נשמר לתאימות עתידית',
   store_employee: 'שטח: WhatsApp + פורטל חנות — דיווח ומעקב',
@@ -100,4 +100,15 @@ export function techProductRoles(): MemberRole[] {
 
 export function canManageUsersRole(role: MemberRole): boolean {
   return role === 'global_admin'
+}
+
+/** System admin (Ari / HQ owner) — full access, no country/store scope. */
+export function isGlobalAdminRole(role: MemberRole | string): boolean {
+  return role === 'global_admin'
+}
+
+export function actorIsGlobalAdmin(actor: {
+  memberships: Array<{ role: string }>
+}): boolean {
+  return actor.memberships.some((m) => isGlobalAdminRole(m.role))
 }

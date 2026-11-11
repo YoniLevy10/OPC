@@ -12,7 +12,8 @@ describe('report snapshot authorization', () => {
   it('requires exactly one in-scope organization and an insert-permitted HQ role', () => {
     expect(organizationForReportSnapshot(actor(membership('org-a', 'global_admin')))).toBe('org-a')
     expect(organizationForReportSnapshot(actor(membership('org-a', 'store_manager', 'store-a')))).toBeNull()
-    expect(organizationForReportSnapshot(actor(membership('org-a', 'global_admin'), membership('org-b', 'global_maintenance')))).toBeNull()
+    // global_admin wins — snapshot org comes from the admin membership.
+    expect(organizationForReportSnapshot(actor(membership('org-a', 'global_admin'), membership('org-b', 'global_maintenance')))).toBe('org-a')
     expect(organizationForReportSnapshot(actor(membership('org-a', 'internal_technician')))).toBeNull()
   })
 

@@ -1,8 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import {
+  actorIsGlobalAdmin,
   hqProductRoles,
   techProductRoles,
 } from '@/lib/auth/roles'
+
+export { actorIsGlobalAdmin } from '@/lib/auth/roles'
 
 export type MemberRole =
   | 'global_admin'
@@ -123,9 +126,11 @@ export type TicketScopeRow = {
 
 /** Defense-in-depth ticket visibility for API layer. */
 export function canReadTicket(actor: Actor, ticket: TicketScopeRow): boolean {
+  // מנהל מערכת = גישה מלאה (ארי / HQ יחיד בפיילוט).
+  if (actorIsGlobalAdmin(actor)) return true
   for (const m of actor.memberships) {
     if (m.organization_id !== ticket.organization_id) continue
-    if (m.role === 'global_admin' || m.role === 'global_maintenance') return true
+    if (m.role === 'global_maintenance') return true
     if (m.role === 'country_manager' && m.country_id === ticket.country_id)
       return true
     if (m.role === 'regional_manager' && m.region_id === ticket.region_id)
@@ -147,9 +152,10 @@ export function canReadTicket(actor: Actor, ticket: TicketScopeRow): boolean {
 }
 
 export function canMutateHqTicket(actor: Actor, ticket: TicketScopeRow): boolean {
+  if (actorIsGlobalAdmin(actor)) return true
   for (const m of actor.memberships) {
     if (m.organization_id !== ticket.organization_id) continue
-    if (m.role === 'global_admin' || m.role === 'global_maintenance') return true
+    if (m.role === 'global_maintenance') return true
     if (m.role === 'country_manager' && m.country_id === ticket.country_id)
       return true
     if (m.role === 'regional_manager' && m.region_id === ticket.region_id)

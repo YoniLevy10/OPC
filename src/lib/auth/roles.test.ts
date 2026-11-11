@@ -27,8 +27,8 @@ describe('product roles', () => {
     expect(roleLabelHe('store_manager')).toMatch(/חנות/)
   })
 
-  it('frames HQ as Ari-only and field roles as store/tech', () => {
-    expect(PRODUCT_ROLE_HELP_HE.global_admin).toMatch(/ארי/)
+  it('frames HQ as Ari-only with full access and field roles as store/tech', () => {
+    expect(PRODUCT_ROLE_HELP_HE.global_admin).toMatch(/הכל/)
     expect(PRODUCT_ROLE_HELP_HE.global_maintenance).toMatch(/ארי־יחיד|ארי-יחיד/)
     expect(PRODUCT_ROLE_HELP_HE.store_employee).toMatch(/שטח/)
     expect(PRODUCT_ROLE_HELP_HE.internal_technician).toMatch(/שטח/)

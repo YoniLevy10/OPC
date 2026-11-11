@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth/memory-memberships'
 import type { MemberRole, Membership } from '@/lib/auth/types'
 import { AuthError, type Actor } from '@/lib/auth/types'
-import { isAssignableRole } from '@/lib/auth/roles'
+import { actorIsGlobalAdmin, isAssignableRole } from '@/lib/auth/roles'
 import { MEM_COUNTRY_ID, MEM_ORG_ID, supabaseReady } from '@/lib/data/memory-store'
 import { sanitizePhoneInput } from '@/lib/phone'
 
@@ -25,8 +25,7 @@ export type UserRow = {
 }
 
 export function requireUsersAdmin(actor: Actor) {
-  const ok = actor.memberships.some((m) => m.role === 'global_admin')
-  if (!ok) {
+  if (!actorIsGlobalAdmin(actor)) {
     throw new AuthError('אין הרשאת ניהול משתמשים', 403)
   }
 }

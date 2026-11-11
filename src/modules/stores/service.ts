@@ -11,6 +11,7 @@ import {
   type MemStore,
 } from '@/lib/data/memory-store'
 import { AuthError, type Actor } from '@/lib/auth/types'
+import { actorIsGlobalAdmin } from '@/lib/auth/roles'
 import type { StoreRow } from '@/modules/stores/data'
 import { canonicalStoreCode } from '@/modules/stores/israel-stores'
 
@@ -21,9 +22,9 @@ export type StoreRecord = StoreRow & {
 }
 
 export function requireStoresMutate(actor: Actor) {
-  const ok = actor.memberships.some(
-    (m) => m.role === 'global_admin' || m.role === 'country_manager',
-  )
+  const ok =
+    actorIsGlobalAdmin(actor) ||
+    actor.memberships.some((m) => m.role === 'country_manager')
   if (!ok) {
     throw new AuthError('אין הרשאת ניהול חנויות', 403)
   }

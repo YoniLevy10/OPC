@@ -1,4 +1,5 @@
 import {
+  actorIsGlobalAdmin,
   canReadTicket,
   canTechActOnTicket,
   filterTicketsForActor,
@@ -69,8 +70,9 @@ export function scopeTicketsForActor<
   return tickets.filter((t) => {
     const scope = toTicketScope(t)
     if (scope) return canReadTicket(actor, scope)
-    return actor.memberships.some(
-      (m) => m.role === 'global_admin' || m.role === 'global_maintenance',
+    return (
+      actorIsGlobalAdmin(actor) ||
+      actor.memberships.some((m) => m.role === 'global_maintenance')
     )
   })
 }
@@ -87,11 +89,10 @@ export function actorCanAccessTicket(
     status: string
   },
 ): boolean {
+  if (actorIsGlobalAdmin(actor)) return true
   const scope = toTicketScope(ticket)
   if (!scope) {
-    return actor.memberships.some(
-      (m) => m.role === 'global_admin' || m.role === 'global_maintenance',
-    )
+    return actor.memberships.some((m) => m.role === 'global_maintenance')
   }
   return canReadTicket(actor, scope)
 }
