@@ -30,9 +30,13 @@ test.describe('Pilot scenarios (memory backend)', () => {
         timeout: 10_000,
       })
     }
-    await page.getByLabel('שם אחרי השיחה').fill('טכנאי דמו')
-    await page.getByLabel('טלפון').fill('0501234567')
-    await page.getByLabel('מחיר שסוכם').fill('450')
+    const name = page.getByLabel('שם אחרי השיחה')
+    const phone = page.getByLabel('טלפון', { exact: true })
+    await name.fill('טכנאי דמו')
+    await phone.fill('0501234567')
+    await page.getByLabel(/מחיר שסוכם/).fill('450')
+    await expect(name).toHaveValue('טכנאי דמו')
+    await expect(phone).toHaveValue('0501234567')
     // Isolate this ticket — store companions from prior seeds can block the lock.
     for (const box of await page.locator('#ticket-actions input[name="bundle"]').all()) {
       if (await box.isChecked()) await box.uncheck()
@@ -62,11 +66,23 @@ test.describe('Pilot scenarios (memory backend)', () => {
     request,
   }) => {
     const { ticketId } = await createStore172Ticket(request)
+    // Desktop shell: mobile dock submit + urgent remount raced and posted an empty name.
+    await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(`/ops/tickets/${ticketId}`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading').first()).toBeVisible()
     const markUrgent = page.getByRole('button', { name: 'סמן כדחוף' })
-    if ((await markUrgent.count()) > 0) await markUrgent.click()
-    await page.getByLabel('שם אחרי השיחה').fill('פבל דמו')
-    await page.getByLabel('טלפון').fill('0509988776')
+    if ((await markUrgent.count()) > 0) {
+      await markUrgent.click()
+      await expect(page.getByRole('button', { name: /אשר/ })).toBeVisible({
+        timeout: 10_000,
+      })
+    }
+    const name = page.getByLabel('שם אחרי השיחה')
+    const phone = page.getByLabel('טלפון', { exact: true })
+    await name.fill('פבל דמו')
+    await phone.fill('0509988776')
+    await expect(name).toHaveValue('פבל דמו')
+    await expect(phone).toHaveValue('0509988776')
     for (const box of await page.locator('#ticket-actions input[name="bundle"]').all()) {
       if (await box.isChecked()) await box.uncheck()
     }
