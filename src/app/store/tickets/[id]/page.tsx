@@ -17,7 +17,6 @@ import {
 import { formatRepairEtaHe } from '@/modules/tickets/repair-eta'
 import { formatQualityHoldHe, isQualityHoldActive } from '@/modules/tickets/quality-hold'
 import { lockedEngagementFor } from '@/modules/engagements/service'
-import { formatIls } from '@/modules/spend/true-cost'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +59,6 @@ export default async function StoreTicketPage({
           <dl className="mt-3 divide-y divide-border">
             <KeyValue label="בעל מקצוע">{engagement.professionalName}</KeyValue>
             <KeyValue label="טלפון">{engagement.professionalPhone}</KeyValue>
-            <KeyValue label="מחיר שאושר">{formatIls(engagement.approvedAmount)}</KeyValue>
           </dl>
           <p className="t-meta mt-3 text-ink-3">תאמו איתו ישירות את מועד ההגעה.</p>
         </Panel>

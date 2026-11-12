@@ -65,7 +65,9 @@ describe('lockEngagement', () => {
     expect(handoffBody).toContain('ארי אישר שאיש המקצוע יגיע לטפל בתקלות:')
     expect(handoffBody).toContain(ticket.display_number || ticket.id.slice(0, 8))
     expect(handoffBody).toContain(side.display_number || side.id.slice(0, 8))
-    expect(handoffBody).toContain('מחיר שאושר')
+    expect(handoffBody).toContain('פבל')
+    expect(handoffBody).not.toContain('מחיר שאושר')
+    expect(handoffBody).not.toContain('₪')
     expect(locked.handoff?.ok).toBe(false)
     expect(locked.handoff?.line).toMatch(/לא נמסרה|לא יצאה|נשמרו/)
     await expect(

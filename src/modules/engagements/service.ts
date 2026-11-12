@@ -5,7 +5,6 @@ import { captureError } from '@/lib/monitoring'
 import { managerPhoneForStoreCode } from '@/modules/stores/manager-identity'
 import { upsertProfessional } from '@/modules/professionals/service'
 import { notifyProfessionalSms } from '@/modules/pro/notify-sms'
-import { formatIls } from '@/modules/spend/true-cost'
 import {
   appendEvent,
   getById,
@@ -205,17 +204,16 @@ async function engagementFaultLabels(ticketId: string, bundledTicketIds: string[
 function handoffText(input: {
   name: string
   phone: string
-  amount: number
   scope?: string | null
   faults?: string[]
 }): string {
+  // Store managers get pro + contact only — never the approved price.
   return [
     'ארי אישר שאיש המקצוע יגיע לטפל בתקלות:',
     ...(input.faults ?? []).map((fault) => `• ${fault}`),
     `איש המקצוע: ${input.name}`,
     `טלפון: ${input.phone}`,
     input.scope?.trim() ? `עבודה: ${input.scope.trim()}` : null,
-    input.amount > 0 ? `מחיר שאושר: ${formatIls(input.amount)}` : null,
     'תאמו איתו ישירות את מועד ההגעה.',
     'כשהעבודה תסתיים, אשרו אם התקלות סודרו.',
   ]
@@ -454,7 +452,6 @@ export async function lockEngagement(input: {
       body: handoffText({
         name: existing.professionalName,
         phone: existing.professionalPhone,
-        amount: existing.approvedAmount,
         scope: input.scope,
         faults: await engagementFaultLabels(existing.ticketId, existing.bundledTicketIds),
       }),
@@ -547,7 +544,6 @@ export async function lockEngagement(input: {
     body: handoffText({
       name: engagement.professionalName,
       phone: engagement.professionalPhone,
-      amount: engagement.approvedAmount,
       scope: input.scope,
       faults: await engagementFaultLabels(engagement.ticketId, engagement.bundledTicketIds),
     }),

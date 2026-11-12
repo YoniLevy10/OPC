@@ -17,7 +17,10 @@ import {
   parseStoreCodeFromText,
 } from '@/modules/tickets/constants'
 import { canonicalStoreCode } from '@/modules/stores/israel-stores'
-import { resolveManagerStoreByPhone } from '@/modules/stores/manager-identity'
+import {
+  managerNameForStoreCode,
+  resolveManagerStoreByPhone,
+} from '@/modules/stores/manager-identity'
 import { createTicket } from '@/modules/tickets/service'
 import {
   findPossibleDuplicateTicket,
@@ -1539,7 +1542,7 @@ export async function processInboundMessage(
         }
         if (!text && !message.mediaUrl && !session.pending_media_url) {
           const reply = await craftIntakeReply(
-            WA_COPY.askDescription(byPhone.name),
+            WA_COPY.askDescription(byPhone.name, manager.managerName),
             'intake_ask_description',
           )
           await sendReply(supabase, message, country, reply, null, options, session)
@@ -1583,8 +1586,15 @@ export async function processInboundMessage(
       // Identity-only STORE_ keeps any stashed photo and asks for description.
       // Media on *this* message (photo+store together) can proceed immediately.
       if (isIdentityOnly(text, store.code) && !message.mediaUrl) {
+        const asManager = await resolveManagerStoreByPhone(message.waId)
+        const managerName =
+          asManager &&
+          canonicalStoreCode(asManager.code) === canonicalStoreCode(store.code) &&
+          asManager.managerName.trim()
+            ? asManager.managerName
+            : await managerNameForStoreCode(store.code)
         const reply = await craftIntakeReply(
-          WA_COPY.askDescription(store.name),
+          WA_COPY.askDescription(store.name, managerName),
           'intake_ask_description',
         )
         await sendReply(supabase, message, country, reply, null, options, session)

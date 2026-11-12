@@ -145,3 +145,31 @@ export async function managerPhoneForStoreCode(
     ISRAEL_STORES.find((s) => s.code === storeCode.trim())?.managerPhone ?? null
   )
 }
+
+/** Manager display name for WhatsApp greeting — DB / memory / seed. */
+export async function managerNameForStoreCode(
+  storeCode: string,
+): Promise<string | null> {
+  if (!storeCode.trim()) return null
+  if (await supabaseReady()) {
+    try {
+      const supabase = createSystemClient('manager_name')
+      const { data } = await supabase
+        .from('stores')
+        .select('manager_name')
+        .eq('code', storeCode.trim())
+        .maybeSingle()
+      if (data?.manager_name?.trim()) return data.manager_name.trim()
+    } catch {
+      // fall through
+    }
+  }
+  const mem = memListStores({ activeOnly: false }).find(
+    (s) => s.code === storeCode.trim(),
+  )
+  if (mem?.manager_name?.trim()) return mem.manager_name.trim()
+  return (
+    ISRAEL_STORES.find((s) => s.code === storeCode.trim())?.managerName?.trim() ||
+    null
+  )
+}

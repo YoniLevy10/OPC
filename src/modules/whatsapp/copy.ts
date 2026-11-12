@@ -7,8 +7,13 @@ export const WA_COPY = {
     'שלום! לדיווח תקלה יש לשלוח את קוד החנות (למשל 172) או לסרוק את ה־QR / NFC בחנות.',
   storeNotFound: (code: string) =>
     `לא מצאתי חנות עם הקוד ${code}. בדקו את הקוד ונסו שוב (מספרים בלבד).`,
-  askDescription: (storeName: string) =>
-    `זוהתה חנות: ${storeName}.\nתארו בקצרה את התקלה. אפשר גם לצרף תמונה.`,
+  askDescription: (storeName: string, managerName?: string | null) => {
+    const name = managerName?.trim()
+    if (name) {
+      return `שלום ${name}, מה שלומך?\nבבקשה תארו את התקלה בחנות ${storeName}. אפשר גם לצרף תמונה.`
+    }
+    return `שלום, מה שלומך?\nזוהתה חנות: ${storeName}.\nבבקשה תארו את התקלה. אפשר גם לצרף תמונה.`
+  },
   needDescription: 'נא לתאר את התקלה בטקסט (או לצרף תמונה עם תיאור קצר).',
   confirmed: (displayNumber: string, storeName: string) =>
     `הדיווח התקבל ✓\nמספר תקלה: ${displayNumber}\nחנות: ${storeName}\nהצוות קיבל את הדיווח.`,
