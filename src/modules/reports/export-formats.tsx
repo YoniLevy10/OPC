@@ -80,7 +80,7 @@ const PDF_STATUS: Record<string, string> = {
   in_progress: 'בטיפול',
   waiting_vendor: 'ממתינה לספק',
   waiting_parts: 'ממתינה לחלק',
-  engaged: 'אושר — החנות מתאמת',
+  engaged: 'נשלח איש מקצוע לתיקון',
   resolved: 'טופלה',
   closed: 'סגורה',
   cancelled: 'בוטלה',

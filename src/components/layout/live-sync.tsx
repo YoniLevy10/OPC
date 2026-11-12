@@ -4,7 +4,8 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const POLL_MS = 1500
+/** Poll only when the previous stamp request finished — stacking kills the Node server. */
+const POLL_MS = 4000
 
 /**
  * Keeps the open screen on the internal server. A cursor change — a new
@@ -17,6 +18,8 @@ export function LiveSync() {
     let stopped = false
     let seen: string | null = null
     let refreshTimer: number | null = null
+    let inFlight = false
+    let queued = false
 
     function scheduleRefresh() {
       if (refreshTimer != null) window.clearTimeout(refreshTimer)
@@ -28,6 +31,11 @@ export function LiveSync() {
 
     async function tick() {
       if (stopped || document.visibilityState !== 'visible') return
+      if (inFlight) {
+        queued = true
+        return
+      }
+      inFlight = true
       try {
         const res = await fetch('/api/live', { cache: 'no-store', credentials: 'same-origin' })
         if (!res.ok) return
@@ -44,6 +52,12 @@ export function LiveSync() {
         }
       } catch {
         /* The next tick retries. A missed poll must not blank the screen. */
+      } finally {
+        inFlight = false
+        if (queued && !stopped) {
+          queued = false
+          void tick()
+        }
       }
     }
 

@@ -43,7 +43,14 @@ export type TechTicketRow = {
   created_at: string
   updated_at: string
   store_id: string
-  stores?: { code: string; name: string; city: string | null; address: string | null } | null
+  stores?: {
+    code: string
+    name: string
+    city: string | null
+    address: string | null
+    manager_name?: string | null
+    manager_phone?: string | null
+  } | null
 }
 
 export type TechTicketDetail = TechTicketRow & {
@@ -98,7 +105,7 @@ export async function fetchTechTickets(techId: string | null): Promise<{
       let query = supabase
         .from('tickets')
         .select(
-          'id, number, display_number, status, priority, category, description, title, assigned_to, created_at, updated_at, store_id, stores(code, name, city, address)',
+          'id, number, display_number, status, priority, category, description, title, assigned_to, created_at, updated_at, store_id, stores(code, name, city, address, manager_name, manager_phone)',
         )
         .in('status', TECH_LIST_STATUSES)
         .order('updated_at', { ascending: false })
@@ -145,7 +152,7 @@ export async function fetchTechTicket(ticketId: string): Promise<{
         .from('tickets')
         .select(
           `id, number, display_number, status, priority, category, description, title, assigned_to, created_at, updated_at, store_id,
-         stores(code, name, city, address),
+         stores(code, name, city, address, manager_name, manager_phone),
          ticket_events(id, event_type, payload, created_at, actor_id),
          ticket_attachments(id, url, kind, created_at)`,
         )

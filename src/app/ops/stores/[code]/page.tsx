@@ -290,6 +290,7 @@ export default async function StoreDetailPage({
                   title: t.title || t.description,
                   spendBlock: executionBlockReason(spendForTicket(t.id)),
                   category: t.category,
+                  status: t.status,
                 }))}
                 companionIdsByTicket={companionIdsByTicket}
                 vendors={(vendorsResult.vendors ?? []).map((v) => ({

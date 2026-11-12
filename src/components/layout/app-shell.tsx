@@ -61,7 +61,7 @@ type NavItem = {
 const PRIMARY: NavItem[] = [
   {
     href: '/ops/dashboard',
-    label: 'סקירה',
+    label: 'דשבורד',
     icon: LayoutDashboard,
     match: '/ops/dashboard',
   },

@@ -199,12 +199,16 @@ function VisitBarInner({
           approvedAmount: input.amount,
           scope: input.scope,
         })
+        line = locked.line
+        if (!locked.engagementLocked) {
+          toast.push({ title: locked.line, tone: 'critical' })
+          return
+        }
         // Engagement is locked even when WhatsApp handoff is unverified (memory / no channel).
         ok = true
-        line = locked.line
         toast.push({
           title: locked.line,
-          tone: locked.ok ? 'success' : 'critical',
+          tone: locked.handoffOk ? 'success' : 'critical',
         })
         selection?.clear()
         setOpen(false)

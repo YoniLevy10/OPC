@@ -253,6 +253,7 @@ export type MemSession = {
     | 'awaiting_store'
     | 'awaiting_description'
     | 'awaiting_clarification'
+    | 'awaiting_pro_rating'
     | 'done'
   pending_description: string | null
   clarification_count?: number

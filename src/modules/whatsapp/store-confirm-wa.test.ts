@@ -5,11 +5,18 @@ import {
   memAddMessage,
   memGet,
   memLinkStorePhone,
+  memListProfessionals,
   DEMO_TECH_ID,
   MEM_COUNTRY_ID,
 } from '@/lib/data/memory-store'
 import { updateStatus } from '@/modules/tickets/service'
 import { israelStoresAsRows } from '@/modules/stores/israel-stores'
+import {
+  lockEngagement,
+  resetEngagementsForTests,
+} from '@/modules/engagements/service'
+import { parsePersonalRating } from '@/modules/notes/personal-rating'
+import { parseProRatingReply } from '@/modules/tickets/store-pro-rating'
 import { processInboundMessage } from './intake'
 import { parseWhatsAppWebhook } from './parse'
 import {
@@ -67,10 +74,22 @@ async function seedResolved(opts: {
   return created
 }
 
+describe('parseProRatingReply', () => {
+  it('accepts bare 1–5 only', () => {
+    expect(parseProRatingReply('3')).toBe(3)
+    expect(parseProRatingReply('1')).toBe(1)
+    expect(parseProRatingReply('5')).toBe(5)
+    expect(parseProRatingReply('0')).toBeNull()
+    expect(parseProRatingReply('6')).toBeNull()
+    expect(parseProRatingReply('דירוג 3')).toBeNull()
+  })
+})
+
 describe('store confirm via WhatsApp (C02 hardening)', () => {
   beforeEach(() => {
     process.env.MAINTAINOS_FORCE_MEMORY = '1'
     memReset()
+    resetEngagementsForTests()
   })
 
   it('closes a resolved ticket when the store taps אשר תיקון', async () => {
@@ -94,7 +113,8 @@ describe('store confirm via WhatsApp (C02 hardening)', () => {
     )
 
     expect(result.ok).toBe(true)
-    expect(result.reply || '').toMatch(/נסגרה|אישור/)
+    expect(result.reply || '').toMatch(/דרג את איש המקצוע 1-5/)
+    expect(result.state).toBe('awaiting_pro_rating')
     expect(memGet(created.id)?.status).toBe('closed')
     expect(memGet(created.id)?.store_confirmed_at).toBeTruthy()
   })
@@ -198,7 +218,60 @@ describe('store confirm via WhatsApp (C02 hardening)', () => {
     expect(ticket.events.some((e) => e.event_type === 'store_rejected')).toBe(
       true,
     )
-    expect(result.reply || '').toMatch(/טיפול|בטיפול/)
+    expect(result.reply || '').toMatch(/תודה על תגובתך הנתונים מועברים לארי/)
+  })
+
+  it('after אשר תיקון asks for 1–5 and stores the professional rating', async () => {
+    const waId = '972501112233'
+    const store = israelStoresAsRows().find((s) => s.code === '6006')!
+    const created = memCreate({
+      store,
+      description: 'ידית שבורה בדלת כניסה לחנות ואי אפשר לפתוח',
+      priority: 'high',
+      category: 'other',
+      status: 'new',
+      reporterPhone: waId,
+    })
+    memLinkStorePhone(waId, store.id, MEM_COUNTRY_ID)
+
+    const locked = await lockEngagement({
+      ticketId: created.id,
+      professionalName: 'פבל טכנאי',
+      professionalPhone: '0501234567',
+      approvedAmount: 200,
+      approvedBy: 'ארי',
+    })
+    expect(memGet(created.id)?.status).toBe('engaged')
+    expect(locked.professionalId).toBeTruthy()
+
+    const confirm = await processInboundMessage(
+      msg({
+        waId,
+        text: 'מאשר',
+        interactiveId: storeConfirmButtonId(created.id),
+      }),
+      { skipOutboundGraph: true },
+    )
+    expect(confirm.ok).toBe(true)
+    expect(confirm.reply || '').toMatch(/דרג את איש המקצוע 1-5/)
+    expect(confirm.state).toBe('awaiting_pro_rating')
+    expect(memGet(created.id)?.status).toBe('closed')
+
+    const rated = await processInboundMessage(msg({ waId, text: '4' }), {
+      skipOutboundGraph: true,
+    })
+    expect(rated.ok).toBe(true)
+    expect(rated.reply || '').toMatch(/הדירוג נקלט/)
+    expect(rated.state).toBe('done')
+
+    const pro = memListProfessionals({ activeOnly: false }).find(
+      (p) => p.id === locked.professionalId,
+    )
+    expect(pro).toBeTruthy()
+    expect(parsePersonalRating(pro?.notes).rating).toBe(4)
+    expect(
+      memGet(created.id)?.events.some((e) => e.event_type === 'store_rated_pro'),
+    ).toBe(true)
   })
 
   it('keeps Ari spend מאשר off the store-confirm path', async () => {

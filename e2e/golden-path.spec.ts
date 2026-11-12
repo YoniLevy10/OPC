@@ -44,7 +44,12 @@ test.describe('Golden Path — WhatsApp → HQ → Tech → Resolve', () => {
       page.getByRole('article').filter({ hasText: /מזגן/ }).first(),
     ).toBeVisible()
 
-    await page.goto(`/ops/tickets/${ticketId}`, { waitUntil: 'domcontentloaded' })
+    // Rapid queue→detail goto can abort under soft-nav; retry once like /tech below.
+    try {
+      await page.goto(`/ops/tickets/${ticketId}`, { waitUntil: 'domcontentloaded' })
+    } catch {
+      await page.goto(`/ops/tickets/${ticketId}`, { waitUntil: 'load' })
+    }
     await expect(page.getByRole('main').getByText(/מזגן הראשי/).first()).toBeVisible()
     // PhoneFold title is md:hidden — assert the open desktop timeline body.
     await expect(

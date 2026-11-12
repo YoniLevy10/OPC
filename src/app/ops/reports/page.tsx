@@ -236,14 +236,12 @@ export default async function ReportsPage({
           }
         />
 
-        <Panel elevated className="!p-4 md:!p-5">
-          <PanelHeader
-            title={`מחיר שאושר ${annual.year}`}
-            meta={`סה״כ רשת ${formatIls(annual.network)} · לא תשלום שבוצע`}
-          />
-          {annual.stores.length === 0 ? (
-            <EmptyState title="אין עדיין ביקורים שנסגרו השנה" />
-          ) : (
+        {annual.stores.length > 0 ? (
+          <Panel elevated className="!p-4 md:!p-5">
+            <PanelHeader
+              title={`מחיר שאושר ${annual.year}`}
+              meta={`סה״כ רשת ${formatIls(annual.network)} · כולל שיבוצים פתוחים · לא תשלום שבוצע`}
+            />
             <ul className="mt-4 grid gap-2">
               {annual.stores.map((store) => (
                 <li key={store.storeCode || store.storeName} className="flex justify-between gap-3">
@@ -252,17 +250,15 @@ export default async function ReportsPage({
                 </li>
               ))}
             </ul>
-          )}
-        </Panel>
+          </Panel>
+        ) : null}
 
-        <Panel elevated className="!p-4 md:!p-5">
-          <PanelHeader
-            title="מחיר שאושר לפי סוג תקלה"
-            meta={`${annual.year} · לא תשלום שבוצע`}
-          />
-          {byFaultType.length === 0 ? (
-            <EmptyState title="אין עדיין מחיר שאושר לפי סוג" />
-          ) : (
+        {byFaultType.length > 0 ? (
+          <Panel elevated className="!p-4 md:!p-5">
+            <PanelHeader
+              title="מחיר שאושר לפי סוג תקלה"
+              meta={`${annual.year} · לא תשלום שבוצע`}
+            />
             <ul className="mt-4 grid gap-2">
               {byFaultType.map((row) => (
                 <li key={row.category} className="flex justify-between gap-3">
@@ -273,17 +269,15 @@ export default async function ReportsPage({
                 </li>
               ))}
             </ul>
-          )}
-        </Panel>
+          </Panel>
+        ) : null}
 
-        <Panel elevated className="!p-4 md:!p-5">
-          <PanelHeader
-            title="השוואת חנויות"
-            meta={`${annual.year} מול ${annual.year - 1} · מחיר שאושר`}
-          />
-          {periodComparison.length === 0 ? (
-            <EmptyState title="אין עדיין השוואה בין תקופות" />
-          ) : (
+        {periodComparison.length > 0 ? (
+          <Panel elevated className="!p-4 md:!p-5">
+            <PanelHeader
+              title="השוואת חנויות"
+              meta={`${annual.year} מול ${annual.year - 1} · מחיר שאושר`}
+            />
             <ul className="mt-4 grid gap-2">
               {periodComparison.map((row) => (
                 <li key={row.storeCode || row.storeName} className="flex justify-between gap-3">
@@ -294,8 +288,8 @@ export default async function ReportsPage({
                 </li>
               ))}
             </ul>
-          )}
-        </Panel>
+          </Panel>
+        ) : null}
 
         <PhoneFoldStack>
         <PhoneFold title="סינון" summary={rangeLabel}>

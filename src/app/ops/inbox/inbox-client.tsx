@@ -231,6 +231,10 @@ export function InboxClient() {
   const stickToBottomRef = useRef(true)
   const prevSelectedRef = useRef<string | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  const selectedRef = useRef<string | null>(selected)
+  const threadLoadSeq = useRef(0)
+  const [threadLoading, setThreadLoading] = useState(false)
+  selectedRef.current = selected
 
   const loadSessions = useCallback(async () => {
     setError(null)
@@ -239,25 +243,33 @@ export function InboxClient() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
       setSessions(json.sessions ?? [])
-      if (!selected && json.sessions?.[0] && isDesktopMq()) {
+      // Auto-pick first chat once — do not re-bind on every selected change
+      // (that re-fetched the list and made the context column jump).
+      if (!selectedRef.current && json.sessions?.[0] && isDesktopMq()) {
         setSelected(json.sessions[0].wa_id as string)
       }
     } catch (err) {
       setError(safeClientError(err, 'טעינה נכשלה', p))
     }
-  }, [selected, p])
+  }, [p])
 
   const loadThread = useCallback(async (waId: string) => {
+    const seq = ++threadLoadSeq.current
+    setThreadLoading(true)
     try {
       const res = await fetch(`/api/inbox/sessions/${encodeURIComponent(waId)}`)
       const json = await res.json()
+      if (seq !== threadLoadSeq.current) return
       if (!res.ok) throw new Error(json.error || p('טעינת שיחה נכשלה'))
       setMessages(json.messages ?? [])
       setTicketIds(json.ticketIds ?? [])
       setOpenTickets(json.openTickets ?? json.context?.openTickets ?? [])
       setContext(json.context ?? null)
     } catch (err) {
+      if (seq !== threadLoadSeq.current) return
       setError(safeClientError(err, 'טעינת שיחה נכשלה', p))
+    } finally {
+      if (seq === threadLoadSeq.current) setThreadLoading(false)
     }
   }, [p])
 
@@ -277,7 +289,22 @@ export function InboxClient() {
   }, [waFromUrl])
 
   useEffect(() => {
-    if (selected) void loadThread(selected)
+    if (!selected) {
+      threadLoadSeq.current += 1
+      setMessages([])
+      setTicketIds([])
+      setOpenTickets([])
+      setContext(null)
+      setThreadLoading(false)
+      return
+    }
+    // Drop previous chat's tickets immediately so the side column does not
+    // flash the wrong faults (or fake "חדשה" placeholders) then jump.
+    setOpenTickets([])
+    setTicketIds([])
+    setContext(null)
+    setMessages([])
+    void loadThread(selected)
   }, [selected, loadThread])
 
   function threadNearBottom(el: HTMLElement, px = 96): boolean {
@@ -504,18 +531,9 @@ export function InboxClient() {
     }
   }
 
-  const linkedTickets = openTickets.length
-    ? openTickets
-    : ticketIds.map((id) => ({
-        id,
-        display_number: null as string | null,
-        title: null as string | null,
-        status: 'new',
-        priority: active?.priority ?? 'medium',
-        description: '',
-        store_code: active?.store_code ?? null,
-        store_name: active?.store_name ?? null,
-      }))
+  // Only real open-ticket payloads — never invent status="new" from bare ids
+  // (that made the side column jump from «חדשה» to «נשלח איש מקצוע…»).
+  const linkedTickets = openTickets
 
   const waiting =
     Boolean(active?.human_takeover) || active?.inbox_status === 'waiting'
@@ -638,9 +656,11 @@ export function InboxClient() {
           </div>
         </div>
 
-        <div>
+        <div className="min-h-[10rem]">
           <p className="t-caption mb-2 text-ink-3">תקלות פתוחות</p>
-          {linkedTickets.length === 0 ? (
+          {threadLoading && linkedTickets.length === 0 ? (
+            <p className="t-body text-ink-3">טוען תקלות…</p>
+          ) : linkedTickets.length === 0 ? (
             <p className="t-body text-ink-3">אין תקלות מקושרות</p>
           ) : (
             <ul className="space-y-2">
@@ -649,7 +669,7 @@ export function InboxClient() {
                   <Link
                     href={`/ops/tickets/${t.id}`}
                     className={cn(
-                      'block rounded-[var(--radius-md)] border border-border px-3 py-2 transition-colors hover:bg-canvas',
+                      'block min-h-[5.5rem] rounded-[var(--radius-md)] border border-border px-3 py-2 transition-colors hover:bg-canvas',
                       priorityEdgeClass(t.priority),
                     )}
                   >
@@ -665,9 +685,12 @@ export function InboxClient() {
                     <p className="t-body mt-0.5 line-clamp-2 text-ink-2">
                       {t.title || t.description || 'תקלה מקושרת'}
                     </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
                       <PriorityText priority={t.priority} className="t-caption" />
-                      <StatusLabel status={t.status} className="t-caption" />
+                      <StatusLabel
+                        status={t.status}
+                        className="t-caption max-w-full truncate"
+                      />
                     </div>
                   </Link>
                 </li>

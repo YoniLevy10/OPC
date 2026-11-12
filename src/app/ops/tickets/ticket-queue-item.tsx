@@ -42,10 +42,16 @@ export function TicketQueueItem({
   const selected = visitSelection?.selected.has(ticket.id) ?? false
   const decision = ticketDecision(ticket, new Date(), locale)
   const actionLabel = decision?.action || p('לטפל')
+  const engaged = ticket.status === 'engaged'
   const needsApproval =
-    ticketIsUrgent(ticket) && ticket.status !== 'engaged'
+    ticketIsUrgent(ticket) && !engaged
   const title = ticket.title || ticket.description
   const href = `/ops/tickets/${ticket.id}`
+  const statusText = engaged
+    ? p('נשלח איש מקצוע לתיקון')
+    : needsApproval
+      ? p('דורשת אישור')
+      : plainStatus(ticket.status, locale)
 
   if (!open) {
     return (
@@ -85,7 +91,10 @@ export function TicketQueueItem({
       <div className="flex items-start gap-3 px-4 py-3">
         {selectable && visitSelection ? (
           <label
-            className="flex shrink-0 items-center self-center pt-1"
+            className={cn(
+              'flex shrink-0 items-center self-center pt-1',
+              engaged && 'opacity-40',
+            )}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -93,8 +102,16 @@ export function TicketQueueItem({
               type="checkbox"
               className="h-6 w-6 accent-[var(--tenant)]"
               checked={selected}
-              onChange={() => visitSelection.toggle(ticket.id)}
-              aria-label={`בחירה לביקור ${displayNum(ticket)}`}
+              disabled={engaged}
+              onChange={() => {
+                if (engaged) return
+                visitSelection.toggle(ticket.id)
+              }}
+              aria-label={
+                engaged
+                  ? `${displayNum(ticket)} — ${p('נשלח איש מקצוע לתיקון')}`
+                  : `בחירה לביקור ${displayNum(ticket)}`
+              }
             />
           </label>
         ) : null}
@@ -115,12 +132,12 @@ export function TicketQueueItem({
             </span>
             <span
               className={cn(
-                needsApproval ? 'font-semibold text-[var(--tenant)]' : 'text-ink-2',
+                engaged || needsApproval
+                  ? 'font-semibold text-[var(--tenant)]'
+                  : 'text-ink-2',
               )}
             >
-              {needsApproval
-                ? p('דורשת אישור')
-                : plainStatus(ticket.status, locale)}
+              {statusText}
             </span>
           </p>
         </Link>
@@ -133,7 +150,7 @@ export function TicketQueueItem({
             </Button>
           ) : (
             <Button asChild variant="secondary" size="sm">
-              <Link href={href}>{p('לטפל')}</Link>
+              <Link href={href}>{engaged ? p('פרטים') : p('לטפל')}</Link>
             </Button>
           )}
           <TicketDeleteButton

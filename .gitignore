@@ -59,3 +59,4 @@ skills-lock.json
 # Superdesign — keep init/design-system/resume; ignore temp HTML only
 .superdesign/tmp/
 .env*
+.next-e2e/

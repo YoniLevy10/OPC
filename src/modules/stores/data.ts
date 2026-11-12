@@ -47,6 +47,8 @@ export type TicketRow = {
     name: string
     city: string | null
     address?: string | null
+    manager_name?: string | null
+    manager_phone?: string | null
   } | null
 }
 

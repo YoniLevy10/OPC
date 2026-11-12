@@ -148,7 +148,7 @@ function StoreFolder({
                           <span aria-hidden>·</span>
                           <span
                             className={cn(
-                              row.awaiting &&
+                              (row.awaiting || row.engaged) &&
                                 'font-semibold text-[var(--tenant)]',
                             )}
                           >

@@ -35,7 +35,7 @@ test.describe('Navigation & layout', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await gotoStable(page, '/ops/dashboard')
     const bottomNav = page.getByRole('navigation', { name: 'ניווט תחתון' })
-    await expect(bottomNav.getByText('סקירה')).toBeVisible()
+    await expect(bottomNav.getByText('דשבורד')).toBeVisible()
     await expect(bottomNav.getByText('תקלות')).toBeVisible()
     await expect(bottomNav.getByText('וואטסאפ')).toBeVisible()
     await expect(bottomNav.getByText('חנויות')).toBeVisible()

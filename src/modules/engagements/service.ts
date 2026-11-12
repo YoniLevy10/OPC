@@ -201,6 +201,21 @@ async function engagementFaultLabels(ticketId: string, bundledTicketIds: string[
   return labels
 }
 
+/** Full fault text for pro SMS — no truncation. */
+async function engagementFaultDescriptions(
+  ticketId: string,
+  bundledTicketIds: string[],
+): Promise<string[]> {
+  const lines: string[] = []
+  for (const id of [ticketId, ...bundledTicketIds]) {
+    const ticket = await getById(id)
+    if (!ticket) continue
+    const text = (ticket.title || ticket.description || '').trim()
+    if (text) lines.push(text)
+  }
+  return lines
+}
+
 function handoffText(input: {
   name: string
   phone: string
@@ -578,7 +593,7 @@ export async function lockEngagement(input: {
     captureError(err, { route: 'engagement_auto_professional' })
   }
 
-  const faultLines = await engagementFaultLabels(
+  const faultLines = await engagementFaultDescriptions(
     engagement.ticketId,
     engagement.bundledTicketIds,
   )
@@ -638,16 +653,26 @@ export async function engagementTicketIds(ticketId: string): Promise<string[]> {
   return [current.ticketId, ...current.bundledTicketIds]
 }
 
+/**
+ * Approved visit costs for network reports.
+ * Includes locked engagements once Ari sets a price — not only after store close.
+ * `closedAt` on the row is the cost date: store confirm time, else approval time.
+ */
 export async function closedEngagementCosts(): Promise<ClosedEngagementCost[]> {
   const rows = await listEngagements()
-  const closed = rows.filter((row) => row.status === 'locked' && row.closedAt)
+  const priced = rows.filter(
+    (row) =>
+      row.status === 'locked' &&
+      row.approvedAmount > 0 &&
+      Boolean(row.closedAt || row.approvedAt),
+  )
   const tickets = await listTickets({ limit: 1000 }).catch(() => ({ tickets: [] }))
   const categoryById = new Map(tickets.tickets.map((ticket) => [ticket.id, ticket.category]))
-  return closed.map((row) => ({
+  return priced.map((row) => ({
     storeCode: row.storeCode,
     storeName: row.storeName,
     approvedAmount: row.approvedAmount,
-    closedAt: row.closedAt as string,
+    closedAt: (row.closedAt || row.approvedAt) as string,
     category: categoryById.get(row.ticketId) ?? null,
   }))
 }

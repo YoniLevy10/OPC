@@ -43,6 +43,15 @@ import { hydrateOpsLedger } from '@/lib/data/ops-db'
 import { decideBundleVisit, parseVisitButton } from '@/modules/recommendations/commit'
 import { landVoiceReview, lookupStore, routeInboundToDesk } from './desk-route'
 import { listProfessionals, upsertProfessional } from '@/modules/professionals/service'
+import { lockedEngagementFor } from '@/modules/engagements/service'
+import {
+  STORE_RATE_PRO_PROMPT,
+  STORE_RATE_PRO_REPROMPT,
+  STORE_RATE_PRO_THANKS,
+  STORE_REJECT_THANKS,
+  applyStoreProRating,
+  parseProRatingReply,
+} from '@/modules/tickets/store-pro-rating'
 import {
   mergeStorePersonNote,
   parseStorePerson,
@@ -1297,6 +1306,82 @@ export async function processInboundMessage(
 
     const spoken = message.text?.trim() || text
 
+    // After store confirms a fix — wait for a 1–5 professional rating.
+    if (session.state === 'awaiting_pro_rating') {
+      const rating = parseProRatingReply(spoken)
+      const ratingTicketId =
+        typeof session.draft_payload?.ratingTicketId === 'string'
+          ? session.draft_payload.ratingTicketId
+          : session.active_ticket_id
+      const ratingProfessionalId =
+        typeof session.draft_payload?.ratingProfessionalId === 'string'
+          ? session.draft_payload.ratingProfessionalId
+          : null
+
+      if (rating != null && ratingTicketId) {
+        if (ratingProfessionalId) {
+          await applyStoreProRating({
+            ticketId: ratingTicketId,
+            professionalId: ratingProfessionalId,
+            rating,
+          })
+        } else {
+          logEvent('whatsapp:intake', 'warn', 'store_pro_rating_missing_pro', {
+            ticketId: ratingTicketId,
+            waId: message.waId,
+          })
+        }
+        await updateSession(supabase, session, {
+          state: 'done',
+          draft_payload: null,
+          active_ticket_id: null,
+        })
+        const reply = await craftIntakeReply(
+          STORE_RATE_PRO_THANKS,
+          'intake_non_issue_ack',
+        )
+        await sendReply(
+          supabase,
+          message,
+          country,
+          reply,
+          ratingTicketId,
+          options,
+          session,
+        )
+        return {
+          ok: true,
+          reply,
+          ticketId: ratingTicketId,
+          state: 'done',
+        }
+      }
+
+      // Bare confirm/reject while awaiting rating falls through to those handlers
+      // after clearing the rating wait so a new button tap still works.
+      const ratingConfirmId = parseStoreConfirmButtonId(message.interactiveId)
+      const ratingRejectId = parseStoreRejectButtonId(message.interactiveId)
+      if (
+        !ratingConfirmId &&
+        !ratingRejectId &&
+        !isStoreConfirmReply(spoken) &&
+        !isStoreRejectReply(spoken)
+      ) {
+        const reply = await craftIntakeReply(
+          STORE_RATE_PRO_REPROMPT,
+          'intake_non_issue_ack',
+        )
+        await sendReply(supabase, message, country, reply, ratingTicketId, options, session)
+        return { ok: true, reply, ticketId: ratingTicketId, state: 'awaiting_pro_rating' }
+      }
+
+      await updateSession(supabase, session, {
+        state: 'done',
+        draft_payload: null,
+      })
+      session = { ...session, state: 'done', draft_payload: null }
+    }
+
     // Store confirms / rejects a resolved fix via WA — primary close path.
     // Skip free-text for Ari desk phones (their «לאשר» / «מאשר» is spend approval).
     // Button ids still go through sender authorization (webhook ≠ person auth).
@@ -1353,19 +1438,13 @@ export async function processInboundMessage(
         const ticketId = resolved.ticketId
         try {
           if (wantsReject) {
-            const result = await rejectStoreFix({
+            await rejectStoreFix({
               ticketId,
               actorLabel: `wa:${message.waId}`,
               reason: spoken || 'לא נפתר',
             })
-            const detail = await getById(ticketId).catch(() => null)
-            const display =
-              detail?.display_number ||
-              (detail?.number != null
-                ? `OC-${detail.number}`
-                : ticketId.slice(0, 8))
             const reply = await craftIntakeReply(
-              `קיבלנו — התקלה ${display} חזרה לטיפול (${result.status === 'in_progress' ? 'בטיפול' : result.status}). ההיסטוריה נשמרה.`,
+              STORE_REJECT_THANKS,
               'intake_follow_up',
             )
             await sendReply(
@@ -1390,18 +1469,32 @@ export async function processInboundMessage(
             }
           }
 
-          const result = await confirmStoreFix({
+          await confirmStoreFix({
             ticketId,
             actorLabel: `wa:${message.waId}`,
           })
-          const detail = await getById(ticketId).catch(() => null)
-          const display =
-            detail?.display_number ||
-            (detail?.number != null ? `OC-${detail.number}` : ticketId.slice(0, 8))
+          const engagement = await lockedEngagementFor(ticketId).catch(() => null)
+          let professionalId = engagement?.professionalId ?? null
+          if (!professionalId && engagement?.professionalPhone) {
+            const { professionals } = await listProfessionals({ limit: 100 })
+            const phoneDigits = normalizePhoneDigits(engagement.professionalPhone)
+            const match = professionals.find(
+              (p) =>
+                p.phone &&
+                normalizePhoneDigits(p.phone) === phoneDigits,
+            )
+            professionalId = match?.id ?? null
+          }
+          await updateSession(supabase, session, {
+            state: 'awaiting_pro_rating',
+            active_ticket_id: ticketId,
+            draft_payload: {
+              ratingTicketId: ticketId,
+              ratingProfessionalId: professionalId,
+            },
+          })
           const reply = await craftIntakeReply(
-            result.status === 'closed'
-              ? `תודה — אישור החנות נקלט. התקלה ${display} נסגרה.`
-              : `האישור נקלט לתקלה ${display}.`,
+            STORE_RATE_PRO_PROMPT,
             'intake_non_issue_ack',
           )
           await sendReply(
@@ -1417,12 +1510,14 @@ export async function processInboundMessage(
             ticketId,
             waId: message.waId,
             viaButton: Boolean(confirmButtonId),
+            awaitingProRating: true,
+            professionalId,
           })
           return {
             ok: true,
             reply,
             ticketId,
-            state: session.state,
+            state: 'awaiting_pro_rating',
           }
         } catch (err) {
           logEvent('whatsapp:intake', 'warn', 'store_confirm_via_wa_failed', {

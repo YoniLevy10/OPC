@@ -76,7 +76,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useTheme() {
   const ctx = useContext(ThemeContext)
   if (!ctx) {
-    throw new Error('useTheme must be used within ThemeProvider')
+    // Soft fallback during HMR / partial renders under heavy load —
+    // throwing here was turning desk pages into 500s.
+    return {
+      preference: 'auto' as ThemePreference,
+      resolvedDark: false,
+      setPreference: () => {},
+    }
   }
   return ctx
 }

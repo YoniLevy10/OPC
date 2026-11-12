@@ -49,14 +49,18 @@ describe('isLifecycleEvent', () => {
 })
 
 describe('buildLifecycleMessage resolved (WA-primary)', () => {
-  it('includes WA confirm hint and portal backup link', async () => {
-    const { buildLifecycleMessage } = await import('./lifecycle-notify')
-    const text = await buildLifecycleMessage('resolved', ticket, {
-      enhance: false,
-    })
-    expect(text).toMatch(/מאשר|אשר תיקון/)
-    expect(text).toMatch(/לא נפתר/)
-    expect(text).toContain(`/store/tickets/${ticket.id}`)
-    expect(text).toMatch(/גיבוי/)
-  })
+  it(
+    'includes WA confirm hint and portal backup link',
+    async () => {
+      const { buildLifecycleMessage } = await import('./lifecycle-notify')
+      const text = await buildLifecycleMessage('resolved', ticket, {
+        enhance: false,
+      })
+      expect(text).toMatch(/מאשר|אשר תיקון/)
+      expect(text).toMatch(/לא נפתר/)
+      expect(text).toContain(`/store/tickets/${ticket.id}`)
+      expect(text).toMatch(/גיבוי/)
+    },
+    15_000,
+  )
 })

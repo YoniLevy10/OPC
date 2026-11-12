@@ -22,41 +22,66 @@ describe('pro portal token', () => {
 })
 
 describe('buildProAssignmentSms', () => {
-  it('formats a short multi-line SMS with manager and full portal url', () => {
+  it('formats full multi-line SMS with manager name, phone, and portal url', () => {
     const text = buildProAssignmentSms({
-      storeName: 'תל אביב שינקין',
-      storeCode: '6004',
-      managerPhone: '050-3393839',
+      storeName: 'ניסיון',
+      storeCode: '100',
+      managerName: 'אריאל לוי',
+      managerPhone: '054-8174688',
       faultLines: [
-        '#OC-18183 — נזילה ליד הקופה הראשית',
-        '#OC-18182 — מזגן באולם המכירות לא מקרר בכלל',
+        'יש צורך בתיקון דלת הכניסה.',
+        'ידית שבורה בדלת כניסה לחנות ואי אפשר לפתוח אותה מהחוץ בלי מפתח חירום',
       ],
       portalUrl: 'https://example.com/pro?t=abc',
     })
-    expect(text).toContain('תל אביב שינקין (#6004)')
-    expect(text).toContain('ביקור אחד · 2 תקלות')
-    expect(text).toContain('נזילה ליד הקופה הראשית')
-    expect(text).toContain('מזגן באולם המכירות לא מקרר בכלל')
+    expect(text).toContain('Optical Center · חנות: ניסיון (#100)')
+    expect(text).toContain('2 תקלות:')
+    expect(text).toContain('- יש צורך בתיקון דלת הכניסה.')
+    expect(text).toContain(
+      '- ידית שבורה בדלת כניסה לחנות ואי אפשר לפתוח אותה מהחוץ בלי מפתח חירום',
+    )
     expect(text).not.toMatch(/#?OC-\d+/i)
-    expect(text).toContain('מנהל: 050-3393839')
+    expect(text).toContain('מנהל חנות: אריאל לוי')
+    expect(text).toContain('טלפון: 054-8174688')
     expect(text).toContain('קישור:')
     expect(text).toContain('https://example.com/pro?t=abc')
-    expect(text).not.toMatch(/בכלל מנהל/)
     expect(text.endsWith('https://example.com/pro?t=abc')).toBe(true)
   })
 
-  it('never truncates the portal url when the body is long', () => {
+  it('uses singular תקלה for one fault and keeps long descriptions intact', () => {
+    const long =
+      'ידית שבורה בדלת כניסה לחנות ואי אפשר לפתוח אותה מהחוץ בלי מפתח חירום וצריך להחליף את כל המנגנון'
     const url = `https://example.com/pro?t=${'x'.repeat(200)}`
     const text = buildProAssignmentSms({
-      storeName: 'תל אביב שינקין עם שם ארוך מאוד לסניף',
+      storeName: 'תל אביב שינקין',
       storeCode: '6004',
+      managerName: 'אמיר',
       managerPhone: '050-3393839',
-      faultLines: Array.from({ length: 8 }, (_, i) =>
-        `#OC-${18180 + i} — תיאור תקלה ארוך מאוד שלא אמור לדחוף את הקישור`,
-      ),
+      faultLines: [`#OC-18183 — ${long}`],
       portalUrl: url,
     })
+    expect(text).toContain('1 תקלה:')
+    expect(text).toContain(`- ${long}`)
+    expect(text).not.toMatch(/…/)
     expect(text.endsWith(url)).toBe(true)
-    expect(text.length).toBeLessThanOrEqual(480)
+  })
+
+  it('strips internal OC codes but does not truncate fault detail', () => {
+    const text = buildProAssignmentSms({
+      storeName: 'חולון',
+      storeCode: '6010',
+      managerName: null,
+      managerPhone: '050-5884881',
+      faultLines: [
+        '#OC-18182 — מזגן באולם המכירות לא מקרר בכלל וצריך טכנאי דחוף',
+      ],
+      portalUrl: 'https://example.com/pro?t=tok',
+    })
+    expect(text).not.toMatch(/#?OC-\d+/i)
+    expect(text).toContain(
+      'מזגן באולם המכירות לא מקרר בכלל וצריך טכנאי דחוף',
+    )
+    expect(text).toContain('טלפון: 050-5884881')
+    expect(text).not.toContain('מנהל חנות:')
   })
 })

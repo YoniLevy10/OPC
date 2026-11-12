@@ -2,7 +2,10 @@ import 'server-only'
 
 import { send019Sms } from '@/lib/sms/019'
 import { getPublicAppUrl } from '@/lib/auth/app-url'
-import { managerPhoneForStoreCode } from '@/modules/stores/manager-identity'
+import {
+  managerNameForStoreCode,
+  managerPhoneForStoreCode,
+} from '@/modules/stores/manager-identity'
 import { proPortalPath, signProPortalToken } from '@/modules/pro/token'
 import { buildProAssignmentSms } from '@/modules/pro/sms-copy'
 
@@ -33,10 +36,14 @@ export async function notifyProfessionalSms(input: {
   }
 
   const portalUrl = `${getPublicAppUrl()}${proPortalPath(token)}`
-  const managerPhone = await managerPhoneForStoreCode(input.storeCode)
+  const [managerPhone, managerName] = await Promise.all([
+    managerPhoneForStoreCode(input.storeCode),
+    managerNameForStoreCode(input.storeCode),
+  ])
   const message = buildProAssignmentSms({
     storeName: input.storeName,
     storeCode: input.storeCode,
+    managerName,
     managerPhone,
     faultLines: input.faultLines,
     portalUrl,

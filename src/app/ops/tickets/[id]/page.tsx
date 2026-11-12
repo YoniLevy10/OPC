@@ -12,6 +12,7 @@ import { StatusLabel } from '@/components/ui/signal'
 import { EvidenceGrid } from '@/components/ui/evidence'
 import {
   normalizeTicketCategory,
+  OPEN_TICKET_STATUSES,
   TICKET_CATEGORY_LABELS_HE,
   type TicketPriority,
   type TicketStatus,
@@ -46,7 +47,13 @@ import {
 import { getLocale } from '@/lib/i18n/server'
 import { translate, type MessageKey } from '@/lib/i18n/messages'
 import { TicketTrueCostPanel } from './ticket-true-cost'
-import { listOutcomes, listSpends, spendsForAsset, spendsForTicket } from '@/lib/data/ops-ledger'
+import {
+  listOutcomes,
+  listSpends,
+  spendForTicket,
+  spendsForAsset,
+  spendsForTicket,
+} from '@/lib/data/ops-ledger'
 import { formatIls, trueCostBreakdown } from '@/modules/spend/true-cost'
 import { serviceCallRecord } from '@/modules/tickets/call-record'
 import {
@@ -64,6 +71,9 @@ import { listProfessionals } from '@/modules/professionals/service'
 import { loadMidragResults } from '@/modules/vendors/midrag/live-results'
 import { recommendBundles, type BundleFault } from '@/modules/whatsapp/agent/bundle'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
+import { listVendors } from '@/modules/vendors/service'
+import { StoreVisitDispatch } from '@/app/ops/stores/[code]/store-visit-dispatch'
+import { executionBlockReason } from '@/modules/spend/policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,20 +160,37 @@ export default async function TicketDetailPage({
   const prevention = suggestPrevention(hits)
   const urgent = ticketIsUrgent(ticket)
   const locked = await lockedEngagementFor(ticket.id).catch(() => null)
-  const bookPros =
-    urgent && ticket.status !== 'engaged'
-      ? await listProfessionals({ limit: 24 })
+  const canDispatch = openTicket && ticket.status !== 'engaged'
+  const needsStoreDispatchPros = ticket.status === 'engaged'
+  const [bookPros, midrag, vendorsResult] = await Promise.all([
+    canDispatch || needsStoreDispatchPros
+      ? listProfessionals({ limit: 24 })
           .then((r) => r.professionals.filter((pro) => Boolean(pro.phone)))
           .catch(() => [])
-      : []
-  const midrag =
-    urgent && ticket.status !== 'engaged'
-      ? await loadMidragResults({
+      : Promise.resolve([]),
+    canDispatch
+      ? loadMidragResults({
           category: ticket.category,
           city: ticket.stores?.city ?? null,
         }).catch(() => null)
-      : null
-  const openForBundle = (history.tickets ?? []).filter((row) => row.id !== ticket.id)
+      : Promise.resolve(null),
+    listVendors({ activeOnly: true }).catch(() => ({ vendors: [] as Array<{
+      id: string
+      name: string
+      specialties?: string
+      coverage_regions?: string[] | null
+      contact_phone?: string | null
+    }> })),
+  ])
+  const sameStoreOpen = (history.tickets ?? []).filter(
+    (row) =>
+      row.id !== ticket.id &&
+      Boolean(ticket.store_id) &&
+      row.store_id === ticket.store_id &&
+      OPEN_TICKET_STATUSES.includes(row.status as (typeof OPEN_TICKET_STATUSES)[number]) &&
+      row.status !== 'engaged',
+  )
+  const openForBundle = sameStoreOpen
   const bundleCards = recommendBundles({
     open: [
       {
@@ -194,17 +221,45 @@ export default async function TicketDetailPage({
       ),
     ],
   })
-  const companionIds =
-    bundleCards.find((card) => card.kind === 'urgent' && card.ticketIds[0] === ticket.id)
-      ?.ticketIds.slice(1) ?? []
-  const companions = companionIds.map((id) => {
-    const row = openForBundle.find((item) => item.id === id)
-    return {
-      id,
-      storeName: row?.stores?.name || storeName,
-      summary: row?.title || row?.description || 'תקלה',
-    }
-  })
+  const suggestedCompanionIds = new Set(
+    bundleCards.find((card) => card.ticketIds[0] === ticket.id)?.ticketIds.slice(1) ??
+      [],
+  )
+  const companions = sameStoreOpen.map((row) => ({
+    id: row.id,
+    storeName: row.stores?.name || storeName,
+    summary: row.title || row.description || 'תקלה',
+    label:
+      row.display_number?.trim() ||
+      (row.number != null ? `OC-${row.number}` : row.id.slice(0, 8)),
+    suggested: suggestedCompanionIds.has(row.id),
+  }))
+  const storeDispatchTickets = [
+    ...(canDispatch
+      ? [
+          {
+            id: ticket.id,
+            label:
+              ticket.display_number?.trim() ||
+              (ticket.number != null ? `OC-${ticket.number}` : ticket.id.slice(0, 8)),
+            title: ticket.title || ticket.description,
+            spendBlock: executionBlockReason(spendForTicket(ticket.id)),
+            category: ticket.category,
+            status: ticket.status,
+          },
+        ]
+      : []),
+    ...sameStoreOpen.map((row) => ({
+      id: row.id,
+      label:
+        row.display_number?.trim() ||
+        (row.number != null ? `OC-${row.number}` : row.id.slice(0, 8)),
+      title: row.title || row.description,
+      spendBlock: executionBlockReason(spendForTicket(row.id)),
+      category: row.category,
+      status: row.status,
+    })),
+  ]
   const tx = (key: MessageKey, vars?: Record<string, string | number>) =>
     translate(locale, key, vars)
   const categoryKey = `category.${ticket.category}` as MessageKey
@@ -270,7 +325,7 @@ export default async function TicketDetailPage({
     cost.count === 0 ? `משוער ${estimateText}` : formatIls(cost.total)
   const stepLabel =
     ticket.status === 'engaged'
-      ? 'החנות מתאמת'
+      ? 'נשלח איש מקצוע לתיקון'
       : urgent
         ? 'מחכה לאישור'
         : 'לא דחוף'
@@ -441,7 +496,7 @@ export default async function TicketDetailPage({
           ) : null}
         </TicketFoldStack>
 
-        <div id="ticket-actions">
+        <div id="ticket-actions" className="grid gap-3">
           <EngagementPanel
             ticketId={ticket.id}
             urgent={urgent}
@@ -457,6 +512,31 @@ export default async function TicketDetailPage({
             category={ticket.category || 'other'}
             city={ticket.stores?.city ?? null}
           />
+          {ticket.store_id &&
+          ticket.status === 'engaged' &&
+          storeDispatchTickets.length > 0 ? (
+            <StoreVisitDispatch
+              storeId={ticket.store_id}
+              storeCode={storeCode || ticket.stores?.code || ''}
+              city={ticket.stores?.city ?? null}
+              region={ticket.region_id}
+              tickets={storeDispatchTickets}
+              initialSelectedIds={storeDispatchTickets.map((t) => t.id)}
+              vendors={(vendorsResult.vendors ?? []).map((v) => ({
+                id: v.id,
+                name: v.name,
+                specialties: v.specialties,
+                coverage: v.coverage_regions,
+                phone: v.contact_phone,
+              }))}
+              professionals={bookPros.map((person) => ({
+                id: person.id,
+                full_name: person.full_name,
+                phone: person.phone,
+                trade: person.trade,
+              }))}
+            />
+          ) : null}
         </div>
 
         <div className="flex justify-end px-1 pb-2">

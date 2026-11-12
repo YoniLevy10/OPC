@@ -400,6 +400,30 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'ממתינה לבעל מקצוע': { en: 'Waiting for a professional', fr: 'En attente d’un professionnel' },
   'ממתינה לחלקים': { en: 'Waiting for parts', fr: 'En attente de pièces' },
   'ממתינה להזמנה או לחלקים': { en: 'Waiting for an order or parts', fr: 'En attente de commande ou de pièces' },
+  'נשלח איש מקצוע לתיקון': {
+    en: 'Professional sent for repair',
+    fr: 'Professionnel envoyé pour réparation',
+  },
+  'תקלות נוספות בחנות — אותו ביקור': {
+    en: 'More faults at this store — same visit',
+    fr: 'Autres pannes du magasin — même visite',
+  },
+  'סמנו תקלות נוספות מהחנות לשליחה עם אותו איש מקצוע.': {
+    en: 'Select more faults from this store to send with the same professional.',
+    fr: 'Cochez d’autres pannes du magasin à envoyer avec le même professionnel.',
+  },
+  'אין תקלות פתוחות נוספות בחנות זו לשילוב בביקור.': {
+    en: 'No other open faults at this store to bundle into the visit.',
+    fr: 'Aucune autre panne ouverte dans ce magasin à regrouper.',
+  },
+  'אושר — החנות מתאמת': {
+    en: 'Professional sent for repair',
+    fr: 'Professionnel envoyé pour réparation',
+  },
+  'החנות מתאמת': {
+    en: 'Professional sent for repair',
+    fr: 'Professionnel envoyé pour réparation',
+  },
   'ממתינה לאימות': { en: 'Waiting for confirmation', fr: 'En attente de confirmation' },
   'טופלה — ממתינה לאימות': { en: 'Handled — waiting for confirmation', fr: 'Traitée — en attente de confirmation' },
   הסתיימה: { en: 'Closed', fr: 'Terminée' },

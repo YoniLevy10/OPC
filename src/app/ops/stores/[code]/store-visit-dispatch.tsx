@@ -22,6 +22,7 @@ type TicketOpt = {
   title: string
   spendBlock?: string | null
   category?: string | null
+  status?: string | null
 }
 type VendorOpt = {
   id: string
@@ -40,6 +41,7 @@ export function StoreVisitDispatch({
   vendors,
   professionals = [],
   companionIdsByTicket = {},
+  initialSelectedIds = [],
 }: {
   storeId: string
   storeCode: string
@@ -49,11 +51,20 @@ export function StoreVisitDispatch({
   vendors: VendorOpt[]
   professionals?: VisitBookPerson[]
   companionIdsByTicket?: Record<string, string[]>
+  /** Pre-select these ticket ids (e.g. the ticket detail being viewed). */
+  initialSelectedIds?: string[]
 }) {
   const router = useRouter()
   const toast = useToast()
   const [, startTransition] = useTransition()
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Set<string>>(
+    () =>
+      new Set(
+        initialSelectedIds.filter((id) =>
+          tickets.some((ticket) => ticket.id === id && ticket.status !== 'engaged'),
+        ),
+      ),
+  )
   const [open, setOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
@@ -85,6 +96,8 @@ export function StoreVisitDispatch({
   }
 
   function toggle(id: string) {
+    const row = tickets.find((ticket) => ticket.id === id)
+    if (row?.status === 'engaged') return
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -162,11 +175,15 @@ export function StoreVisitDispatch({
           approvedAmount: input.amount,
           scope: input.scope,
         })
-        ok = true
         line = locked.line
+        if (!locked.engagementLocked) {
+          toast.push({ title: locked.line, tone: 'critical' })
+          return
+        }
+        ok = true
         toast.push({
           title: locked.line,
-          tone: locked.ok ? 'success' : 'critical',
+          tone: locked.handoffOk ? 'success' : 'critical',
         })
         setSelected(new Set())
         setOpen(false)
@@ -212,13 +229,20 @@ export function StoreVisitDispatch({
         סמנו תקלות בחנות זו. הזינו איש מקצוע; המחיר אופציונלי.
       </p>
       <ul className="mb-3 space-y-2">
-        {tickets.map((t) => (
+        {tickets.map((t) => {
+          const engaged = t.status === 'engaged'
+          return (
           <li key={t.id}>
-            <label className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1.5 hover:bg-surface-sunken/50">
+            <label
+              className={`flex items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1.5 hover:bg-surface-sunken/50 ${
+                engaged ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+              }`}
+            >
               <input
                 type="checkbox"
                 className="mt-1 h-4 w-4 accent-[var(--tenant)]"
                 checked={selected.has(t.id)}
+                disabled={engaged}
                 onChange={() => toggle(t.id)}
               />
               <span className="min-w-0">
@@ -228,6 +252,11 @@ export function StoreVisitDispatch({
                 <span className="t-body block line-clamp-1 text-ink-2">
                   {t.title}
                 </span>
+                {engaged ? (
+                  <span className="t-caption block font-semibold text-[var(--tenant)]">
+                    נשלח איש מקצוע לתיקון
+                  </span>
+                ) : null}
                 {t.spendBlock ? (
                   <span className="t-caption block text-[var(--signal-critical)]">
                     {t.spendBlock}
@@ -236,7 +265,8 @@ export function StoreVisitDispatch({
               </span>
             </label>
           </li>
-        ))}
+          )
+        })}
       </ul>
       {vendors.length === 0 ? (
         <p className="t-body mb-2 text-[var(--signal-warning)]" role="status">

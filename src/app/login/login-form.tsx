@@ -190,7 +190,7 @@ export function LoginForm({ demoEntry }: { demoEntry: boolean }) {
         </ul>
 
         <p className="relative t-caption text-ink-3">
-          Optical Center · {p('פיילוט ישראל')}
+          By OpsBrain
         </p>
       </aside>
 

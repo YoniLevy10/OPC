@@ -12,7 +12,7 @@ export type AnnualStoreCost = {
   amount: number
 }
 
-/** Approved amounts of visits the store already confirmed, for one calendar year. */
+/** Approved amounts Ari locked (committed cost), for one calendar year. */
 export function annualMaintenanceCost(
   rows: ClosedEngagementCost[],
   year: number,

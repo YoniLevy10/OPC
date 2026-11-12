@@ -54,6 +54,9 @@ export async function listTechTickets(opts?: {
             name: t.stores.name,
             city: t.stores.city,
             address: t.stores.address ?? null,
+            // List payload has no manager fields — filled on ticket detail.
+            manager_name: null,
+            manager_phone: null,
           }
         : null,
     })),
@@ -86,6 +89,8 @@ function detailToTech(detail: TicketDetail): TechTicketDetail {
           name: detail.stores.name,
           city: detail.stores.city,
           address: detail.stores.address,
+          manager_name: detail.stores.manager_name ?? null,
+          manager_phone: detail.stores.manager_phone ?? null,
         }
       : null,
     events: detail.events.map((e) => ({

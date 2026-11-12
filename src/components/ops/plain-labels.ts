@@ -21,7 +21,7 @@ export const PLAIN_STATUS_HE: Record<TicketStatus, string> = {
   in_progress: 'בטיפול',
   waiting_vendor: 'ממתינה לבעל מקצוע',
   waiting_parts: 'ממתינה לחלקים',
-  engaged: 'אושר — החנות מתאמת',
+  engaged: 'נשלח איש מקצוע לתיקון',
   resolved: 'ממתינה לאימות',
   closed: 'הסתיימה',
   cancelled: 'בוטלה',

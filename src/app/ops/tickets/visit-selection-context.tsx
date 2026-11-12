@@ -19,6 +19,8 @@ export type VisitSelectableTicket = {
   category?: string
   city?: string | null
   region?: string | null
+  /** When engaged, ticket already has a professional sent — not selectable for a new visit. */
+  status?: string
 }
 
 type VisitSelectionContextValue = {
@@ -45,14 +47,19 @@ export function VisitSelectionProvider({
     [tickets],
   )
 
-  const toggle = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
+  const toggle = useCallback(
+    (id: string) => {
+      setSelected((prev) => {
+        const row = ticketsById.get(id)
+        if (row?.status === 'engaged' && !prev.has(id)) return prev
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    },
+    [ticketsById],
+  )
 
   const clear = useCallback(() => setSelected(new Set()), [])
 

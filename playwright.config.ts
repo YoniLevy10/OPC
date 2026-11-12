@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Align HMAC with e2e/helpers/pro-token.ts even when the shell has CRON_SECRET.
+process.env.PRO_PORTAL_SECRET =
+  process.env.PRO_PORTAL_SECRET?.trim() || 'dev-pro-portal-secret'
+
 const PORT = Number(process.env.PLAYWRIGHT_PORT || 3100)
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${PORT}`
 
@@ -37,7 +41,11 @@ export default defineConfig({
       // Never send real 019 SMS / redirected personal SMS during e2e.
       SMS_019_ENABLED: '0',
       SMS_019_DRY_RUN: '1',
+      // Keep pro-portal HMAC aligned with e2e/helpers/pro-token.ts default
+      // (next start would otherwise pick CRON_SECRET / service role from .env).
+      PRO_PORTAL_SECRET: 'dev-pro-portal-secret',
       PORT: String(PORT),
+      NEXT_DIST_DIR: process.env.NEXT_DIST_DIR || '.next',
     },
   },
 })

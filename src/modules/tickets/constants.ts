@@ -22,7 +22,7 @@ export const TICKET_STATUS_LABELS_HE: Record<TicketStatus, string> = {
   in_progress: 'בטיפול',
   waiting_vendor: 'ממתינה לבעל מקצוע',
   waiting_parts: 'ממתינה להזמנה או לחלקים',
-  engaged: 'אושר — החנות מתאמת',
+  engaged: 'נשלח איש מקצוע לתיקון',
   resolved: 'טופלה — ממתינה לאימות',
   closed: 'סגורה',
   cancelled: 'בוטלה',

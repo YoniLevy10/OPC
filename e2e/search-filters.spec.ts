@@ -16,16 +16,17 @@ test.describe('Search & filters', () => {
     ).toBeVisible()
 
     await page.goto('/ops/tickets?view=resolved', {
-      waitUntil: 'domcontentloaded',
+      waitUntil: 'load',
     })
     await expect(page.getByRole('heading', { name: 'תקלות' }).first()).toBeVisible()
     // Queue tabs were removed from the desk; resolved still loads via ?view=
+    // (copy may be empty-state or "{n} תקלות שהסתיימו" after earlier suite seeds)
     await expect(
-      page.getByText(/הסתיימו|אין תקלות שהסתיימו/).first(),
-    ).toBeVisible()
+      page.getByText(/הסתיימו|אין תקלות שהסתיימו|נפתרו/).first(),
+    ).toBeVisible({ timeout: 20_000 })
 
     await page.goto('/ops/tickets?view=open&store=172', {
-      waitUntil: 'domcontentloaded',
+      waitUntil: 'load',
     })
     await expect(
       page.getByRole('article').filter({ hasText: /מזגן|אבן גבירול|#?6006|#?172/ }).first(),

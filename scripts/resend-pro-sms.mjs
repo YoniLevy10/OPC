@@ -51,19 +51,19 @@ function signProToken(phone) {
   return `${body}.${sig}`
 }
 
-function buildSms({ storeName, storeCode, managerPhone, titles, portalUrl }) {
-  const visit =
-    titles.length <= 1
-      ? 'ביקור אחד'
-      : `ביקור אחד · ${titles.length} תקלות`
-  const mgr = managerPhone
-    ? `מנהל: ${formatIlsPhone(managerPhone)}`
-    : null
+function buildSms({ storeName, storeCode, managerName, managerPhone, titles, portalUrl }) {
+  const countLine =
+    titles.length <= 0
+      ? null
+      : titles.length === 1
+        ? '1 תקלה:'
+        : `${titles.length} תקלות:`
   return [
-    `Optical Center · ${storeName} (#${storeCode})`,
-    visit,
-    titles.length ? titles.join(' · ') : null,
-    mgr,
+    `Optical Center · חנות: ${storeName} (#${storeCode})`,
+    countLine,
+    ...titles.map((t) => `- ${t}`),
+    managerName ? `מנהל חנות: ${managerName}` : null,
+    managerPhone ? `טלפון: ${formatIlsPhone(managerPhone)}` : null,
     'קישור:',
     portalUrl,
   ]
@@ -82,6 +82,7 @@ const portalUrl = `${appUrl}/pro?t=${encodeURIComponent(token)}`
 const message = buildSms({
   storeName: 'תל אביב שינקין',
   storeCode: '6004',
+  managerName: 'אמיר',
   managerPhone: '050-3393839',
   titles: ['נזילה ליד הקופה הראשית', 'מזגן באולם המכירות לא מקרר בכלל'],
   portalUrl,

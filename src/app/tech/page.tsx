@@ -4,6 +4,7 @@ import { RefreshButton } from '@/components/layout/refresh-button'
 import { TechJobList } from '@/app/tech/tech-job-list'
 import { TechPushSubscribe } from '@/app/tech/tech-push-subscribe'
 import { ErrorState, Notice } from '@/components/ui/primitives'
+import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { fetchTechTickets } from '@/modules/tickets/tech'
 import { OPEN_TICKET_STATUSES } from '@/modules/tickets/constants'
 import {
@@ -48,50 +49,52 @@ export default async function TechPortalPage({
 
   return (
     <TechShell
-      title="העבודות שלי"
       enablePullToRefresh
       headerActions={<RefreshButton label="רענון" />}
-      subtitle={
-        openCount > 0 ? (
-          <span className="t-num">{openCount} עבודות פתוחות</span>
-        ) : (
-          'אין עבודות פתוחות'
-        )
-      }
     >
-      <TechPushSubscribe />
+      <div className="flex flex-col gap-5">
+        <OpsPageHero
+          eyebrow="Optical Center · טכנאי"
+          title="העבודות שלי"
+          status={
+            openCount > 0 ? (
+              <span className="t-num">
+                {openCount} עבודות פתוחות
+              </span>
+            ) : (
+              'אין עבודות פתוחות'
+            )
+          }
+        />
 
-      {error ? (
-        <div className="mb-3">
+        <TechPushSubscribe />
+
+        {error ? (
           <ErrorState
             title="לא ניתן לטעון עבודות"
             description="נסו לרענן. אם הבעיה נמשכת פנו למוקד."
             action={<RefreshButton label="רענון" />}
           />
-        </div>
-      ) : null}
+        ) : null}
 
-      {missingTech ? (
-        <div className="mb-3">
+        {missingTech ? (
           <Notice tone="warning">
             לא זוהה טכנאי. היכנסו עם חשבון טכנאי, או פתחו את קישור השטח האישי
             ממסך המשתמשים (כולל techId).
           </Notice>
-        </div>
-      ) : null}
+        ) : null}
 
-      {hqPreview ? (
-        <div className="mb-3">
+        {hqPreview ? (
           <Notice tone="warning">
             תצוגת תור של טכנאי דרך קישור שטח.{' '}
             <a className="underline" href={techHref('/tech', techId)}>
               רענון
             </a>
           </Notice>
-        </div>
-      ) : null}
+        ) : null}
 
-      <TechJobList tickets={tickets} techId={techId} />
+        <TechJobList tickets={tickets} techId={techId} />
+      </div>
     </TechShell>
   )
 }

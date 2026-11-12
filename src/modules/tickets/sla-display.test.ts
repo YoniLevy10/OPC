@@ -169,4 +169,40 @@ describe('buildActivity', () => {
   it('survives empty inputs', () => {
     expect(buildActivity()).toEqual([])
   })
+
+  it('collapses repeating SLA / unassigned cron noise into one row each', () => {
+    const items = buildActivity(
+      [],
+      [
+        { id: 's1', event_type: 'sla_breached', created_at: '2026-11-12T10:00:00.000Z' },
+        { id: 's2', event_type: 'sla_breached', created_at: '2026-11-12T11:00:00.000Z' },
+        { id: 's3', event_type: 'sla_breached', created_at: '2026-11-12T12:00:00.000Z' },
+        {
+          id: 'u1',
+          event_type: 'unassigned_timeout_notified',
+          created_at: '2026-11-12T10:30:00.000Z',
+        },
+        {
+          id: 'u2',
+          event_type: 'unassigned_timeout_notified',
+          created_at: '2026-11-12T11:30:00.000Z',
+        },
+        {
+          id: 'c1',
+          event_type: 'created',
+          created_at: '2026-11-12T09:00:00.000Z',
+        },
+      ],
+    )
+
+    expect(items.map((i) => i.label)).toEqual([
+      'תקלה נפתחה',
+      'חריגת יעד',
+      'תזכורת בלי שיוך',
+    ])
+    expect(items.find((i) => i.label === 'חריגת יעד')?.body).toMatch(/3 רישומי מערכת/)
+    expect(items.find((i) => i.label === 'תזכורת בלי שיוך')?.body).toMatch(
+      /2 רישומי מערכת/,
+    )
+  })
 })

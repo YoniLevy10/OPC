@@ -368,6 +368,7 @@ export default async function TicketsPage({
               category: t.category,
               city: t.stores?.city ?? null,
               region: t.region_id,
+              status: t.status,
             }))}
             vendors={vendorOptions}
             professionals={pros.professionals.map((person) => ({

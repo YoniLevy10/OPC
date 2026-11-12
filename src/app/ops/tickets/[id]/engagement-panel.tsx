@@ -39,6 +39,10 @@ export type CompanionChoice = {
   id: string
   storeName: string
   summary: string
+  /** Display number e.g. OC-213 */
+  label?: string
+  /** Pre-check when the bundle engine suggested this row */
+  suggested?: boolean
 }
 
 export function EngagementPanel({
@@ -124,7 +128,9 @@ export function EngagementPanel({
     return (
       <>
         <section className="grid gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-          <p className="t-body-strong text-ink">{p('ארי יצא. מנהל החנות מתאם.')}</p>
+          <p className="t-body-strong text-ink">
+            {p('נשלח איש מקצוע לתיקון')}
+          </p>
           <p className="t-body text-ink-2">
             {locked.professionalName} · {locked.professionalPhone} ·{' '}
             {(locked.approvedAmount ?? 0) > 0
@@ -199,7 +205,7 @@ export function EngagementPanel({
         </form>
       </div>
 
-      {urgent ? (
+      {status !== 'engaged' ? (
         <form id={lockFormId} action={lockEngagementAction} className="grid gap-3">
           <input type="hidden" name="ticketId" value={ticketId} />
           <input type="hidden" name="midrag" value={pickedMidrag} />
@@ -373,23 +379,34 @@ export function EngagementPanel({
           {companions.length > 0 ? (
             <fieldset className="grid gap-2">
               <legend className="t-body-strong text-ink">
-                {p('לסגור באותו ביקור')}
+                {p('תקלות נוספות בחנות — אותו ביקור')}
               </legend>
+              <p className="t-meta text-ink-3">
+                {p('סמנו תקלות נוספות מהחנות לשליחה עם אותו איש מקצוע.')}
+              </p>
               {companions.map((row) => (
                 <label key={row.id} className="flex items-start gap-2">
                   <input
                     type="checkbox"
                     name="bundle"
                     value={row.id}
-                    defaultChecked
+                    defaultChecked={Boolean(row.suggested)}
                   />
-                  <span className="t-body text-ink">
-                    {row.storeName} · {row.summary}
+                  <span className="min-w-0 t-body text-ink">
+                    <span className="t-num font-semibold">
+                      {row.label || row.id.slice(0, 8)}
+                    </span>
+                    {' · '}
+                    {row.summary}
                   </span>
                 </label>
               ))}
             </fieldset>
-          ) : null}
+          ) : (
+            <p className="t-meta text-ink-3">
+              {p('אין תקלות פתוחות נוספות בחנות זו לשילוב בביקור.')}
+            </p>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1">
@@ -443,24 +460,18 @@ export function EngagementPanel({
             אשר · WA למנהל + SMS לאיש מקצוע
           </Button>
         </form>
-      ) : (
-        <p className="t-body text-ink-2">
-          {p(
-            'נשאר בתור. ייכנס להצעת שילוב כשתהיה דחופה באותה חנות או מחוז.',
-          )}
-        </p>
-      )}
+      ) : null}
     </section>
     <PhoneActionDock label={p('פעולות תקלה')} aboveTabBar className="md:hidden">
       <div className="flex flex-col gap-2">
-        {urgent ? (
+        {status !== 'engaged' ? (
           <>
             <Button type="submit" form={lockFormId} variant="primary" className="w-full">
               אשר · WA למנהל + SMS לאיש מקצוע
             </Button>
             <div className="flex gap-2">
               <Button type="submit" form={urgentFormId} variant="secondary" className="flex-1">
-                {p('סמן כלא דחוף')}
+                {urgent ? p('סמן כלא דחוף') : p('סמן כדחוף')}
               </Button>
               <Button asChild variant="secondary" className="flex-1">
                 <a href="#ticket-actions">{p('ערוך שיבוץ')}</a>
@@ -469,9 +480,6 @@ export function EngagementPanel({
           </>
         ) : (
           <>
-            <Button type="submit" form={urgentFormId} variant="primary" className="w-full">
-              {p('סמן כדחוף')}
-            </Button>
             <Button asChild variant="secondary" className="w-full">
               <a href="#ticket-actions">{p('פרטי תקלה')}</a>
             </Button>

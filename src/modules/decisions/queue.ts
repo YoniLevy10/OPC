@@ -47,7 +47,7 @@ export function ticketDecision(
   const overdue = breached || followLate
   const action =
     ticket.status === 'engaged'
-      ? phrase(locale, 'החנות מתאמת')
+      ? phrase(locale, 'נשלח איש מקצוע לתיקון')
       : ticketIsUrgent(ticket)
         ? phrase(locale, 'דורשת אישור')
         : phrase(locale, 'ממתינה לטיפול')
@@ -59,7 +59,7 @@ export function ticketDecision(
     storeName: ticket.stores?.name ?? phrase(locale, 'סניף'),
     owner:
       ticket.status === 'engaged'
-        ? phrase(locale, 'החנות מתאמת')
+        ? phrase(locale, 'נשלח איש מקצוע לתיקון')
         : ticketIsUrgent(ticket)
           ? phrase(locale, 'דחוף')
           : phrase(locale, 'לא דחוף'),

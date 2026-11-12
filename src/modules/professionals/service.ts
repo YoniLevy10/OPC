@@ -72,6 +72,66 @@ function rowToMem(row: Record<string, unknown>): MemProfessional {
   }
 }
 
+export async function getProfessional(
+  id: string,
+): Promise<{ professional: Professional | null; backend: 'memory' | 'supabase' }> {
+  const trimmed = id.trim()
+  if (!trimmed) {
+    return { professional: null, backend: 'memory' }
+  }
+
+  if (!(await supabaseReady())) {
+    const row = memListProfessionals({ activeOnly: false }).find((p) => p.id === trimmed)
+    return {
+      backend: 'memory',
+      professional: row ? toPublic(row) : null,
+    }
+  }
+
+  try {
+    const supabase = createSystemClient('professionals_get')
+    const { data, error } = await supabase
+      .from('professionals')
+      .select('*')
+      .eq('id', trimmed)
+      .eq('organization_id', MEM_ORG_ID)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (error) {
+      captureError(error, {
+        route: 'professionals_get',
+        schema: isSupabaseSchemaError(error),
+      })
+      const row = memListProfessionals({ activeOnly: false }).find((p) => p.id === trimmed)
+      return {
+        backend: 'memory',
+        professional: row ? toPublic(row) : null,
+      }
+    }
+
+    if (!data) {
+      const row = memListProfessionals({ activeOnly: false }).find((p) => p.id === trimmed)
+      return {
+        backend: row ? 'memory' : 'supabase',
+        professional: row ? toPublic(row) : null,
+      }
+    }
+
+    return {
+      backend: 'supabase',
+      professional: toPublic(rowToMem(data as Record<string, unknown>)),
+    }
+  } catch (err) {
+    captureError(err, { route: 'professionals_get' })
+    const row = memListProfessionals({ activeOnly: false }).find((p) => p.id === trimmed)
+    return {
+      backend: 'memory',
+      professional: row ? toPublic(row) : null,
+    }
+  }
+}
+
 export async function listProfessionals(opts?: {
   tradeQuery?: string | null
   limit?: number

@@ -6,6 +6,7 @@ const INTAKE_STATE_HE: Record<string, string> = {
   awaiting_store: 'ממתין לסניף',
   awaiting_description: 'ממתין לתיאור',
   awaiting_clarification: 'ממתין להבהרה',
+  awaiting_pro_rating: 'ממתין לדירוג איש מקצוע',
   awaiting_media: 'ממתין לתמונה',
   done: 'טופל',
   collecting: 'אוסף פרטים',

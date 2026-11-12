@@ -4,6 +4,7 @@ export type IntakeState =
   | 'awaiting_store'
   | 'awaiting_description'
   | 'awaiting_clarification'
+  | 'awaiting_pro_rating'
   | 'done'
 
 export type InboundMessage = {

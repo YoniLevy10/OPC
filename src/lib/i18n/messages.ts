@@ -1,7 +1,7 @@
 import type { Locale } from '@/lib/i18n/locale'
 
 const he = {
-  'nav.dashboard': 'סקירה',
+  'nav.dashboard': 'דשבורד',
   'nav.tickets': 'תקלות',
   'nav.approvals': 'אישורים',
   'nav.tasks': 'משימות',

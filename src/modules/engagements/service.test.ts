@@ -163,3 +163,34 @@ describe('annualMaintenanceCost', () => {
     expect(report.stores).toHaveLength(1)
   })
 })
+
+describe('closedEngagementCosts', () => {
+  beforeEach(() => {
+    process.env.MAINTAINOS_FORCE_MEMORY = '1'
+    resetEngagementsForTests()
+  })
+
+  it('includes Ari-approved price before the store closes the visit', async () => {
+    const store = DEMO_STORES[0]
+    if (!store) throw new Error('missing demo store')
+    const ticket = memCreate({
+      store,
+      description: 'דלת כניסה',
+      priority: 'high',
+      category: 'other',
+    })
+    await lockEngagement({
+      ticketId: ticket.id,
+      professionalName: 'פבל',
+      professionalPhone: '0501234567',
+      approvedAmount: 100,
+      approvedBy: 'ארי',
+    })
+
+    const { closedEngagementCosts } = await import('./service')
+    const rows = await closedEngagementCosts()
+    expect(rows.some((row) => row.approvedAmount === 100)).toBe(true)
+    const report = annualMaintenanceCost(rows, new Date().getUTCFullYear())
+    expect(report.network).toBeGreaterThanOrEqual(100)
+  })
+})

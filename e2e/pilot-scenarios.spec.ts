@@ -33,9 +33,27 @@ test.describe('Pilot scenarios (memory backend)', () => {
     await page.getByLabel('שם אחרי השיחה').fill('טכנאי דמו')
     await page.getByLabel('טלפון').fill('0501234567')
     await page.getByLabel('מחיר שסוכם').fill('450')
-    await page.getByRole('button', { name: /אשר · WA|אשר/ }).first().click()
+    // Isolate this ticket — store companions from prior seeds can block the lock.
+    for (const box of await page.locator('#ticket-actions input[name="bundle"]').all()) {
+      if (await box.isChecked()) await box.uncheck()
+    }
+    await Promise.all([
+      page.waitForResponse(
+        (res) =>
+          res.request().method() === 'POST' &&
+          res.url().includes(`/ops/tickets/${ticketId}`) &&
+          (res.status() === 303 || res.status() === 200),
+      ),
+      page
+        .locator('#ticket-actions')
+        .getByRole('button', { name: /אשר · WA/ })
+        .click(),
+    ])
+    // Soft action redirect can leave a stale client tree — hard reload is the
+    // reliable PRG finish for this form until the desk opts out of router cache.
+    await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(
-      page.getByText(/ארי יצא|המחיר נעול|מנהל החנות מתאם/i).first(),
+      page.getByText(/נשלח איש מקצוע לתיקון|המחיר נעול/i).first(),
     ).toBeVisible({ timeout: 15_000 })
   })
 
@@ -49,8 +67,23 @@ test.describe('Pilot scenarios (memory backend)', () => {
     if ((await markUrgent.count()) > 0) await markUrgent.click()
     await page.getByLabel('שם אחרי השיחה').fill('פבל דמו')
     await page.getByLabel('טלפון').fill('0509988776')
-    await page.getByRole('button', { name: /אשר/ }).first().click()
-    await expect(page.getByText(/ארי יצא|המחיר נעול|מנהל החנות מתאם/i).first()).toBeVisible({
+    for (const box of await page.locator('#ticket-actions input[name="bundle"]').all()) {
+      if (await box.isChecked()) await box.uncheck()
+    }
+    await Promise.all([
+      page.waitForResponse(
+        (res) =>
+          res.request().method() === 'POST' &&
+          res.url().includes(`/ops/tickets/${ticketId}`) &&
+          (res.status() === 303 || res.status() === 200),
+      ),
+      page
+        .locator('#ticket-actions')
+        .getByRole('button', { name: /אשר · WA/ })
+        .click(),
+    ])
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page.getByText(/נשלח איש מקצוע לתיקון|המחיר נעול/i).first()).toBeVisible({
       timeout: 15_000,
     })
     const token = signProPortalTokenForE2e('0509988776')
