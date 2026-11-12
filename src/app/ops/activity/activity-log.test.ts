@@ -46,4 +46,18 @@ describe('phraseEvent', () => {
       }),
     ).toMatch(/→/)
   })
+
+  it('describes SLA breach without jargon', () => {
+    expect(
+      phraseEvent({
+        id: '4',
+        ticket_id: 't1',
+        ticket_display: 'OC-1',
+        event_type: 'sla_breached',
+        actor_id: null,
+        payload: { kind: 'respond', to_priority: 'high' },
+        created_at: new Date().toISOString(),
+      }),
+    ).toMatch(/חריגת יעד/)
+  })
 })

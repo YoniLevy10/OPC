@@ -207,7 +207,10 @@ export function InboxClient() {
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editStoreId, setEditStoreId] = useState('')
 
-  const threadEndRef = useRef<HTMLDivElement | null>(null)
+  const threadScrollRef = useRef<HTMLDivElement | null>(null)
+  /** When true, keep the thread pinned to the latest message. */
+  const stickToBottomRef = useRef(true)
+  const prevSelectedRef = useRef<string | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
 
   const loadSessions = useCallback(async () => {
@@ -258,11 +261,30 @@ export function InboxClient() {
     if (selected) void loadThread(selected)
   }, [selected, loadThread])
 
+  function threadNearBottom(el: HTMLElement, px = 96): boolean {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= px
+  }
+
+  function scrollThreadToBottom() {
+    const el = threadScrollRef.current
+    if (!el) return
+    // Instant — smooth + re-renders fought the user and yanked the pane.
+    el.scrollTop = el.scrollHeight
+  }
+
   useLayoutEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const selectedChanged = prevSelectedRef.current !== selected
+    prevSelectedRef.current = selected
+    if (selectedChanged) {
+      stickToBottomRef.current = true
+      scrollThreadToBottom()
+      return
+    }
+    if (stickToBottomRef.current) scrollThreadToBottom()
   }, [messages, selected])
 
   function openConversation(waId: string) {
+    stickToBottomRef.current = true
     setSelected(waId)
     setMobileShowThread(true)
     setNotice(null)
@@ -334,6 +356,7 @@ export function InboxClient() {
         throw new Error(p('ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'))
       }
       setReply('')
+      stickToBottomRef.current = true
       setNotice(
         p(
           'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.',
@@ -371,6 +394,7 @@ export function InboxClient() {
       if (json.send && json.send.ok === false) {
         throw new Error(p('שליחת הודעת מעקב נכשלה'))
       }
+      stickToBottomRef.current = true
       setNotice(
         p('הודעת מעקב נשלחה — הלקוח יכול להשיב ולפתוח מחדש את השיחה.'),
       )
@@ -729,7 +753,13 @@ export function InboxClient() {
             </div>
           ) : null}
 
-          <div className="wa-chat-wallpaper relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-3 sm:px-4">
+          <div
+            ref={threadScrollRef}
+            className="wa-chat-wallpaper relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-3 sm:px-4"
+            onScroll={(e) => {
+              stickToBottomRef.current = threadNearBottom(e.currentTarget)
+            }}
+          >
             {messages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <EmptyState title="אין הודעות" description="השיחה תופיע כאן" />
@@ -788,7 +818,6 @@ export function InboxClient() {
                     </div>
                   ),
                 )}
-                <div ref={threadEndRef} />
               </div>
             )}
           </div>

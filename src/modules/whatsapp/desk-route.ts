@@ -15,6 +15,10 @@ import { getPublicAppUrl } from '@/lib/auth/app-url'
 import { logEvent } from '@/lib/logging'
 import { notifyAri } from '@/modules/notify/ari'
 import { replyToAri } from '@/modules/ops/agent-chat'
+import {
+  recentAriWaTurns,
+  rememberAriWaExchange,
+} from '@/modules/ops/agent-wa-memory'
 import { sendWhatsAppAudio } from '@/modules/whatsapp/send'
 import { synthesizeHebrew, withVoiceOutcome } from '@/modules/whatsapp/speech'
 import {
@@ -351,13 +355,16 @@ export async function routeInboundToDesk(input: {
     const message = input.text?.trim()
     if (message) {
       const voice = input.mediaKind === 'audio'
+      const history = recentAriWaTurns(input.waId, 6)
       const answered = await replyToAri({
         message,
+        history,
         actor: null,
         locale: 'he',
         source: 'whatsapp',
         voice,
       })
+      rememberAriWaExchange(input.waId, message, answered.reply)
       if (!voice) return { reply: answered.reply, storeReply: null }
       const spoken = await synthesizeHebrew(answered.reply)
       const sent =

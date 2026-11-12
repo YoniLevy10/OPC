@@ -49,6 +49,19 @@ describe('actForAri', () => {
     expect(task?.dueAt?.startsWith('2026-12-01')).toBe(true)
   })
 
+  it('prefers create_task over fire-permit intake when both match', async () => {
+    const reply = await actForAri({
+      message: 'תפתח משימה לבדוק כיבוי אש בחדרה כל 90 ימים',
+    })
+    expect(reply?.reply).toContain('רשמתי משימה')
+    expect(reply?.reply).toContain('חוזר כל 90 ימים')
+    expect(reply?.reply).not.toContain('רשמתי אישור')
+    expect(reply?.links[0]?.href).toMatch(/^\/ops\/tasks#task-/)
+    const task = listTasks().find((row) => row.title.includes('כיבוי אש'))
+    expect(task?.repeatDays).toBe(90)
+    expect(task?.storeCode).toBe('6005')
+  })
+
   it('opens a fault at the store he names', async () => {
     const before = memListTickets().length
     const reply = await actForAri({

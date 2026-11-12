@@ -68,6 +68,7 @@ MAINTAINOS_FORCE_MEMORY=1
 
 ## מסמכים (חיים)
 
+- [`docs/OPC_3_EXECUTIVE_STATUS.md`](docs/OPC_3_EXECUTIVE_STATUS.md) — תמונת מצב להנהלה — OPC מול גרסה 3.0
 - [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) — בידול ופילטר פיצ׳רים
 - [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — מערכת עיצוב
 - [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) — החלטות מוצר

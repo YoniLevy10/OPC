@@ -12,8 +12,9 @@ export function AgentBubble() {
   const p = usePhrase()
   const starters = [
     p('איזה סניף הכי דחוף?'),
-    p('כמה מחכה?'),
+    p('אילו הוצאות ממתינות?'),
     p('מה כדאי לאחד?'),
+    p('מי בספר למיזוג אוויר?'),
     p('אילו מסמכים לחידוש?'),
   ]
   const { turns, setTurns, threads, activeId, ready, restore, startFresh } = useAgentThreads()
@@ -46,7 +47,7 @@ export function AgentBubble() {
   async function send(text: string) {
     const message = text.trim()
     if (!message || pending) return
-    const prior = turns.slice(-6)
+    const prior = turns.slice(-14)
     setHistory(false)
     setTurns((current) => [...current, { role: 'user', text: message }])
     setDraft('')

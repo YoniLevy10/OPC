@@ -77,7 +77,8 @@ export async function actForAri(input: {
     return say(`באיזה סניף? יש ${named.ambiguous.map((row) => row.name).slice(0, 3).join(' ו')}.`)
   }
 
-  if (!ticket && permit) {
+  // Explicit «תפתח משימה …» wins over permit/doc intake (e.g. recurring fire-check task).
+  if (!ticket && !task && permit) {
     const title = (body.length >= 3 ? body : blurb) || 'חידוש אישור'
     if (!store) {
       const created = addTask({

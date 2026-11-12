@@ -4,21 +4,23 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { format, isSameDay, parseISO, startOfDay } from 'date-fns'
 import { he } from 'date-fns/locale'
-import { Field, Input, Select } from '@/components/ui/input'
-import { EmptyState, Notice, Panel } from '@/components/ui/primitives'
-import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
+import { SearchField } from '@/components/ui/input'
+import { EmptyState } from '@/components/ui/primitives'
+import { cn } from '@/lib/utils'
+import { PLAIN_STATUS_HE } from '@/components/ops/plain-labels'
 import {
   TICKET_EVENT_LABELS_HE,
-  TICKET_STATUS_LABELS_HE,
   type TicketStatus,
 } from '@/modules/tickets/constants'
 import type { AuditEventRow } from '@/modules/audit/service'
 
 export type AuditEvent = AuditEventRow
 
+const NOISE_TYPES = new Set(['sla_breached'])
+
 function statusHe(raw: unknown): string {
   const key = String(raw ?? '')
-  return TICKET_STATUS_LABELS_HE[key as TicketStatus] ?? (key || '—')
+  return PLAIN_STATUS_HE[key as TicketStatus] ?? (key || '—')
 }
 
 function sourceHe(source: string): string {
@@ -32,6 +34,13 @@ function sourceHe(source: string): string {
   return map[source] ?? source
 }
 
+function urgencyHe(raw: unknown): string {
+  const key = String(raw ?? '')
+  if (key === 'critical' || key === 'high') return 'דחוף'
+  if (key === 'medium' || key === 'low') return 'רגיל'
+  return key || ''
+}
+
 /** Human phrasing for the system journal — who / what / on which ticket. */
 export function phraseEvent(e: AuditEvent): string {
   const p =
@@ -43,17 +52,27 @@ export function phraseEvent(e: AuditEvent): string {
     case 'status_changed': {
       const from = p.from ?? p.from_status
       const to = p.to ?? p.to_status
-      if (from && to) return `סטטוס: ${statusHe(from)} → ${statusHe(to)}`
-      return `שינוי סטטוס ל־${statusHe(to)}`
+      if (from && to) return `${statusHe(from)} → ${statusHe(to)}`
+      return `סטטוס · ${statusHe(to)}`
     }
     case 'assigned':
       return 'שויכה לטכנאי פנימי'
     case 'created': {
       const source = p.source ? sourceHe(String(p.source)) : null
-      return source ? `תקלה נפתחה · ${source}` : 'תקלה נפתחה'
+      return source ? `נפתחה · ${source}` : 'תקלה נפתחה'
     }
-    case 'sla_breached':
-      return 'חריגת SLA'
+    case 'sla_breached': {
+      const kind =
+        p.kind === 'respond'
+          ? 'תגובה'
+          : p.kind === 'resolve'
+            ? 'סגירה'
+            : null
+      const to = urgencyHe(p.to_priority)
+      if (kind && to) return `חריגת יעד (${kind}) · עלה ל־${to}`
+      if (kind) return `חריגת יעד · ${kind}`
+      return 'חריגת יעד טיפול'
+    }
     case 'partner_dispatched': {
       const name = p.vendor_name ? String(p.vendor_name) : null
       return name ? `שוגר לספק · ${name}` : 'שוגר לספק חיצוני'
@@ -69,14 +88,14 @@ export function phraseEvent(e: AuditEvent): string {
       return 'בוטל אישור איש מקצוע'
     case 'store_handoff': {
       const line = typeof p.line === 'string' ? p.line : null
-      if (p.ok === false && line) return `WA למנהל החנות — לא נמסר (${line})`
-      if (line) return `WA למנהל החנות · ${line}`
-      return 'נשלח WA למנהל החנות עם פרטי איש המקצוע'
+      if (p.ok === false && line) return `WA לחנות — לא נמסר (${line})`
+      if (line) return `WA לחנות · ${line}`
+      return 'נשלח WA למנהל החנות'
     }
     case 'pro_sms': {
       const line = typeof p.line === 'string' ? p.line : null
       if (p.ok === false && line) return `SMS לאיש מקצוע — לא נשלח (${line})`
-      return line || 'נשלח SMS לאיש מקצוע עם קישור אישי'
+      return line || 'נשלח SMS לאיש מקצוע'
     }
     case 'store_confirmed': {
       const by = p.by ? String(p.by) : null
@@ -89,7 +108,7 @@ export function phraseEvent(e: AuditEvent): string {
         ? 'סומן כדחוף'
         : 'סומן כלא דחוף'
     case 'priority_changed':
-      return `דחיפות עודכנה${p.to ? ` → ${String(p.to)}` : ''}`
+      return `דחיפות · ${urgencyHe(p.to) || String(p.to ?? '')}`
     case 'hq_note':
     case 'note_added':
       return typeof p.note === 'string' && p.note.trim()
@@ -117,6 +136,8 @@ export function phraseEvent(e: AuditEvent): string {
       return 'תוקן סיווג התקלה'
     case 'lifecycle_nudge':
       return 'נשלחה תזכורת מחזור לחנות'
+    case 'unassigned_timeout_notified':
+      return 'תזכורת · תקלה בלי שיוך'
     default:
       return TICKET_EVENT_LABELS_HE[e.event_type] ?? e.event_type
   }
@@ -142,6 +163,10 @@ function storeLabel(e: AuditEvent) {
   return null
 }
 
+function ticketLabel(e: AuditEvent) {
+  return e.ticket_display?.trim() || (e.ticket_id ? e.ticket_id.slice(0, 8) : '—')
+}
+
 function fmtTime(iso: string) {
   try {
     return format(parseISO(iso), 'HH:mm')
@@ -157,7 +182,7 @@ function fmtDayLabel(iso: string) {
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     if (isSameDay(d, yesterday)) return 'אתמול'
-    return format(d, 'EEEE, d בMMMM', { locale: he })
+    return format(d, 'EEEE d.M', { locale: he })
   } catch {
     return iso
   }
@@ -171,47 +196,30 @@ function dayKey(iso: string) {
   }
 }
 
-export function ActivityLog({ events }: { events: AuditEvent[] }) {
-  const [actionType, setActionType] = useState('')
-  const [actor, setActor] = useState('')
-  const [date, setDate] = useState('')
-  const [entity, setEntity] = useState('')
+type FeedMode = 'actions' | 'all'
 
-  const types = useMemo(() => {
-    const set = new Set(events.map((e) => e.event_type))
-    return Array.from(set).sort()
-  }, [events])
-
-  const actors = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const e of events) {
-      if (!e.actor_id) continue
-      map.set(e.actor_id, actorLabel(e))
-    }
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'he'))
-  }, [events])
+export function ActivityLog({
+  events,
+  slaCount,
+}: {
+  events: AuditEvent[]
+  slaCount: number
+}) {
+  const [mode, setMode] = useState<FeedMode>('actions')
+  const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
-      if (actionType && e.event_type !== actionType) return false
-      if (actor === '__system__' && e.actor_id) return false
-      if (actor && actor !== '__system__' && e.actor_id !== actor) return false
-      if (date) {
-        try {
-          if (!isSameDay(parseISO(e.created_at), parseISO(date))) return false
-        } catch {
-          return false
-        }
-      }
-      if (entity) {
-        const q = entity.trim().toLowerCase()
+      if (mode === 'actions' && NOISE_TYPES.has(e.event_type)) return false
+      if (query.trim()) {
+        const q = query.trim().toLowerCase()
         const hay =
-          `${e.ticket_display ?? ''} ${e.ticket_id} ${e.store_code ?? ''} ${e.store_name ?? ''}`.toLowerCase()
+          `${e.ticket_display ?? ''} ${e.ticket_id} ${e.store_code ?? ''} ${e.store_name ?? ''} ${phraseEvent(e)} ${actorLabel(e)}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
     })
-  }, [events, actionType, actor, date, entity])
+  }, [events, mode, query])
 
   const groups = useMemo(() => {
     const map = new Map<string, AuditEvent[]>()
@@ -228,155 +236,143 @@ export function ActivityLog({ events }: { events: AuditEvent[] }) {
     }))
   }, [filtered])
 
-  const filterOn = Boolean(actionType || actor || date || entity)
+  const actionTotal = events.filter((e) => !NOISE_TYPES.has(e.event_type)).length
 
   return (
-    <div className="flex flex-col gap-4">
-      <Notice tone="neutral">
-        יומן מערכתי של אירועי תקלות: פתיחה, שיוך, אישור איש מקצוע, הודעות למנהל /
-        איש מקצוע, אישור חנות וסגירה. לא צ׳אט וואטסאפ מלא — רק מה שנרשם על התקלה.
-      </Notice>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-3">
-        <div>
-          <h2 className="t-section text-ink">יומן פעילות מערכת</h2>
-          <p className="t-meta text-ink-2">
-            {filtered.length} אירועים מוצגים · עדכני לפי זמן
-          </p>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div
+          role="tablist"
+          aria-label="תצוגת היסטוריה"
+          className="inline-flex rounded-full border border-border bg-surface p-1"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'actions'}
+            onClick={() => setMode('actions')}
+            className={cn(
+              't-caption rounded-full px-3.5 py-1.5 transition-colors',
+              mode === 'actions'
+                ? 'bg-ink text-[var(--tenant-contrast)]'
+                : 'text-ink-2 hover:text-ink',
+            )}
+          >
+            פעולות
+            <span className="t-num ms-1.5 opacity-70">{actionTotal}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'all'}
+            onClick={() => setMode('all')}
+            className={cn(
+              't-caption rounded-full px-3.5 py-1.5 transition-colors',
+              mode === 'all'
+                ? 'bg-ink text-[var(--tenant-contrast)]'
+                : 'text-ink-2 hover:text-ink',
+            )}
+          >
+            הכל
+            {slaCount > 0 ? (
+              <span className="t-num ms-1.5 opacity-70">+{slaCount} יעד</span>
+            ) : null}
+          </button>
         </div>
-        <span className="rounded-full bg-[var(--tenant-soft)] px-3 py-1 t-caption text-[var(--tenant)]">
-          {filterOn ? 'סינון פעיל' : 'כל האירועים'}
-        </span>
+        <p className="t-caption text-ink-3">
+          {filtered.length === 0
+            ? 'אין תוצאות'
+            : `${filtered.length} ביומן`}
+        </p>
       </div>
 
+      <SearchField
+        value={query}
+        onValueChange={setQuery}
+        placeholder="חיפוש תקלה, סניף או פעולה…"
+        className="max-w-xl"
+      />
+
       {filtered.length === 0 ? (
-        <Panel flush elevated className="overflow-hidden">
-          <EmptyState
-            title="אין אירועים"
-            description={
-              filterOn
-                ? 'נסו לשנות את הסינון.'
-                : 'ברגע שנפתחת תקלה או מתבצעת פעולה עליה — היא תופיע כאן.'
-            }
-          />
-        </Panel>
+        <EmptyState
+          title={mode === 'actions' ? 'אין פעולות עדיין' : 'אין אירועים'}
+          description={
+            query
+              ? 'נסו חיפוש אחר.'
+              : mode === 'actions'
+                ? 'פתיחה, אישור, הודעות וסגירה יופיעו כאן. חריגות יעד ב«הכל».'
+                : 'ברגע שיש פעילות על תקלה — היא תופיע כאן.'
+          }
+        />
       ) : (
-        <Panel flush elevated className="overflow-hidden">
-          <div className="divide-y divide-border">
-            {groups.map((group) => (
-              <section key={group.key}>
-                <h2 className="sticky top-0 z-10 border-b border-border bg-surface-sunken/90 px-4 py-2 t-caption text-ink-2 backdrop-blur">
+        <div className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface">
+          {groups.map((group) => (
+            <section key={group.key}>
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_srgb,var(--surface)_88%,var(--canvas))] px-4 py-2 backdrop-blur-sm">
+                <h2 className="t-caption font-semibold tracking-wide text-ink-2">
                   {group.label}
-                  <span className="ms-2 t-num text-ink-3">{group.items.length}</span>
                 </h2>
-                <ul className="divide-y divide-border/70">
-                  {group.items.map((event) => {
-                    const store = storeLabel(event)
-                    return (
-                      <li
-                        key={event.id}
-                        className="flex gap-3 px-4 py-3 transition-colors hover:bg-surface-sunken/30"
+                <span className="t-caption t-num text-ink-3">{group.items.length}</span>
+              </div>
+              <ul>
+                {group.items.map((event, index) => {
+                  const store = storeLabel(event)
+                  const warn = event.event_type === 'sla_breached'
+                  const href = `/ops/tickets/${event.ticket_id}`
+                  return (
+                    <li
+                      key={event.id}
+                      className={cn(
+                        'border-b border-border/70 last:border-b-0',
+                        warn && 'bg-[color-mix(in_srgb,var(--warning,#d97706)_5%,transparent)]',
+                      )}
+                    >
+                      <Link
+                        href={href}
+                        className={cn(
+                          'flex items-start justify-between gap-4 px-4 py-2.5 transition-colors',
+                          'hover:bg-surface-sunken/45',
+                          index === 0 && 'pt-3',
+                        )}
                       >
-                        <span
-                          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--tenant)]"
-                          aria-hidden
-                        />
                         <div className="min-w-0 flex-1">
-                          <p className="t-body-strong text-ink">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="t-caption t-num font-semibold text-ink">
+                              {ticketLabel(event)}
+                            </span>
+                            {store ? (
+                              <span className="t-caption truncate text-ink-3">
+                                {store}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p
+                            className={cn(
+                              't-body mt-0.5 leading-snug text-ink',
+                              warn && 'text-[var(--warning,#b45309)]',
+                            )}
+                          >
                             {phraseEvent(event)}
                           </p>
-                          <p className="t-meta mt-0.5 text-ink-2">
-                            {event.ticket_display || event.ticket_id ? (
-                              <Link
-                                href={`/ops/tickets/${event.ticket_id}`}
-                                className="text-[var(--tenant)] hover:underline"
-                              >
-                                {event.ticket_display ||
-                                  event.ticket_id.slice(0, 8)}
-                              </Link>
-                            ) : (
-                              '—'
-                            )}
-                            {store ? (
-                              <span className="text-ink-3">{` · ${store}`}</span>
-                            ) : null}
-                            <span className="text-ink-3">
-                              {' · '}
-                              {actorLabel(event)}
-                            </span>
+                          <p className="t-caption mt-0.5 text-ink-3">
+                            {actorLabel(event)}
                           </p>
                         </div>
                         <time
                           dateTime={event.created_at}
-                          className="t-caption t-num shrink-0 text-ink-3"
+                          className="t-caption t-num shrink-0 pt-0.5 text-ink-3"
                         >
                           {fmtTime(event.created_at)}
                         </time>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            ))}
-          </div>
-        </Panel>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
-
-      <PhoneFoldStack>
-        <PhoneFold title="סינון" summary={filterOn ? 'פעיל' : 'הכל'}>
-          <div className="grid min-w-0 gap-3 md:grid-cols-2">
-            <Field label="סוג פעולה" htmlFor="activity-type">
-              <Select
-                id="activity-type"
-                value={actionType}
-                onChange={(e) => setActionType(e.target.value)}
-                className="w-full min-w-0"
-              >
-                <option value="">הכל</option>
-                {types.map((t) => (
-                  <option key={t} value={t}>
-                    {TICKET_EVENT_LABELS_HE[t] ?? t}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="מי ביצע" htmlFor="activity-actor">
-              <Select
-                id="activity-actor"
-                value={actor}
-                onChange={(e) => setActor(e.target.value)}
-                className="w-full min-w-0"
-              >
-                <option value="">הכל</option>
-                <option value="__system__">מערכת / אוטומציה</option>
-                {actors.map(([id, label]) => (
-                  <option key={id} value={id}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="תאריך" htmlFor="activity-date">
-              <Input
-                id="activity-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full min-w-0"
-              />
-            </Field>
-            <Field label="תקלה / סניף" htmlFor="activity-entity">
-              <Input
-                id="activity-entity"
-                value={entity}
-                onChange={(e) => setEntity(e.target.value)}
-                placeholder="OC-… או קוד סניף"
-                className="w-full min-w-0"
-              />
-            </Field>
-          </div>
-        </PhoneFold>
-      </PhoneFoldStack>
     </div>
   )
 }

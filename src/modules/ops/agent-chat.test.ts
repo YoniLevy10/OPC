@@ -1,20 +1,30 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { BundleCard } from '@/modules/whatsapp/agent/bundle'
 import type { StoreDocument } from '@/modules/documents/rules'
 import {
   answerFromSnapshot,
   briefForAri,
   duePapersFrom,
+  harvestOpsLinks,
   repeatGearFrom,
+  shouldShortCircuitPapersGear,
   type GearAsset,
   type GearTicket,
   type OpsSnapshot,
 } from './agent-chat'
 import {
   ariSystemPrompt,
+  estimateRepairRangeText,
+  findBookProText,
+  listAwaitingApprovalsText,
   listOpenByStoreText,
+  recommendBundlesText,
+  setSpendDecisionText,
   summarizeDuePapersText,
 } from './agent-tools'
+import { createSpend, listSpends, resetOpsLedger } from '@/lib/data/ops-ledger'
+import { formatPersonalRating } from '@/modules/notes/personal-rating'
+import { resetAriWaMemory, rememberAriWaExchange, recentAriWaTurns } from './agent-wa-memory'
 
 function card(partial: Partial<BundleCard>): BundleCard {
   return {
@@ -264,18 +274,46 @@ describe('briefForAri / ari tools helpers', () => {
         fault.id === 'c' ? { ...fault, overdue: true, verb: 'לשייך' } : fault,
       ),
       papers: [{ storeName: 'דיזנגוף', label: 'כיבוי אש', overdue: true }],
+      waitingSpends: [
+        {
+          id: 'sp1',
+          storeName: 'חיפה',
+          reason: 'החלפת מדחס',
+          amount: 1800,
+          status: 'pending',
+          vendorName: null,
+        },
+      ],
+      bookPros: [
+        {
+          id: 'p1',
+          name: 'דני מיזוג',
+          phone: '0501111111',
+          trade: 'מיזוג אוויר',
+          notes: formatPersonalRating(4, 'תל אביב'),
+          rating: 4,
+          useCount: 3,
+        },
+      ],
     })
     expect(brief).toContain('עובדות')
     expect(brief).toContain('צעד הבא')
     expect(brief).toContain('חיפה')
     expect(brief).toContain('/ops/tickets/')
     expect(brief).toContain('כיבוי אש')
+    expect(brief).toContain('הוצאות ממתינות')
+    expect(brief).toContain('דני מיזוג')
+    expect(brief).toContain('id=c')
   })
 
   it('keeps an ops-manager system prompt with tool names', () => {
     expect(ariSystemPrompt('he')).toContain('צעד הבא')
     expect(ariSystemPrompt('he')).toContain('summarize_due_papers')
+    expect(ariSystemPrompt('he')).toContain('list_awaiting_approvals')
+    expect(ariSystemPrompt('he')).toContain('find_book_pro')
+    expect(ariSystemPrompt('he')).toContain('/ops/approvals')
     expect(ariSystemPrompt('en')).toContain('list_open_by_store')
+    expect(ariSystemPrompt('he')).toContain('שאלה אחת')
   })
 
   it('summarizes due papers from the snapshot instead of a stub', () => {
@@ -310,6 +348,212 @@ describe('briefForAri / ari tools helpers', () => {
     expect(summary.message).toContain('OC-12')
     expect(summary.message).toContain('/ops/tickets/a')
     expect(summary.message).toMatch(/\/ops\/tickets\?store=/)
+  })
+
+  it('clarifies when the store hint matches more than one branch', () => {
+    const summary = listOpenByStoreText(
+      [
+        {
+          id: 'a',
+          storeName: 'תל אביב שינקין',
+          summary: 'נזילה',
+          displayNumber: 'OC-1',
+        },
+      ],
+      'תל אביב',
+      'he',
+    )
+    expect(summary.ok).toBe(false)
+    expect(summary.message).toContain('באיזה סניף?')
+    expect(summary.message).toMatch(/שינקין|אבן גבירול/)
+  })
+
+  it('lists waiting approvals with a path to /ops/approvals', () => {
+    const summary = listAwaitingApprovalsText(
+      [
+        {
+          id: 's1',
+          storeName: 'חדרה',
+          reason: 'תיקון מזגן',
+          amount: 900,
+          status: 'pending',
+          vendorName: 'דני',
+        },
+      ],
+      'he',
+    )
+    expect(summary.count).toBe(1)
+    expect(summary.message).toContain('חדרה')
+    expect(summary.message).toContain('/ops/approvals')
+    expect(summary.href).toBe('/ops/approvals')
+  })
+
+  it('approves a unique waiting spend and clarifies when ambiguous', () => {
+    resetOpsLedger()
+    const one = createSpend({
+      storeId: 's1',
+      storeCode: '6005',
+      storeName: 'חדרה',
+      ticketId: null,
+      reason: 'תיקון מזגן',
+      vendorName: null,
+      requestedAmount: 900,
+      scope: null,
+      urgent: false,
+      actor: 'test',
+    })
+    createSpend({
+      storeId: 's2',
+      storeCode: '6004',
+      storeName: 'תל אביב שינקין',
+      ticketId: null,
+      reason: 'חשמל',
+      vendorName: null,
+      requestedAmount: 400,
+      scope: null,
+      urgent: false,
+      actor: 'test',
+    })
+    const waiting = listSpends()
+      .filter((row) => row.status === 'pending')
+      .map((row) => ({
+        id: row.id,
+        storeName: row.storeName,
+        reason: row.reason,
+        amount: row.requestedAmount,
+        status: row.status as 'pending' | 'needs_info',
+        vendorName: row.vendorName,
+      }))
+    const ambiguous = setSpendDecisionText({
+      spends: waiting,
+      decision: 'approved',
+      locale: 'he',
+    })
+    expect(ambiguous.ok).toBe(false)
+    expect(ambiguous.message).toContain('איזו הוצאה?')
+    const ok = setSpendDecisionText({
+      spends: waiting,
+      decision: 'approved',
+      spendId: one.id,
+      locale: 'he',
+    })
+    expect(ok.ok).toBe(true)
+    expect(ok.message).toContain('אישרתי')
+    expect(ok.message).toContain('חדרה')
+    expect(listSpends().find((row) => row.id === one.id)?.status).toBe('approved')
+  })
+
+  it('finds book professionals by trade with rating when present', () => {
+    const summary = findBookProText({
+      professionals: [
+        {
+          id: 'p1',
+          name: 'יוסי מיזוג',
+          phone: '0501234567',
+          trade: 'מיזוג אוויר',
+          notes: formatPersonalRating(5, 'תל אביב'),
+          rating: 5,
+          useCount: 4,
+        },
+        {
+          id: 'p2',
+          name: 'משה חשמל',
+          phone: null,
+          trade: 'חשמל',
+          notes: null,
+          rating: 0,
+          useCount: 1,
+        },
+      ],
+      category: 'מיזוג',
+      city: 'תל אביב',
+      locale: 'he',
+    })
+    expect(summary.count).toBe(1)
+    expect(summary.message).toContain('יוסי מיזוג')
+    expect(summary.message).toContain('דירוג 5/5')
+    expect(summary.message).toContain('/ops/professionals')
+    expect(summary.message).not.toContain('משה חשמל')
+  })
+
+  it('recommends bundles with a why-combine line', () => {
+    const summary = recommendBundlesText(
+      [
+        card({
+          sentence: '2 נזילות בסניף דיזנגוף. אנדי יכול לטפל בכולן בביקור אחד.',
+          professionalName: 'אנדי',
+        }),
+      ],
+      'he',
+    )
+    expect(summary.count).toBe(1)
+    expect(summary.message).toContain('אנדי')
+    expect(summary.message).toContain('למה לאחד')
+  })
+
+  it('estimates repair range only from recorded bands or kind catalog', () => {
+    const grounded = estimateRepairRangeText({
+      bands: [{ category: 'hvac', low: 2400, high: 4100 }],
+      category: 'מיזוג',
+      locale: 'he',
+    })
+    expect(grounded.ok).toBe(true)
+    expect(grounded.grounded).toBe(true)
+    expect(grounded.message).toContain('₪2,400')
+    expect(grounded.message).toContain('שנרשם')
+    const ask = estimateRepairRangeText({ bands: [], locale: 'he' })
+    expect(ask.ok).toBe(false)
+    expect(ask.message).toContain('קטגוריה')
+  })
+})
+
+describe('Ari WhatsApp turn memory', () => {
+  beforeEach(() => {
+    resetAriWaMemory()
+  })
+
+  it('keeps the last turns for continuous context', () => {
+    rememberAriWaExchange('wa-ari', 'מה פתוח בחדרה?', 'בחדרה יש נזילה.')
+    rememberAriWaExchange('wa-ari', 'תפתח על זה משימה', 'רשמתי משימה.')
+    const turns = recentAriWaTurns('wa-ari', 6)
+    expect(turns).toHaveLength(4)
+    expect(turns[0]?.text).toContain('חדרה')
+    expect(turns[3]?.text).toContain('משימה')
+  })
+})
+
+describe('harvestOpsLinks', () => {
+  it('keeps tool-collected links and otherwise harvests /ops paths', () => {
+    expect(
+      harvestOpsLinks('ראה /ops/approvals', [
+        { href: '/ops/professionals', label: 'לספר' },
+      ]),
+    ).toEqual([{ href: '/ops/professionals', label: 'לספר' }])
+    const harvested = harvestOpsLinks(
+      'אין הוצאות. אישורים: /ops/approvals ותקלה /ops/tickets/abc.',
+    )
+    expect(harvested.map((row) => row.href)).toEqual([
+      '/ops/approvals',
+      '/ops/tickets/abc',
+    ])
+    expect(harvested[0]?.label).toBe('לאישורים')
+  })
+})
+
+describe('papers/gear short-circuit gate', () => {
+  it('skips deterministic shortcut when the model path is active', () => {
+    expect(shouldShortCircuitPapersGear('אילו מסמכים לחידוש?', true)).toBe(false)
+    expect(shouldShortCircuitPapersGear('אילו מסמכים לחידוש?', false)).toBe(true)
+    expect(shouldShortCircuitPapersGear('מה המצב?', false)).toBe(false)
+  })
+
+  it('still summarizes papers via the tool helper for the model path', () => {
+    const summary = summarizeDuePapersText(
+      [{ storeName: 'חדרה', label: 'כיבוי אש', overdue: true }],
+      'he',
+    )
+    expect(summary.message).toContain('כיבוי אש')
+    expect(summary.href).toBe('/ops/documents')
   })
 })
 

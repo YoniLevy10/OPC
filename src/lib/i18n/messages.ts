@@ -7,7 +7,7 @@ const he = {
   'nav.tasks': 'משימות',
   'nav.alerts': 'מה דורש פעולה',
   'nav.stores': 'חנויות',
-  'nav.whatsapp': 'WhatsApp',
+  'nav.whatsapp': 'וואטסאפ',
   'nav.professionals': 'בעלי מקצוע',
   'nav.documents': 'מסמכים',
   'nav.inventory': 'חלקים במחסן',

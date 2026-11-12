@@ -12,8 +12,10 @@ import { hasAiGatewayAuth, resolveReplyModel } from '@/modules/whatsapp/ai-sdk/m
 import { generateText } from 'ai'
 import {
   ariSystemPrompt,
+  bookProsFrom,
   buildAriTools,
   stepCountIs,
+  waitingSpendsFrom,
 } from '@/modules/ops/agent-tools'
 import type { AriLink } from '@/modules/ops/agent-actions'
 import type { Actor } from '@/lib/auth/types'
@@ -31,6 +33,7 @@ import {
 } from '@/modules/whatsapp/agent/bundle'
 import type { Locale } from '@/lib/i18n/locale'
 import { phrase } from '@/lib/i18n/phrases'
+import { matchProfessionalsForFault } from '@/modules/professionals/match-fault'
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string }
 
@@ -87,6 +90,25 @@ export type GearTicket = {
   status: string
 }
 
+export type WaitingSpendHint = {
+  id: string
+  storeName: string
+  reason: string
+  amount: number
+  status: 'pending' | 'needs_info'
+  vendorName: string | null
+}
+
+export type BookProHint = {
+  id: string
+  name: string
+  phone: string | null
+  trade: string | null
+  notes: string | null
+  rating: number
+  useCount: number
+}
+
 export type OpsSnapshot = {
   open: SnapshotFault[]
   cards: BundleCard[]
@@ -94,6 +116,8 @@ export type OpsSnapshot = {
   money?: { waiting: number; approved: number; paid: number }
   papers?: DuePaper[]
   gear?: RepeatGear[]
+  waitingSpends?: WaitingSpendHint[]
+  bookPros?: BookProHint[]
 }
 
 const PAPER_SOON_MS = 30 * 24 * 60 * 60 * 1000
@@ -299,6 +323,7 @@ export async function loadOpsSnapshot(actor: Actor | null, locale: Locale = 'he'
   })
   const money = pilotMoney(spends, [])
   const now = new Date()
+  const bookPros = bookProsFrom(pros.professionals)
   return {
     open: openFaults.map((fault) => {
       const ticket = tickets.find((row) => row.id === fault.id)
@@ -347,6 +372,8 @@ export async function loadOpsSnapshot(actor: Actor | null, locale: Locale = 'he'
       ),
       now,
     ),
+    waitingSpends: waitingSpendsFrom(spends),
+    bookPros,
   }
 }
 
@@ -393,10 +420,8 @@ export async function replyToAri(input: {
         : acted
     }
   }
-  if (input.voice && locale === 'he') {
-    return { reply: spoken, links: [] }
-  }
-  if (asksPapersOrGear(input.message)) {
+  // When a model is available, prefer tools over deterministic papers/gear shortcuts.
+  if (shouldShortCircuitPapersGear(input.message, hasAiGatewayAuth())) {
     return {
       reply: answerFromSnapshot(input.message, snapshot, locale, input.history ?? []),
       links: [],
@@ -410,13 +435,22 @@ export async function replyToAri(input: {
     input.source ?? 'web_fallback',
   )
   if (modeled) return modeled
+  // Voice without a model answer stays a short spoken floor summary.
+  if (input.voice && locale === 'he') {
+    return { reply: spoken, links: [] }
+  }
   return { reply: answerFromSnapshot(input.message, snapshot, locale, input.history ?? []), links: [] }
 }
 
-function asksPapersOrGear(message: string): boolean {
-  return /מסמך|כיול|תוקף|תעודה|כיבוי אש|ציוד|חלקים|חוזר|חזר|מכשיר|document|certificat|calibration|expir|échéance|equipment|asset|repeat|équipement|pièce|appareil/i.test(
+export function asksPapersOrGear(message: string): boolean {
+  return /מסמכ|כיול|תוקף|תעודה|כיבוי אש|ציוד|חלקים|חוזר|חזר|מכשיר|document|certificat|calibration|expir|échéance|equipment|asset|repeat|équipement|pièce|appareil/i.test(
     message,
   )
+}
+
+/** Deterministic papers/gear only when no model path is available. */
+export function shouldShortCircuitPapersGear(message: string, hasModel: boolean): boolean {
+  return !hasModel && asksPapersOrGear(message)
 }
 
 async function tryModelReply(
@@ -439,11 +473,15 @@ async function tryModelReply(
       displayNumber: fault.displayNumber ?? null,
     })),
     papers: snapshot.papers ?? [],
+    waitingSpends: snapshot.waitingSpends ?? [],
+    bookPros: snapshot.bookPros ?? [],
+    cards: snapshot.cards,
+    bands: snapshot.bands ?? [],
     source,
     collectLink: (link) => links.push(link),
   })
   const prior = history
-    .slice(-6)
+    .slice(-14)
     .map((turn) => `${turn.role === 'user' ? 'Ari' : 'Assistant'}: ${turn.text}`)
     .join('\n')
   try {
@@ -451,20 +489,48 @@ async function tryModelReply(
       model: resolved.model,
       system: ariSystemPrompt(locale),
       tools,
-      stopWhen: stepCountIs(3),
+      stopWhen: stepCountIs(5),
       prompt: `${briefForAri(snapshot)}\n${prior ? `Chat:\n${prior}\n` : ''}Ari: ${question}`,
       temperature: 0.3,
-      abortSignal: AbortSignal.timeout(18_000),
+      abortSignal: AbortSignal.timeout(30_000),
     })
     const reply = text.trim()
     if (!reply && links.length === 0) return null
     return {
       reply: reply || phrase(locale, 'העוזר לא הצליח לענות'),
-      links,
+      links: harvestOpsLinks(reply, links),
     }
   } catch {
     return null
   }
+}
+
+/** When tools forgot collectLink, still surface /ops paths from the reply. */
+export function harvestOpsLinks(
+  reply: string,
+  existing: AriLink[] = [],
+): AriLink[] {
+  if (existing.length > 0) return existing
+  const found: AriLink[] = []
+  const seen = new Set<string>()
+  for (const match of reply.matchAll(/\/ops\/[A-Za-z0-9/_?=#%-]+/g)) {
+    const href = match[0].replace(/[),.;:]+$/g, '')
+    if (!href || seen.has(href)) continue
+    seen.add(href)
+    found.push({ href, label: labelForOpsHref(href) })
+    if (found.length >= 4) break
+  }
+  return found
+}
+
+function labelForOpsHref(href: string): string {
+  if (href.startsWith('/ops/approvals')) return 'לאישורים'
+  if (href.startsWith('/ops/professionals')) return 'לספר אנשי מקצוע'
+  if (href.startsWith('/ops/documents')) return 'מסמכים'
+  if (href.startsWith('/ops/tasks')) return 'למשימה'
+  if (/^\/ops\/tickets\/[^/?#]+/.test(href)) return 'לתקלה'
+  if (href.startsWith('/ops/tickets')) return 'לתור'
+  return 'למסך'
 }
 
 function answerAri(question: string, snapshot: OpsSnapshot, history: ChatTurn[]): string {
@@ -689,25 +755,76 @@ export function briefForAri(snapshot: OpsSnapshot): string {
     const faults = store.faults
       .slice(0, 4)
       .map((fault) => {
+        const number = fault.displayNumber ? `${fault.displayNumber} ` : ''
+        const idBit = fault.id ? `id=${fault.id}` : ''
+        const marks = [
+          fault.urgent ? 'דחוף' : null,
+          fault.overdue ? 'חורגת' : null,
+          fault.statusLabel ?? null,
+          fault.verb ?? null,
+        ].filter(Boolean)
         const path = fault.id ? ` [/ops/tickets/${fault.id}]` : ''
-        return `${faultSentence(fault)}${path}`
+        return `${number}${fault.summary} (${[idBit, ...marks].filter(Boolean).join(', ')})${path}`
       })
       .join(' | ')
     return `${store.name}: ${faults}`
   })
+  const waiting = (snapshot.waitingSpends ?? []).slice(0, 5).map((spend) => {
+    const status = spend.status === 'needs_info' ? 'מבקשים מידע' : 'ממתין'
+    return `${spend.storeName}: ${formatIls(spend.amount)} — ${spend.reason} (${status}) [id=${spend.id}]`
+  })
+  const waitingBlock =
+    waiting.length > 0
+      ? [`הוצאות ממתינות (/ops/approvals):`, ...waiting].join('\n')
+      : 'אין הוצאה ממתינה לאישור.'
+  const categories = [...new Set(snapshot.open.map((fault) => fault.category))].slice(0, 3)
+  const pros = snapshot.bookPros ?? []
+  const proLines: string[] = []
+  for (const category of categories) {
+    const matched = matchProfessionalsForFault(
+      pros.map((pro) => ({
+        id: pro.id,
+        full_name: pro.name,
+        phone: pro.phone,
+        trade: pro.trade,
+        notes: pro.notes,
+        use_count: pro.useCount,
+      })),
+      category,
+    ).slice(0, 2)
+    for (const pro of matched) {
+      if (proLines.length >= 3) break
+      const rating = pros.find((row) => row.id === pro.id)?.rating
+      const stars = rating && rating > 0 ? `, דירוג ${rating}/5` : ''
+      proLines.push(
+        `${pro.full_name}${pro.trade ? ` · ${pro.trade}` : ''}${stars} (לקטגוריה ${category})`,
+      )
+    }
+    if (proLines.length >= 3) break
+  }
+  const proBlock =
+    proLines.length > 0
+      ? [`אנשי מקצוע רלוונטיים מהספר:`, ...proLines].join('\n')
+      : ''
   const aside = [papersLine(snapshot, 'he'), gearLine(snapshot, 'he')].filter(Boolean)
   const next = top
     ? `צעד הבא: ${top.name} — ${top.lead.verb ?? 'לטפל'} ב«${top.lead.summary}».`
-    : (snapshot.papers ?? []).some((row) => row.overdue)
-      ? 'צעד הבא: לחדש מסמך שכבר באיחור (/ops/documents).'
-      : 'צעד הבא: אין תקלה דחופה — אפשר לבדוק מסמכים או ציוד שחוזר.'
+    : (snapshot.waitingSpends ?? []).length > 0
+      ? 'צעד הבא: לאשר או לדחות הוצאה ממתינה (/ops/approvals).'
+      : (snapshot.papers ?? []).some((row) => row.overdue)
+        ? 'צעד הבא: לחדש מסמך שכבר באיחור (/ops/documents).'
+        : 'צעד הבא: אין תקלה דחופה — אפשר לבדוק מסמכים או ציוד שחוזר.'
   return [
     'עובדות (רק אלה אמיתיות — אל תמציא):',
     moneyAri(snapshot) || 'אין סכום שמחכה.',
+    waitingBlock,
     ...lines,
+    proBlock,
     ...aside,
     next,
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 function placeInQuestion(question: string, snapshot: OpsSnapshot): string | null {

@@ -66,6 +66,12 @@ const PRIMARY: NavItem[] = [
     match: '/ops/dashboard',
   },
   { href: '/ops/tickets', label: 'תקלות', icon: Inbox, match: '/ops/tickets' },
+  {
+    href: '/ops/inbox',
+    label: 'וואטסאפ',
+    icon: MessageSquare,
+    match: '/ops/inbox',
+  },
   { href: '/ops/stores', label: 'חנויות', icon: Store, match: '/ops/stores' },
 ]
 
@@ -73,12 +79,6 @@ const TOOL_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'תפעול',
     items: [
-      {
-        href: '/ops/inbox',
-        label: 'WhatsApp',
-        icon: MessageSquare,
-        match: '/ops/inbox',
-      },
       {
         href: '/ops/professionals',
         label: 'בעלי מקצוע',

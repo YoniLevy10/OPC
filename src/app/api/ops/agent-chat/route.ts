@@ -22,7 +22,7 @@ const bodySchema = z.object({
         text: z.string().max(800),
       }),
     )
-    .max(8)
+    .max(16)
     .optional(),
 })
 

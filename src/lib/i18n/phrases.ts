@@ -1121,6 +1121,14 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Which store is most urgent?',
     fr: 'Quel magasin est le plus urgent ?',
   },
+  'אילו הוצאות ממתינות?': {
+    en: 'Which spends are waiting?',
+    fr: 'Quelles dépenses sont en attente ?',
+  },
+  'מי בספר למיזוג אוויר?': {
+    en: 'Who’s in the book for HVAC?',
+    fr: 'Qui est dans le carnet pour la clim ?',
+  },
   'כמה מחכה?': { en: 'How much is waiting?', fr: 'Combien est en attente ?' },
   'שאלה על הסניף או על הכסף': {
     en: 'A question about the store or the money',
