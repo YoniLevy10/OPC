@@ -512,7 +512,15 @@ export function buildVisitIdempotencyKey(input: {
   ticketIds: string[]
 }): string {
   const tickets = [...input.ticketIds].sort().join(',')
-  return `visit-client:${input.storeId}:plan:${tickets}`
+  const raw = `visit-client:${input.storeId}:${input.vendorId ?? 'plan'}:${tickets}`
+  // API caps idempotencyKey at 160 chars — raw UUID lists blow past that at ~3 tickets.
+  let hash = 2166136261
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  const digest = (hash >>> 0).toString(16).padStart(8, '0')
+  return `visit:${input.storeId.slice(0, 8)}:${digest}:n${input.ticketIds.length}`
 }
 
 export function scheduledAtToIso(localValue: string): string | null {

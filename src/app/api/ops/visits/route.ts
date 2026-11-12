@@ -31,8 +31,15 @@ export async function POST(request: Request) {
     const json = await request.json().catch(() => null)
     const parsed = bodySchema.safeParse(json)
     if (!parsed.success) {
+      const first =
+        parsed.error.issues[0]?.message ||
+        parsed.error.flatten().formErrors[0] ||
+        'validation'
       return NextResponse.json(
-        { error: 'בקשה לא תקינה', details: parsed.error.flatten() },
+        {
+          error: `בקשה לא תקינה: ${first}`,
+          details: parsed.error.flatten(),
+        },
         { status: 400 },
       )
     }
