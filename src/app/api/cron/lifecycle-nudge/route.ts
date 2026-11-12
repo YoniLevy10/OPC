@@ -49,15 +49,14 @@ async function loadResolvedAwaitingConfirm(): Promise<Candidate[]> {
       .in('status', ['resolved', 'engaged'])
       .is('store_confirmed_at', null)
       .limit(200)
-    if (!error && data) {
-      return data.map((r) => ({
-        id: String(r.id),
-        status: String(r.status),
-        resolved_at: (r.resolved_at as string | null) ?? null,
-        updated_at: String(r.updated_at),
-        reporter_phone: (r.reporter_phone as string | null) ?? null,
-      }))
-    }
+    if (error) throw new Error(error.message)
+    return (data ?? []).map((r) => ({
+      id: String(r.id),
+      status: String(r.status),
+      resolved_at: (r.resolved_at as string | null) ?? null,
+      updated_at: String(r.updated_at),
+      reporter_phone: (r.reporter_phone as string | null) ?? null,
+    }))
   }
   return memListTickets()
     .filter(
