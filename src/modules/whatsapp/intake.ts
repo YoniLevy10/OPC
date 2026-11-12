@@ -1542,7 +1542,7 @@ export async function processInboundMessage(
         }
         if (!text && !message.mediaUrl && !session.pending_media_url) {
           const reply = await craftIntakeReply(
-            WA_COPY.askDescription(byPhone.name, manager.managerName),
+            WA_COPY.askDescription(byPhone.name, manager?.managerName),
             'intake_ask_description',
           )
           await sendReply(supabase, message, country, reply, null, options, session)
