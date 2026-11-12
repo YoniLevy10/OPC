@@ -19,7 +19,10 @@ test.describe('Search & filters', () => {
       waitUntil: 'domcontentloaded',
     })
     await expect(page.getByRole('heading', { name: 'תקלות' }).first()).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'הסתיימו' })).toBeVisible()
+    // Queue tabs were removed from the desk; resolved still loads via ?view=
+    await expect(
+      page.getByText(/הסתיימו|אין תקלות שהסתיימו/).first(),
+    ).toBeVisible()
 
     await page.goto('/ops/tickets?view=open&store=172', {
       waitUntil: 'domcontentloaded',
