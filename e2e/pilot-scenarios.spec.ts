@@ -5,7 +5,14 @@ import { signProPortalTokenForE2e } from './helpers/pro-token'
 test.describe('Pilot scenarios (memory backend)', () => {
   test('2 — public web report creates ticket', async ({ page }) => {
     await page.goto('/report?store=172', { waitUntil: 'domcontentloaded' })
-    await page.getByLabel('תיאור התקלה').fill('בדיקת פיילוט — דליפת מים ליד הדלפק')
+    await page.waitForLoadState('networkidle').catch(() => undefined)
+    const description = page.getByLabel('תיאור התקלה')
+    await expect(description).toBeVisible()
+    // Controlled textarea: wait for hydration, then confirm the value stuck
+    // before submit (empty fill previously failed with תארו את התקלה).
+    await description.click()
+    await description.fill('בדיקת פיילוט — דליפת מים ליד הדלפק')
+    await expect(description).toHaveValue(/דליפת מים/)
     await page.getByRole('button', { name: 'שליחת דיווח' }).click()
     await expect(page.getByText(/הדיווח התקבל/i)).toBeVisible({ timeout: 15_000 })
   })
