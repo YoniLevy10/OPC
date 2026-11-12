@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WA_COPY } from './copy'
+import { WA_COPY, waCopy } from './copy'
 
 describe('WA_COPY.askDescription', () => {
   it('greets the manager by name and asks for the fault', () => {
@@ -15,5 +15,27 @@ describe('WA_COPY.askDescription', () => {
     expect(reply).toContain('חדרה')
     expect(reply).toContain('בבקשה תארו את התקלה')
     expect(reply).not.toMatch(/שלום \S+, מה שלומך/)
+  })
+})
+
+describe('waCopy languages', () => {
+  it('confirms a ticket in English and French', () => {
+    const en = waCopy('en').confirmedIntake({
+      displayNumber: 'OC-1',
+      storeName: 'Dizengoff',
+      summary: 'AC not cooling',
+      priority: 'high',
+    })
+    expect(en).toMatch(/Opened ticket #OC-1/)
+    expect(en).toMatch(/Priority High/)
+
+    const fr = waCopy('fr').confirmedIntake({
+      displayNumber: 'OC-2',
+      storeName: 'Lyon',
+      summary: 'Fuite d’eau',
+      priority: 'medium',
+    })
+    expect(fr).toMatch(/Ticket ouvert #OC-2/)
+    expect(fr).toMatch(/Priorité Moyenne/)
   })
 })

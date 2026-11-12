@@ -1,7 +1,9 @@
 export type ReportLanguage = 'he' | 'en' | 'fr'
 
 const FRENCH_WORD =
-  /\b(fuite|climatisation|électricité|electricite|électri|electri|porte|magasin|panne|aussi|eau|serrure|alarme|plafond|facture|devis)\b/i
+  /\b(bonjour|merci|salut|fuite|climatisation|électricité|electricite|électri|electri|porte|magasin|panne|aussi|eau|serrure|alarme|plafond|facture|devis|s'il|svp)\b/i
+
+const STORE_ONLY = /^STORE[_\s-]?\d{1,6}$/i
 
 /** Hebrew, English, or French. Anything else stays on the network default, Hebrew. */
 export function reportLanguage(text: string): ReportLanguage {
@@ -11,6 +13,20 @@ export function reportLanguage(text: string): ReportLanguage {
   if (accents > 0 || FRENCH_WORD.test(text)) return 'fr'
   if (/[A-Za-z]/.test(text)) return 'en'
   return 'he'
+}
+
+/** Language for fault-opening WhatsApp replies. STORE_ alone keeps the country default. */
+export function intakeLanguage(
+  text: string | null | undefined,
+  countryCode?: string | null,
+): ReportLanguage {
+  const fallback: ReportLanguage = countryCode === 'FR' ? 'fr' : 'he'
+  const raw = text?.trim()
+  if (!raw) return fallback
+  if (STORE_ONLY.test(raw)) return fallback
+  const stripped = raw.replace(/\bSTORE[_\s-]?\d{1,6}\b/i, '').trim()
+  if (!stripped) return fallback
+  return reportLanguage(stripped)
 }
 
 const QUESTION = {

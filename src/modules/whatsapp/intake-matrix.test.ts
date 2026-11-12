@@ -63,8 +63,23 @@ describe('WhatsApp intake matrix (memory)', () => {
     expect(memListTickets().length).toBe(before + 1)
     const ticket = memListTickets().find((t) => t.id === r.ticketId)
     expect(ticket?.stores?.code).toBe('6006')
+    expect(ticket?.reporter_name).toBe('לילך')
+    expect(memGetSession('972543034415')?.customer_name).toBe('לילך')
     expect(r.reply || '').toContain('תל אביב אבן גבירול')
     expect(r.reply || '').not.toMatch(/חנות 6006|חנות 172/)
+
+    const status = await processInboundMessage(
+      msg({
+        text: 'מה המצב?',
+        waId: '972543034415',
+        phoneNumberId: 'wa_phone_il_demo',
+        messageId: 'status-after-manager-ticket',
+      }),
+      { skipOutboundGraph: true },
+    )
+    expect(status.ok).toBe(true)
+    expect(status.reply || '').toMatch(/OC-|פנייה/)
+    expect(status.reply || '').not.toMatch(/קוד הסניף/)
   })
 
   it('WA-02 unknown phone asks for store; no ticket', async () => {

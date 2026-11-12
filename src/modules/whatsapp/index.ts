@@ -1,4 +1,4 @@
-export { WA_COPY } from './copy'
+export { WA_COPY, waCopy } from './copy'
 export {
   enhanceWhatsAppMessage,
   interpolateWhatsAppTemplate,

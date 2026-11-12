@@ -27,8 +27,9 @@ import {
   runIntakeAgent,
   type IntakeDecision,
 } from './agent'
-import { WA_COPY } from './copy'
+import { waCopy } from './copy'
 import { enhanceWhatsAppMessage, type WhatsAppAiSituation } from './ai'
+import { intakeLanguage, type ReportLanguage } from './spoken-language'
 import { resolveInboundMediaUrl } from './media'
 import { inferSourceFromText } from './parse'
 import { sendWhatsAppText } from './send'
@@ -46,8 +47,9 @@ import {
   mergeStorePersonNote,
   parseStorePerson,
 } from './store-person'
-import { isAriSender, splitSpokenFaults } from './classify'
+import { isAriSender, phonesMatch, splitSpokenFaults } from './classify'
 import { isNonIssueAck } from './non-issue'
+import type { ReporterTicket } from './intent'
 import {
   confirmStoreFix,
   rejectStoreFix,
@@ -74,6 +76,88 @@ function phoneTail(waId: string): string {
   return digits.slice(-9)
 }
 
+const CLOSED_STATUSES = new Set(['closed', 'cancelled'])
+
+/** Open tickets for this WhatsApp sender — Supabase first, memory fallback. */
+async function listOpenTicketsForReporter(
+  supabase: SupabaseClient | null,
+  waId: string,
+): Promise<ReporterTicket[]> {
+  if (!supabase) {
+    const tail = phoneTail(waId)
+    return memListTickets()
+      .filter(
+        (ticket) =>
+          ticket.reporter_phone?.includes(tail) &&
+          !CLOSED_STATUSES.has(ticket.status),
+      )
+      .slice(0, 3)
+      .map((ticket) => ({
+        displayNumber: ticket.display_number || ticket.id.slice(0, 8),
+        status: ticket.status,
+        spendApproved: ticketSpendApproved(ticket.id),
+      }))
+  }
+
+  try {
+    await hydrateOpsLedger()
+  } catch {
+    // Spend status is best-effort; ticket list still matters.
+  }
+
+  const digits = normalizePhoneDigits(waId)
+  const tail = phoneTail(waId)
+  const phoneClauses: string[] = []
+  if (digits) phoneClauses.push(`reporter_phone.eq.${digits}`)
+  if (tail && tail.length >= 8) {
+    phoneClauses.push(`reporter_phone.ilike.%${tail}`)
+  }
+  if (digits?.startsWith('972') && digits.length >= 12) {
+    phoneClauses.push(`reporter_phone.eq.0${digits.slice(3)}`)
+  }
+  if (phoneClauses.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('tickets')
+    .select('id, display_number, status, reporter_phone')
+    .or(phoneClauses.join(','))
+    .not('status', 'in', '(closed,cancelled)')
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  if (error) {
+    logEvent('whatsapp:intake', 'warn', 'status_tickets_query_failed', {
+      error: error.message,
+    })
+    const tailMem = phoneTail(waId)
+    return memListTickets()
+      .filter(
+        (ticket) =>
+          ticket.reporter_phone?.includes(tailMem) &&
+          !CLOSED_STATUSES.has(ticket.status),
+      )
+      .slice(0, 3)
+      .map((ticket) => ({
+        displayNumber: ticket.display_number || ticket.id.slice(0, 8),
+        status: ticket.status,
+        spendApproved: ticketSpendApproved(ticket.id),
+      }))
+  }
+
+  return (data ?? [])
+    .filter((row) =>
+      phonesMatch(waId, String(row.reporter_phone ?? '')),
+    )
+    .slice(0, 3)
+    .map((row) => ({
+      displayNumber:
+        (row.display_number as string | null) ||
+        String(row.id).slice(0, 8),
+      status: String(row.status),
+      spendApproved: ticketSpendApproved(String(row.id)),
+    }))
+}
+
 function attachmentKindFromMedia(
   mediaKind: InboundMessage['mediaKind'] | undefined,
 ): 'image' | 'video' | 'document' | 'audio' {
@@ -89,6 +173,14 @@ type CountryRow = {
   code: string
   whatsapp_phone_number_id: string | null
   whatsapp_access_token: string | null
+}
+
+function copyForInbound(
+  text: string | null | undefined,
+  country?: Pick<CountryRow, 'code'> | null,
+): { lang: ReportLanguage; copy: ReturnType<typeof waCopy> } {
+  const lang = intakeLanguage(text, country?.code)
+  return { lang, copy: waCopy(lang) }
 }
 
 type StoreRow = {
@@ -107,6 +199,7 @@ type SessionRow = {
   wa_id: string
   store_id: string | null
   store_code: string | null
+  customer_name: string | null
   state: IntakeState
   pending_description: string | null
   clarification_count: number
@@ -121,7 +214,7 @@ type SessionRow = {
 }
 
 const SESSION_SELECT =
-  'id, organization_id, country_id, wa_id, store_id, store_code, state, pending_description, clarification_count, draft_payload, active_ticket_id, pending_media_url, pending_media_kind, human_takeover, human_takeover_until, expires_at'
+  'id, organization_id, country_id, wa_id, store_id, store_code, customer_name, state, pending_description, clarification_count, draft_payload, active_ticket_id, pending_media_url, pending_media_kind, human_takeover, human_takeover_until, expires_at'
 
 const SESSION_SELECT_LEGACY =
   'id, organization_id, country_id, wa_id, store_id, store_code, state, pending_description, human_takeover, expires_at'
@@ -148,7 +241,8 @@ async function selectSession(
       isMissingColumnError(error, 'active_ticket_id') ||
       isMissingColumnError(error, 'human_takeover_until') ||
       isMissingColumnError(error, 'pending_media_url') ||
-      isMissingColumnError(error, 'pending_media_kind'))
+      isMissingColumnError(error, 'pending_media_kind') ||
+      isMissingColumnError(error, 'customer_name'))
   ) {
     ;({ data, error } = await supabase
       .from('intake_sessions')
@@ -242,6 +336,7 @@ function sessionFromMem(
     wa_id: existing.wa_id,
     store_id: existing.store_id,
     store_code: existing.store_code,
+    customer_name: existing.customer_name ?? null,
     state: existing.state,
     pending_description: existing.pending_description,
     clarification_count: existing.clarification_count ?? 0,
@@ -268,6 +363,7 @@ function normalizeSessionRow(row: Record<string, unknown>): SessionRow {
     wa_id: String(row.wa_id),
     store_id: (row.store_id as string | null) ?? null,
     store_code: (row.store_code as string | null) ?? null,
+    customer_name: (row.customer_name as string | null) ?? null,
     state: row.state as IntakeState,
     pending_description: (row.pending_description as string | null) ?? null,
     clarification_count: Number(row.clarification_count ?? 0),
@@ -410,9 +506,10 @@ export async function resolveStoreByWaId(
   const q = supabase
     .from('store_phones')
     .select(
-      'store_id, stores ( id, code, name, organization_id, country_id, region_id )',
+      'store_id, is_primary, stores ( id, code, name, organization_id, country_id, region_id )',
     )
     .eq('wa_id', waId)
+    .eq('is_primary', true)
   const { data } = await q.limit(1).maybeSingle()
   const stores = data?.stores as StoreRow | StoreRow[] | null | undefined
   if (!stores) return null
@@ -435,17 +532,34 @@ async function linkStorePhone(
     return
   }
   try {
+    await supabase
+      .from('store_phones')
+      .update({ is_primary: false })
+      .eq('store_id', store.id)
+      .eq('is_primary', true)
+      .neq('wa_id', waId)
+
     const { data: existing } = await supabase
       .from('store_phones')
       .select('id, store_id')
       .eq('wa_id', waId)
       .limit(1)
       .maybeSingle()
-    if (existing?.store_id === store.id) return
+    if (existing?.store_id === store.id) {
+      await supabase
+        .from('store_phones')
+        .update({ is_primary: true, label: 'מנהל חנות' })
+        .eq('id', existing.id)
+      return
+    }
     if (existing) {
       await supabase
         .from('store_phones')
-        .update({ store_id: store.id })
+        .update({
+          store_id: store.id,
+          is_primary: true,
+          label: 'מנהל חנות',
+        })
         .eq('id', existing.id)
       return
     }
@@ -453,7 +567,7 @@ async function linkStorePhone(
       store_id: store.id,
       wa_id: waId,
       is_primary: true,
-      label: 'whatsapp_intake',
+      label: 'מנהל חנות',
     })
   } catch (e) {
     logEvent('whatsapp:intake', 'warn', 'store_phone_link_failed', {
@@ -676,6 +790,7 @@ async function getOrCreateSession(
 type SessionPatch = Partial<{
   store_id: string | null
   store_code: string | null
+  customer_name: string | null
   state: IntakeState
   pending_description: string | null
   clarification_count: number
@@ -700,6 +815,10 @@ async function updateSession(
       store_id: patch.store_id !== undefined ? patch.store_id : session.store_id,
       store_code:
         patch.store_code !== undefined ? patch.store_code : session.store_code,
+      customer_name:
+        patch.customer_name !== undefined
+          ? patch.customer_name
+          : session.customer_name,
       state: patch.state ?? session.state,
       pending_description:
         patch.pending_description !== undefined
@@ -767,6 +886,7 @@ async function createTicketFromIntake(params: {
   source: TicketSource
   inboundText: string | null
   useMemory: boolean
+  language?: ReportLanguage
 }): Promise<{
   ticketId: string
   displayNumber: string
@@ -784,6 +904,7 @@ async function createTicketFromIntake(params: {
     source,
     inboundText,
     useMemory,
+    language,
   } = params
 
   const summary = decision.summary || description
@@ -791,6 +912,18 @@ async function createTicketFromIntake(params: {
     summary.length > 80 ? `${summary.slice(0, 77)}…` : summary || 'דיווח WhatsApp'
 
   const category = normalizeTicketCategory(decision.category)
+
+  const manager = await resolveManagerStoreByPhone(waId)
+  const reporterName =
+    manager &&
+    canonicalStoreCode(manager.code) === canonicalStoreCode(store.code) &&
+    manager.managerName.trim()
+      ? manager.managerName.trim()
+      : null
+
+  const ticketLanguage =
+    language ??
+    intakeLanguage(inboundText || description, country.code)
 
   const ticket = await createTicket({
     storeCode: store.code,
@@ -802,7 +935,8 @@ async function createTicketFromIntake(params: {
     priority: decision.priority,
     source,
     reporterPhone: waId,
-    language: country.code === 'FR' ? 'fr' : 'he',
+    reporterName: reporterName || undefined,
+    language: ticketLanguage,
     aiSummary: summary,
     aiRaw: {
       ai: decision.ai,
@@ -965,12 +1099,13 @@ async function attachMediaToActiveTicket(params: {
     active_ticket_id: ticketId,
   })
 
+  const { copy: mediaCopy } = copyForInbound(message.text, country)
   let reply = await craftIntakeReply(
-    WA_COPY.mediaAttached(displayNumber),
+    mediaCopy.mediaAttached(displayNumber),
     'intake_confirmed',
   )
   if (mediaFailed) {
-    reply = await craftIntakeReply(WA_COPY.mediaNotSaved, 'intake_media_not_saved')
+    reply = await craftIntakeReply(mediaCopy.mediaNotSaved, 'intake_media_not_saved')
   }
   await sendReply(supabase, message, country, reply, ticketId, options, session)
 
@@ -1005,7 +1140,7 @@ export async function processInboundMessage(
     )
     if (!country) {
       const reply = await craftIntakeReply(
-        WA_COPY.countryMissing,
+        copyForInbound(message.text).copy.countryMissing,
         'intake_country_missing',
       )
       // Still try outbound so the reporter is not left without a reply.
@@ -1029,6 +1164,16 @@ export async function processInboundMessage(
 
     let session = await getOrCreateSession(supabase, country, message.waId)
     let text = message.text?.trim() || null
+
+    // Known store managers keep a durable display name on the session.
+    if (!session.customer_name?.trim()) {
+      const manager = await resolveManagerStoreByPhone(message.waId)
+      const managerName = manager?.managerName.trim() || null
+      if (managerName) {
+        await updateSession(supabase, session, { customer_name: managerName })
+        session = { ...session, customer_name: managerName }
+      }
+    }
 
     await logWhatsAppMessage({
       supabase,
@@ -1126,8 +1271,9 @@ export async function processInboundMessage(
           dryRun: options?.skipOutboundGraph === true,
           ticketId: null,
         })
+        const { lang: voiceLang } = copyForInbound(message.text, country)
         const reply = await craftIntakeReply(
-          voiceNeedsReviewReply(),
+          voiceNeedsReviewReply(voiceLang),
           'intake_voice_review',
         )
         await sendReply(
@@ -1327,24 +1473,21 @@ export async function processInboundMessage(
     }
 
     if (spoken && isStatusQuestion(spoken)) {
-      const tail = message.waId.slice(-9)
-      const mine = memListTickets().filter(
-        (ticket) =>
-          ticket.reporter_phone?.includes(tail) &&
-          ticket.status !== 'closed' &&
-          ticket.status !== 'cancelled',
-      )
+      const mine = await listOpenTicketsForReporter(supabase, message.waId)
+      const manager = await resolveManagerStoreByPhone(message.waId)
       const reply = await craftIntakeReply(
-        statusReply(
-          mine.map((ticket) => ({
-            displayNumber: ticket.display_number || ticket.id.slice(0, 8),
-            status: ticket.status,
-            spendApproved: ticketSpendApproved(ticket.id),
-          })),
-        ),
+        statusReply(mine, { knownManager: Boolean(manager) }),
         'intake_status',
       )
-      await sendReply(supabase, message, country, reply, mine[0]?.id ?? null, options, session)
+      await sendReply(
+        supabase,
+        message,
+        country,
+        reply,
+        null,
+        options,
+        session,
+      )
       return { ok: true, reply, state: session.state }
     }
 
@@ -1438,7 +1581,7 @@ export async function processInboundMessage(
         textPreview: text.slice(0, 40),
       })
       const reply = await craftIntakeReply(
-        WA_COPY.nonIssueAck,
+        copyForInbound(text, country).copy.nonIssueAck,
         'intake_non_issue_ack',
       )
       await sendReply(supabase, message, country, reply, null, options, session)
@@ -1497,10 +1640,14 @@ export async function processInboundMessage(
           pending_media_kind: null,
           clarification_count: 0,
         })
-        const reply = await craftIntakeReply(WA_COPY.askStore, 'intake_ask_store')
+        const reply = await craftIntakeReply(
+          copyForInbound(text, country).copy.askStore,
+          'intake_ask_store',
+        )
         await sendReply(supabase, message, country, reply, null, options, session)
         return { ok: true, reply, state: 'awaiting_store' as const }
       }
+      const managerName = manager.managerName.trim() || null
       await updateSession(supabase, session, {
         state: 'awaiting_description',
         active_ticket_id: null,
@@ -1509,6 +1656,9 @@ export async function processInboundMessage(
         pending_media_url: null,
         pending_media_kind: null,
         clarification_count: 0,
+        ...(managerName && !session.customer_name
+          ? { customer_name: managerName }
+          : {}),
       })
       session = {
         ...session,
@@ -1519,6 +1669,7 @@ export async function processInboundMessage(
         pending_media_url: null,
         pending_media_kind: null,
         clarification_count: 0,
+        customer_name: session.customer_name || managerName,
       }
     }
 
@@ -1529,20 +1680,28 @@ export async function processInboundMessage(
         ? await resolveStoreByCode(supabase, country.id, manager.code)
         : null
       if (byPhone) {
+        const managerName = manager?.managerName.trim() || null
         await updateSession(supabase, session, {
           store_id: byPhone.id,
           store_code: byPhone.code,
           state: 'awaiting_description',
+          ...(managerName && !session.customer_name
+            ? { customer_name: managerName }
+            : {}),
         })
         session = {
           ...session,
           store_id: byPhone.id,
           store_code: byPhone.code,
           state: 'awaiting_description',
+          customer_name: session.customer_name || managerName,
         }
         if (!text && !message.mediaUrl && !session.pending_media_url) {
           const reply = await craftIntakeReply(
-            WA_COPY.askDescription(byPhone.name, manager?.managerName),
+            copyForInbound(text, country).copy.askDescription(
+              byPhone.name,
+              manager?.managerName,
+            ),
             'intake_ask_description',
           )
           await sendReply(supabase, message, country, reply, null, options, session)
@@ -1563,7 +1722,7 @@ export async function processInboundMessage(
           session = await stashInboundMedia(supabase, session, message)
         }
         const reply = await craftIntakeReply(
-          WA_COPY.storeNotFound(storeCodeFromText),
+          copyForInbound(text, country).copy.storeNotFound(storeCodeFromText),
           'intake_store_not_found',
         )
         await sendReply(supabase, message, country, reply, null, options, session)
@@ -1594,7 +1753,7 @@ export async function processInboundMessage(
             ? asManager.managerName
             : await managerNameForStoreCode(store.code)
         const reply = await craftIntakeReply(
-          WA_COPY.askDescription(store.name, managerName),
+          copyForInbound(text, country).copy.askDescription(store.name, managerName),
           'intake_ask_description',
         )
         await sendReply(supabase, message, country, reply, null, options, session)
@@ -1630,7 +1789,10 @@ export async function processInboundMessage(
           mediaKind: message.mediaKind,
         })
       }
-      const reply = await craftIntakeReply(WA_COPY.askStore, 'intake_ask_store')
+      const reply = await craftIntakeReply(
+        copyForInbound(text, country).copy.askStore,
+        'intake_ask_store',
+      )
       await sendReply(supabase, message, country, reply, null, options, session)
       return { ok: true, reply, state: 'awaiting_store' }
     }
@@ -1649,7 +1811,10 @@ export async function processInboundMessage(
         store_code: null,
         state: 'awaiting_store',
       })
-      const reply = await craftIntakeReply(WA_COPY.askStore, 'intake_ask_store')
+      const reply = await craftIntakeReply(
+        copyForInbound(text, country).copy.askStore,
+        'intake_ask_store',
+      )
       await sendReply(supabase, message, country, reply, null, options, session)
       return { ok: true, reply, state: 'awaiting_store' }
     }
@@ -1665,9 +1830,10 @@ export async function processInboundMessage(
       const hasMedia =
         Boolean(message.mediaUrl) || Boolean(session.pending_media_url)
       if (!combined && !hasMedia) {
+        const { copy: clarifyCopy } = copyForInbound(prior || text, country)
         const q =
           (session.draft_payload?.clarificationQuestion as string) ||
-          WA_COPY.needDescription
+          clarifyCopy.needDescription
         const reply = await craftIntakeReply(q, 'intake_need_description')
         await sendReply(supabase, message, country, reply, null, options, session)
         return { ok: true, reply, state: 'awaiting_clarification' }
@@ -1687,7 +1853,7 @@ export async function processInboundMessage(
 
     if (!text && !message.mediaUrl && !session.pending_media_url) {
       const reply = await craftIntakeReply(
-        WA_COPY.needDescription,
+        copyForInbound(session.pending_description, country).copy.needDescription,
         'intake_need_description',
       )
       await sendReply(supabase, message, country, reply, null, options, session)
@@ -1722,7 +1888,7 @@ export async function processInboundMessage(
       messageId: message.messageId,
     })
     const reply = await craftIntakeReply(
-      WA_COPY.genericError,
+      copyForInbound(message.text).copy.genericError,
       'intake_generic_error',
     )
     // Always try to tell the reporter something went wrong — previously this
@@ -1804,7 +1970,8 @@ async function finalizeSpokenFaults(params: {
   })
   await linkStorePhone(supabase, country, message.waId, store)
 
-  const reply = `פתחתי ${lines.length} תקלות:\n${lines.map((line) => `• ${line}`).join('\n')}`
+  const { copy: manyCopy } = copyForInbound(parts.join('\n'), country)
+  const reply = manyCopy.openedManyFaults(lines)
   await sendReply(supabase, message, country, reply, lastId, options, session)
   return {
     ok: true,
@@ -1890,7 +2057,7 @@ async function analyzeAndFinalize(params: {
       clarification_count: 0,
     })
     const reply = await craftIntakeReply(
-      WA_COPY.nonIssueAck,
+      copyForInbound(description, country).copy.nonIssueAck,
       'intake_non_issue_ack',
     )
     await sendReply(supabase, message, country, reply, null, options, {
@@ -1922,7 +2089,11 @@ async function analyzeAndFinalize(params: {
       human_takeover: true,
       human_takeover_until: until,
     })
-    const reply = await craftIntakeReply(handoffReply(), 'intake_human_handoff')
+    const { lang: handoffLang } = copyForInbound(description, country)
+    const reply = await craftIntakeReply(
+      handoffReply(handoffLang),
+      'intake_human_handoff',
+    )
     await sendReply(supabase, message, country, reply, null, options, session)
     return { ok: true, reply, state: session.state }
   }
@@ -1991,6 +2162,10 @@ async function finalizeTicket(params: {
     options,
   } = params
 
+  const { lang, copy } = copyForInbound(
+    message.text || description,
+    country,
+  )
   const dup = await findPossibleDuplicateTicket({
     supabase,
     storeId: store.id,
@@ -1998,7 +2173,7 @@ async function finalizeTicket(params: {
     category: decision.category,
   })
   const duplicateHint = dup
-    ? `ייתכן שקיימת תקלה דומה פתוחה ${dup.displayNumber || ''}`.trim()
+    ? copy.duplicateHint(dup.displayNumber || '')
     : decision.possibleDuplicateHint
 
   const effective = resolveEffectiveMedia(message, session)
@@ -2015,6 +2190,7 @@ async function finalizeTicket(params: {
     source,
     inboundText: message.text,
     useMemory: !supabase,
+    language: lang,
   })
 
   await updateSession(supabase, session, {
@@ -2030,23 +2206,22 @@ async function finalizeTicket(params: {
   await linkStorePhone(supabase, country, message.waId, store)
 
   let reply = await craftIntakeReply(
-    WA_COPY.confirmedIntake({
+    copy.confirmedIntake({
       displayNumber,
       storeName: store.name,
       summary: decision.asset
         ? `${decision.asset} — ${decision.summary}`
         : decision.summary,
       priority: decision.priority,
-      category: decision.category,
       duplicateHint,
     }),
     'intake_confirmed',
   )
   if (message.mediaKind === 'audio' || effective.mediaKind === 'audio') {
-    reply = `פתחתי תקלה: ${decision.summary}\n${reply}`
+    reply = `${copy.openedVoiceFault(decision.summary)}\n${reply}`
   }
   if (mediaFailed) {
-    reply = `${reply}\n\n${await craftIntakeReply(WA_COPY.mediaNotSaved, 'intake_media_not_saved')}`
+    reply = `${reply}\n\n${await craftIntakeReply(copy.mediaNotSaved, 'intake_media_not_saved')}`
   }
   await sendReply(supabase, message, country, reply, ticketId, options, session)
 

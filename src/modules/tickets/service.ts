@@ -113,6 +113,8 @@ export type TicketDetail = TicketRecord & {
     name: string
     city: string | null
     address: string | null
+    manager_name?: string | null
+    manager_phone?: string | null
   } | null
   assignee: { id: string; full_name: string | null; email: string | null; phone?: string | null } | null
   messages: TicketMessage[]
@@ -206,10 +208,10 @@ const LIST_SELECT_BASE =
 /** Lean row for lifecycle mutations / RBAC — no messages or events.
  * B03/B04 columns are loaded via select('*') fallback when present. */
 const MUTATION_SELECT =
-  'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, language, stores ( id, code, name, city, address )'
+  'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, language, stores ( id, code, name, city, address, manager_name, manager_phone )'
 
 const MUTATION_SELECT_WITH_HOLD =
-  'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, quality_hold_until, quality_hold_started_at, repair_eta_at, store_confirmed_at, language, stores ( id, code, name, city, address )'
+  'id, number, display_number, status, priority, category, description, source, created_at, updated_at, organization_id, country_id, region_id, store_id, asset_id, assigned_to, title, reporter_phone, reporter_name, sla_respond_by, sla_resolve_by, first_response_at, resolved_at, closed_at, quality_hold_until, quality_hold_started_at, repair_eta_at, store_confirmed_at, language, stores ( id, code, name, city, address, manager_name, manager_phone )'
 
 async function queryTicketsList(
   supabase: SupabaseClient,
@@ -445,7 +447,7 @@ export async function getById(
     const supabase = opts?.client ?? createSystemClient('tickets_service')
     const { data: ticket } = await supabase
       .from('tickets')
-      .select('*, stores ( id, code, name, city, address )')
+      .select('*, stores ( id, code, name, city, address, manager_name, manager_phone )')
       .eq('id', id)
       .maybeSingle()
     if (ticket) {

@@ -199,6 +199,12 @@ describe('Ari control center', () => {
     )
   })
 
+  it('status empty reply skips store-code ask for a known manager', () => {
+    expect(statusReply([], { knownManager: true })).toMatch(/אפשר לשלוח את הדיווח/)
+    expect(statusReply([], { knownManager: true })).not.toMatch(/קוד הסניף/)
+    expect(statusReply([])).toMatch(/קוד הסניף/)
+  })
+
   it('builds one daily headline and closes a renewal only with a new file', () => {
     const digest = buildDailyDigest({
       decisions: [

@@ -108,4 +108,50 @@ describe('WhatsApp store conversation (Vercel AI Gateway)', () => {
     expect(r.ticketId).toBeFalsy()
     expect(r.reply).toMatch(/What exactly is not working/i)
   })
+
+  it('confirms an English fault in English', async () => {
+    const waId = `97250${Math.floor(Math.random() * 1e7)
+      .toString()
+      .padStart(7, '0')}`
+    await processInboundMessage(msg({ text: 'STORE_172' }, waId), {
+      skipOutboundGraph: true,
+    })
+    const r = await processInboundMessage(
+      msg(
+        {
+          text: 'the main air conditioner is not cooling and there is a water leak from it',
+        },
+        waId,
+      ),
+      { skipOutboundGraph: true },
+    )
+    expect(r.ok).toBe(true)
+    expect(r.ticketId).toBeTruthy()
+    expect(r.reply).toMatch(/Opened ticket #/i)
+    expect(r.reply).toMatch(/Priority/i)
+    expect(r.reply).not.toMatch(/פתחתי תקלה/)
+  })
+
+  it('confirms a French fault in French', async () => {
+    const waId = `97250${Math.floor(Math.random() * 1e7)
+      .toString()
+      .padStart(7, '0')}`
+    await processInboundMessage(msg({ text: 'STORE_172' }, waId), {
+      skipOutboundGraph: true,
+    })
+    const r = await processInboundMessage(
+      msg(
+        {
+          text: "il y a une fuite d'eau au plafond et la climatisation est en panne",
+        },
+        waId,
+      ),
+      { skipOutboundGraph: true },
+    )
+    expect(r.ok).toBe(true)
+    expect(r.ticketId).toBeTruthy()
+    expect(r.reply).toMatch(/Ticket ouvert #/i)
+    expect(r.reply).toMatch(/Priorité/i)
+    expect(r.reply).not.toMatch(/פתחתי תקלה/)
+  })
 })

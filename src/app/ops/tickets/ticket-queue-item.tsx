@@ -84,7 +84,11 @@ export function TicketQueueItem({
     >
       <div className="flex items-start gap-3 px-4 py-3">
         {selectable && visitSelection ? (
-          <label className="flex shrink-0 items-center self-center pt-1">
+          <label
+            className="flex shrink-0 items-center self-center pt-1"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             <input
               type="checkbox"
               className="h-6 w-6 accent-[var(--tenant)]"

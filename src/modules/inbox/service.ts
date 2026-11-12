@@ -36,6 +36,9 @@ import {
   humanPauseUntilIso,
   isHumanPauseActive,
 } from '@/modules/whatsapp/human-pause'
+import { phonesMatch } from '@/modules/whatsapp/classify'
+import { resolveManagerStoreByPhone } from '@/modules/stores/manager-identity'
+import { normalizePhoneDigits } from '@/lib/phone'
 
 const CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -149,7 +152,15 @@ function seedDemoInboxIfEmpty() {
 function resolveStoreName(
   storeId: string | null,
   storeCode: string | null,
-  storeMap?: Map<string, { name: string; code: string }>,
+  storeMap?: Map<
+    string,
+    {
+      name: string
+      code: string
+      manager_name?: string | null
+      manager_phone?: string | null
+    }
+  >,
 ): string | null {
   if (storeMap) {
     if (storeId && storeMap.has(storeId)) return storeMap.get(storeId)!.name
@@ -314,12 +325,18 @@ function enrichMemorySessions(sessions: InboxSession[]): InboxSessionView[] {
     const customer =
       memListTickets().find((t) => t.reporter_phone === session.wa_id && t.stores?.id === session.store_id)
         ?.reporter_name ?? null
+    const store = memListStores().find((s) => s.id === session.store_id)
+    const managerName =
+      store?.manager_phone && phonesMatch(session.wa_id, store.manager_phone)
+        ? store.manager_name?.trim() || null
+        : null
     return enrichSession(session, {
       storeName: resolveStoreName(session.store_id, session.store_code),
       lastMessage: last?.body ?? session.last_inbound ?? null,
       lastDirection: last?.direction ?? (session.last_inbound ? 'inbound' : null),
       openPriorities: open.map((t) => t.priority),
-      customerName: session.customer_name ?? customer,
+      customerName:
+        session.customer_name?.trim() || customer || managerName || null,
     })
   })
 }
@@ -385,7 +402,15 @@ export async function listInboxSessions(actor: Actor): Promise<{
     ...new Set(sessions.map((s) => s.store_id).filter(Boolean)),
   ] as string[]
 
-  const storeMap = new Map<string, { name: string; code: string }>()
+  const storeMap = new Map<
+    string,
+    {
+      name: string
+      code: string
+      manager_name?: string | null
+      manager_phone?: string | null
+    }
+  >()
   const ticketBySession = new Map<string, { priorities: string[]; customerName: string | null }>()
   const sessionKey = (session: InboxSession, organizationId: string | null) => `${session.wa_id}\u0000${session.store_id ?? ''}\u0000${organizationId ?? ''}`
   const lastMsgByWa = new Map<
@@ -395,8 +420,19 @@ export async function listInboxSessions(actor: Actor): Promise<{
 
   const [storesRes, ticketsRes, recentRes] = await Promise.all([
     storeIds.length > 0
-      ? supabase.from('stores').select('id, code, name').in('id', storeIds)
-      : Promise.resolve({ data: [] as { id: string; code: string; name: string }[] }),
+      ? supabase
+          .from('stores')
+          .select('id, code, name, manager_name, manager_phone')
+          .in('id', storeIds)
+      : Promise.resolve({
+          data: [] as {
+            id: string
+            code: string
+            name: string
+            manager_name: string | null
+            manager_phone: string | null
+          }[],
+        }),
     waIds.length > 0
       ? supabase
           .from('tickets')
@@ -434,7 +470,12 @@ export async function listInboxSessions(actor: Actor): Promise<{
   ])
 
   for (const s of storesRes.data ?? []) {
-    storeMap.set(s.id, { name: s.name, code: s.code })
+    storeMap.set(s.id, {
+      name: s.name,
+      code: s.code,
+      manager_name: s.manager_name ?? null,
+      manager_phone: s.manager_phone ?? null,
+    })
   }
 
   for (const t of ticketsRes.data ?? []) {
@@ -461,6 +502,12 @@ export async function listInboxSessions(actor: Actor): Promise<{
   const views = visibleSessions.map((session) => {
     const ticketCtx = [...ticketBySession.entries()].find(([key]) => key.startsWith(`${session.wa_id}\u0000${session.store_id ?? ''}\u0000`))?.[1]
     const last = lastMsgByWa.get(session.wa_id)
+    const storeMeta = session.store_id ? storeMap.get(session.store_id) : undefined
+    const managerName =
+      storeMeta?.manager_phone &&
+      phonesMatch(session.wa_id, storeMeta.manager_phone)
+        ? storeMeta.manager_name?.trim() || null
+        : null
     return enrichSession(session, {
       storeName: resolveStoreName(
         session.store_id,
@@ -471,7 +518,11 @@ export async function listInboxSessions(actor: Actor): Promise<{
       lastDirection:
         last?.direction ?? (session.last_inbound ? 'inbound' : null),
       openPriorities: ticketCtx?.priorities ?? [],
-      customerName: ticketCtx?.customerName ?? null,
+      customerName:
+        session.customer_name?.trim() ||
+        ticketCtx?.customerName ||
+        managerName ||
+        null,
     })
   })
 
@@ -582,6 +633,31 @@ export async function setSessionTakeover(
   return mapSessionRow(data as Record<string, unknown>)
 }
 
+/** Keep ticket reporter names aligned when inbox contact is saved. */
+async function syncReporterNameForWa(
+  waId: string,
+  customerName: string | null | undefined,
+) {
+  if (customerName === undefined) return
+  const name = customerName?.trim() || null
+  if (!(await supabaseReady())) {
+    for (const ticket of memListTickets()) {
+      if (ticket.reporter_phone && phonesMatch(ticket.reporter_phone, waId)) {
+        ticket.reporter_name = name
+      }
+    }
+    return
+  }
+  const digits = waId.replace(/\D/g, '')
+  const clauses = [`reporter_phone.eq.${waId}`]
+  if (digits.length >= 9) clauses.push(`reporter_phone.ilike.%${digits.slice(-9)}`)
+  if (digits.startsWith('972') && digits.length >= 12) {
+    clauses.push(`reporter_phone.eq.0${digits.slice(3)}`)
+  }
+  const supabase = createSystemClient('inbox_sync_reporter_name')
+  await supabase.from('tickets').update({ reporter_name: name }).or(clauses.join(','))
+}
+
 /** Assign an inbox number to a store, after checking both session and target scope. */
 export async function assignSessionStore(
   waId: string,
@@ -597,15 +673,18 @@ export async function assignSessionStore(
     if (!session) throw new AuthError('השיחה לא נמצאה', 404)
     if (storeId === undefined) {
       const updated = memUpsertSession({ ...session, ...(customerName !== undefined ? { customer_name: customerName } : {}) })
+      await syncReporterNameForWa(waId, customerName)
       return { wa_id: waId, store_id: updated.store_id, store_code: updated.store_code }
     }
     if (storeId) {
       const store = memListStores().find((item) => item.id === storeId)
       if (!store || !canAccessInboxSession(actor, { store_id: store.id, country_id: store.country_id, region_id: store.region_id, organization_id: store.organization_id })) throw new AuthError('אין הרשאה לסניף זה', 403)
       const updated = memUpsertSession({ ...session, store_id: store.id, store_code: store.code, ...(customerName !== undefined ? { customer_name: customerName } : {}) })
+      await syncReporterNameForWa(waId, customerName)
       return { wa_id: waId, store_id: updated.store_id, store_code: updated.store_code }
     }
     const updated = memUpsertSession({ ...session, store_id: null, store_code: null, ...(customerName !== undefined ? { customer_name: customerName } : {}) })
+    await syncReporterNameForWa(waId, customerName)
     return { wa_id: waId, store_id: updated.store_id, store_code: updated.store_code }
   }
 
@@ -618,13 +697,54 @@ export async function assignSessionStore(
   if (!storeId) {
     const { data, error } = await supabase.from('intake_sessions').update({ store_id: null, store_code: null, ...(customerName !== undefined ? { customer_name: customerName } : {}), updated_at: new Date().toISOString() }).eq('wa_id', waId).select('wa_id, store_id, store_code').single()
     if (error) throw new Error(error.message)
+    await syncReporterNameForWa(waId, customerName)
     return data as { wa_id: string; store_id: string | null; store_code: string | null }
   }
-  const { data: store, error: storeError } = await supabase.from('stores').select('id, code, country_id, region_id, organization_id').eq('id', storeId).maybeSingle()
+  const { data: store, error: storeError } = await supabase.from('stores').select('id, code, country_id, region_id, organization_id, manager_name, manager_phone').eq('id', storeId).maybeSingle()
   if (storeError || !store) throw new AuthError('הסניף לא נמצא', 404)
   if (!canAccessInboxSession(actor, { store_id: store.id, country_id: store.country_id, region_id: store.region_id, organization_id: store.organization_id })) throw new AuthError('אין הרשאה לסניף זה', 403)
+
+  // If this WA is the store manager, keep store_phones primary in sync.
+  if (store.manager_phone && phonesMatch(waId, store.manager_phone)) {
+    const digits = normalizePhoneDigits(waId) || waId.replace(/\D/g, '')
+    if (digits) {
+      await supabase
+        .from('store_phones')
+        .update({ is_primary: false })
+        .eq('store_id', store.id)
+        .eq('is_primary', true)
+        .neq('wa_id', digits)
+      const { data: existingPhone } = await supabase
+        .from('store_phones')
+        .select('id')
+        .eq('wa_id', digits)
+        .maybeSingle()
+      if (existingPhone) {
+        await supabase
+          .from('store_phones')
+          .update({
+            store_id: store.id,
+            is_primary: true,
+            label: 'מנהל חנות',
+          })
+          .eq('id', existingPhone.id)
+      } else {
+        await supabase.from('store_phones').insert({
+          store_id: store.id,
+          wa_id: digits,
+          is_primary: true,
+          label: 'מנהל חנות',
+        })
+      }
+    }
+    if (customerName === undefined && store.manager_name?.trim()) {
+      customerName = store.manager_name.trim()
+    }
+  }
+
   const { data, error } = await supabase.from('intake_sessions').update({ store_id: store.id, store_code: canonicalStoreCode(store.code), ...(customerName !== undefined ? { customer_name: customerName } : {}), updated_at: new Date().toISOString() }).eq('wa_id', waId).select('wa_id, store_id, store_code').single()
   if (error) throw new Error(error.message)
+  await syncReporterNameForWa(waId, customerName)
   return data as { wa_id: string; store_id: string | null; store_code: string | null }
 }
 
@@ -667,8 +787,23 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
       session?.store_id ?? null,
       session?.store_code ?? null,
     )
+    const fromTicket =
+      memListTickets().find(
+        (t) =>
+          t.reporter_phone === waId &&
+          t.stores?.id === session.store_id &&
+          t.organization_id ===
+            memListStores().find((store) => store.id === session.store_id)
+              ?.organization_id,
+      )?.reporter_name ?? null
+    const manager =
+      !session.customer_name && !fromTicket
+        ? await resolveManagerStoreByPhone(waId)
+        : null
     const customer_name =
-      session.customer_name ?? memListTickets().find((t) => t.reporter_phone === waId && t.stores?.id === session.store_id && t.organization_id === memListStores().find((store) => store.id === session.store_id)?.organization_id)?.reporter_name ??
+      session.customer_name?.trim() ||
+      fromTicket ||
+      manager?.managerName?.trim() ||
       null
     for (const id of openTickets.map((t) => t.id)) {
       if (!ticketIds.includes(id)) ticketIds.push(id)
@@ -849,9 +984,17 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
     (sessionRow?.store_id as string | null) ?? null,
     (sessionRow?.store_code as string | null) ?? null,
   )
+  const fromTicket = tickets.find((t) => t.reporter_name)?.reporter_name ?? null
+  const fromSession = (sessionRow?.customer_name as string | null)?.trim() || null
+  const manager =
+    !fromSession && !fromTicket
+      ? await resolveManagerStoreByPhone(waId)
+      : null
   const customer_name =
-    (sessionRow?.customer_name as string | null) ??
-    tickets.find((t) => t.reporter_name)?.reporter_name ?? null
+    fromSession ||
+    fromTicket ||
+    manager?.managerName?.trim() ||
+    null
 
   return {
     messages,

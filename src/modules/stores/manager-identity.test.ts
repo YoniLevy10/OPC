@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { memUpdateStore, memFindStoreByCode } from '@/lib/data/memory-store'
+import {
+  memUpdateStore,
+  memFindStoreByCode,
+  memGetSession,
+  memResolveStoreByWaId,
+  memUpsertSession,
+  MEM_COUNTRY_ID,
+} from '@/lib/data/memory-store'
 import {
   resolveManagerStoreByPhone,
   soleManagerStore,
@@ -34,9 +41,17 @@ describe('manager identity', () => {
     expect(hit?.code).toBe(store.code)
   })
 
-  it('replaceStoreManager updates memory manager fields', async () => {
+  it('replaceStoreManager closes stores ↔ phones ↔ session loop', async () => {
     const store = memFindStoreByCode('6004') ?? memFindStoreByCode('101')
     if (!store) return
+    memUpsertSession({
+      wa_id: '972529998877',
+      country_id: MEM_COUNTRY_ID,
+      store_id: null,
+      store_code: null,
+      state: 'awaiting_store',
+      pending_description: null,
+    })
     const updated = await replaceStoreManager({
       storeId: store.id,
       managerName: 'מנהל חדש',
@@ -44,5 +59,13 @@ describe('manager identity', () => {
     })
     expect(updated.manager_name).toBe('מנהל חדש')
     expect(updated.manager_phone).toContain('052')
+    expect(memResolveStoreByWaId('972529998877', MEM_COUNTRY_ID)?.id).toBe(
+      store.id,
+    )
+    expect(memGetSession('972529998877')?.customer_name).toBe('מנהל חדש')
+    expect(memGetSession('972529998877')?.store_id).toBe(store.id)
+    const hit = await resolveManagerStoreByPhone('972529998877')
+    expect(hit?.managerName).toBe('מנהל חדש')
+    expect(hit?.code).toBe(store.code)
   })
 })

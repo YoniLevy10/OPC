@@ -103,8 +103,16 @@ export default async function TicketDetailPage({
   const storeName = ticket.stores?.name?.trim() || p('חנות')
   const storeCode = ticket.stores?.code?.trim()
   const whatsBroken = ticket.description || ticket.title || p('ללא תיאור')
+  const { phonesMatch } = await import('@/modules/whatsapp/classify')
+  const storeManager =
+    ticket.stores?.manager_phone &&
+    ticket.reporter_phone &&
+    phonesMatch(ticket.reporter_phone, ticket.stores.manager_phone)
+      ? ticket.stores.manager_name?.trim() || null
+      : null
   const reporter =
     ticket.reporter_name?.trim() ||
+    storeManager ||
     ticket.reporter_phone?.trim() ||
     p('דיווח מהחנות')
 

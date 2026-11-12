@@ -51,24 +51,29 @@ export async function PATCH(
     if (!target) return NextResponse.json({ error: 'חנות לא נמצאה' }, { status: 404 })
     if (!canManageStore(actor, target)) return NextResponse.json({ error: 'אין הרשאה' }, { status: 403 })
     const {
-      replace_manager: replaceManager,
+      replace_manager: _replaceManagerFlag,
       manager_name: managerName,
       manager_phone: managerPhone,
       manager_name_en: managerNameEn,
       ...rest
     } = parsed.data
-    if (replaceManager) {
-      if (!managerName || !managerPhone) {
+    // Any manager name/phone write goes through replaceStoreManager so
+    // stores ↔ store_phones ↔ intake ↔ tickets stay one closed loop.
+    if (managerName !== undefined || managerPhone !== undefined) {
+      const nextName = managerName ?? target.manager_name
+      const nextPhone = managerPhone ?? target.manager_phone
+      if (!nextName || !nextPhone) {
         return NextResponse.json(
-          { error: 'החלפת מנהל דורשת שם וטלפון' },
+          { error: 'עדכון מנהל דורש שם וטלפון' },
           { status: 400 },
         )
       }
       const store = await replaceStoreManager({
         storeId: id,
-        managerName,
-        managerPhone,
-        managerNameEn,
+        managerName: nextName,
+        managerPhone: nextPhone,
+        managerNameEn:
+          managerNameEn !== undefined ? managerNameEn : target.manager_name_en,
       })
       if (Object.keys(rest).length > 0) {
         const merged = await updateStore(id, rest)
@@ -76,7 +81,7 @@ export async function PATCH(
       }
       return NextResponse.json({ store })
     }
-    const store = await updateStore(id, parsed.data)
+    const store = await updateStore(id, rest)
     return NextResponse.json({ store })
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err)

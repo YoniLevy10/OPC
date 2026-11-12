@@ -108,6 +108,17 @@ function sessionTitle(s: Session): string {
   return s.display_name || s.store_name || s.store_code || s.wa_id
 }
 
+function phoneDigitsMatch(left: string, right: string): boolean {
+  const norm = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    if (digits.startsWith('972')) return digits.slice(3).replace(/^0/, '')
+    return digits.replace(/^0/, '')
+  }
+  const a = norm(left)
+  const b = norm(right)
+  return Boolean(a) && a === b
+}
+
 function isDesktopMq(): boolean {
   if (typeof window === 'undefined') return true
   return window.matchMedia('(min-width: 1024px)').matches
@@ -203,7 +214,15 @@ export function InboxClient() {
   const [selected, setSelected] = useState<string | null>(waFromUrl)
   const [mobileShowThread, setMobileShowThread] = useState(Boolean(waFromUrl))
   const [reply, setReply] = useState('')
-  const [stores, setStores] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [stores, setStores] = useState<
+    Array<{
+      id: string
+      code: string
+      name: string
+      manager_name?: string | null
+      manager_phone?: string | null
+    }>
+  >([])
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editStoreId, setEditStoreId] = useState('')
 
@@ -438,11 +457,31 @@ export function InboxClient() {
   }
 
   const active = sessions.find((s) => s.wa_id === selected) ?? null
+  const linkedStore =
+    stores.find((store) => store.id === (editStoreId || active?.store_id)) ??
+    stores.find((store) =>
+      active?.wa_id && store.manager_phone
+        ? phoneDigitsMatch(active.wa_id, store.manager_phone)
+        : false,
+    ) ??
+    null
+  const managerContactName =
+    linkedStore?.manager_phone &&
+    active?.wa_id &&
+    phoneDigitsMatch(active.wa_id, linkedStore.manager_phone)
+      ? linkedStore.manager_name?.trim() || null
+      : null
+  const contactName =
+    context?.customer_name?.trim() ||
+    active?.customer_name?.trim() ||
+    managerContactName ||
+    null
+
   useEffect(() => {
     if (!active) return
-    setEditCustomerName(context?.customer_name ?? active.customer_name ?? '')
-    setEditStoreId(active.store_id ?? '')
-  }, [active, context])
+    setEditCustomerName(contactName ?? '')
+    setEditStoreId(active.store_id ?? linkedStore?.id ?? '')
+  }, [active, contactName, linkedStore?.id])
 
   async function saveContactDetails() {
     if (!active) return
@@ -560,11 +599,11 @@ export function InboxClient() {
       <PanelHeader title="הקשר" />
       <div className="space-y-4 overflow-y-auto p-4">
         <div>
-          <p className="t-caption text-ink-3">לקוח / סניף</p>
+          <p className="t-caption text-ink-3">
+            {managerContactName ? 'מנהל חנות / סניף' : 'לקוח / סניף'}
+          </p>
           <p className="t-body-strong mt-1 text-ink">
-            {context?.customer_name ||
-              active.customer_name ||
-              'ללא שם לקוח'}
+            {contactName || 'ללא שם לקוח'}
           </p>
           <p className="t-body mt-0.5 text-ink-2">
             {context?.store_name ||
@@ -579,8 +618,17 @@ export function InboxClient() {
             {context?.wa_display || active.wa_id}
           </p>
           <div className="mt-3 space-y-2">
-            <label className="t-caption block text-ink-3" htmlFor="inbox-customer-name">שם לקוח</label>
-            <Input id="inbox-customer-name" value={editCustomerName} onChange={(event) => setEditCustomerName(event.target.value)} maxLength={120} placeholder="שם לקוח" disabled={busy} />
+            <label className="t-caption block text-ink-3" htmlFor="inbox-customer-name">
+              {managerContactName ? 'שם מנהל חנות' : 'שם לקוח'}
+            </label>
+            <Input
+              id="inbox-customer-name"
+              value={editCustomerName}
+              onChange={(event) => setEditCustomerName(event.target.value)}
+              maxLength={120}
+              placeholder={managerContactName || 'שם לקוח'}
+              disabled={busy}
+            />
             <label className="t-caption block text-ink-3" htmlFor="inbox-store-link">חיבור לסניף</label>
             <Select id="inbox-store-link" value={editStoreId} onChange={(event) => setEditStoreId(event.target.value)} disabled={busy}>
               <option value="">ללא סניף</option>

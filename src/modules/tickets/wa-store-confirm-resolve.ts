@@ -26,13 +26,18 @@ async function resolveLinkedStoreId(
   if (!supabase) {
     return memResolveStoreByWaId(waId, null)?.id ?? null
   }
-  const { data } = await supabase
+  // Primary mapping only — demoted / previous managers must not authorize.
+  const { data: primary } = await supabase
     .from('store_phones')
     .select('store_id')
     .eq('wa_id', waId)
+    .eq('is_primary', true)
     .limit(1)
     .maybeSingle()
-  return (data?.store_id as string | null | undefined) ?? null
+  if (primary?.store_id) {
+    return (primary.store_id as string | null | undefined) ?? null
+  }
+  return null
 }
 
 export type AwaitingConfirmTicket = {

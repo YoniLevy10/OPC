@@ -200,12 +200,15 @@ export async function decideSpendAction(formData: FormData) {
     throw new Error('החלטה לא תקינה')
   }
   const spend = applySpendDecision(String(formData.get('id')), decision, actor)
-  const store = ISRAEL_STORES.find((row) => row.code === spend.storeCode)
+  const { managerPhoneForStoreCode } = await import(
+    '@/modules/stores/manager-identity'
+  )
+  const managerPhone = await managerPhoneForStoreCode(spend.storeCode)
   const verdict =
     decision === 'approved' ? 'אושרה' : decision === 'rejected' ? 'נדחתה' : 'מחכה למידע נוסף'
-  if (store?.managerPhone) {
+  if (managerPhone) {
     await notifyPhone(
-      store.managerPhone,
+      managerPhone,
       `סניף ${spend.storeCode}: הבקשה «${spend.reason}» ${verdict}.`,
     )
   }

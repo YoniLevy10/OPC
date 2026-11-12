@@ -73,8 +73,17 @@ function VisitBarInner({
   )
 
   const sameStore = storeCodes.length === 1 && storeIds.length <= 1
+  const hasStoreId = storeIds.length === 1
   const canChoosePerson = selectedTickets.length > 0 && sameStore
-  const canOpen = canChoosePerson && storeIds.length === 1
+  const canOpen = canChoosePerson && hasStoreId
+  const blockReason =
+    selectedTickets.length === 0
+      ? null
+      : storeCodes.length > 1 || storeIds.length > 1
+        ? 'בחרו תקלות מחנות אחת בלבד'
+        : !hasStoreId
+          ? 'לתקלות האלה חסר מזהה חנות — לא ניתן לתכנן ביקור'
+          : null
 
   const suggestions = useMemo(() => {
     if (!selection || storeIds.length !== 1) return []
@@ -246,11 +255,18 @@ function VisitBarInner({
         role="status"
       >
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--tenant-line)] bg-[var(--tenant-soft)] px-3 py-2.5 shadow-[var(--shadow-1)]">
-          <p className="t-body flex-1 text-ink">
-            ביקור משולב · נבחרו{' '}
-            <span className="t-num font-semibold">{selectedTickets.length}</span>
-            {storeCodes[0] ? ` · חנות #${storeCodes[0]}` : ''}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="t-body text-ink">
+              ביקור משולב · נבחרו{' '}
+              <span className="t-num font-semibold">{selectedTickets.length}</span>
+              {storeCodes[0] ? ` · חנות #${storeCodes[0]}` : ''}
+            </p>
+            {blockReason ? (
+              <p className="t-caption mt-0.5 text-[var(--signal-critical)]">
+                {blockReason}
+              </p>
+            ) : null}
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -263,7 +279,8 @@ function VisitBarInner({
             type="button"
             variant="primary"
             size="sm"
-            disabled={!canChoosePerson}
+            disabled={!canOpen}
+            title={blockReason ?? undefined}
             onClick={() => {
               if (!canOpen) return
               openSheet()
