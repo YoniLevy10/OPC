@@ -39,38 +39,42 @@ function StarRow({
   onChange?: (value: number) => void
   label: string
 }) {
+  const size = interactive ? 'h-7 w-7' : 'h-4 w-4'
   return (
     <span
-      className="inline-flex items-center gap-0.5 text-[var(--tenant)]"
+      className="inline-flex items-center gap-0.5"
       role={interactive ? 'radiogroup' : 'img'}
       aria-label={label}
     >
-      {[1, 2, 3, 4, 5].map((value) =>
-        interactive ? (
+      {[1, 2, 3, 4, 5].map((value) => {
+        const filled = rating >= value
+        const star = (
+          <Star
+            className={cn(
+              size,
+              filled
+                ? 'fill-[var(--warning,#d97706)] text-[var(--warning,#d97706)]'
+                : 'fill-none text-ink-3',
+            )}
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        )
+        if (!interactive) return <span key={value}>{star}</span>
+        return (
           <button
             key={value}
             type="button"
             role="radio"
             aria-checked={rating === value}
-            aria-label={`${value}`}
+            aria-label={`${value} כוכבים`}
             onClick={() => onChange?.(rating === value ? 0 : value)}
-            className="rounded-md p-0.5"
+            className="rounded-md p-1 hover:bg-surface-sunken/60"
           >
-            <Star
-              className="h-5 w-5"
-              fill={rating >= value ? 'currentColor' : 'none'}
-              aria-hidden
-            />
+            {star}
           </button>
-        ) : (
-          <Star
-            key={value}
-            className="h-3.5 w-3.5"
-            fill={rating >= value ? 'currentColor' : 'none'}
-            aria-hidden
-          />
-        ),
-      )}
+        )
+      })}
     </span>
   )
 }
@@ -90,6 +94,8 @@ export function ProfessionalsBook({
   }
   const [pending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [ratingBusyId, setRatingBusyId] = useState<string | null>(null)
+  const [localRatings, setLocalRatings] = useState<Record<string, number>>({})
   const [editing, setEditing] = useState<Professional | null>(null)
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
@@ -105,8 +111,41 @@ export function ProfessionalsBook({
     setEditName(person.full_name)
     setEditPhone(person.phone ?? '')
     setEditTrade(person.trade ?? '')
-    setEditRating(parsed.rating)
+    setEditRating(localRatings[person.id] ?? parsed.rating)
     setEditNote(parsed.note)
+  }
+
+  async function rateFromList(person: Professional, nextRating: number) {
+    const parsed = parsePersonalRating(person.notes)
+    const previous = localRatings[person.id] ?? parsed.rating
+    setLocalRatings((prev) => ({ ...prev, [person.id]: nextRating }))
+    setRatingBusyId(person.id)
+    try {
+      const res = await fetch(`/api/professionals/${person.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          full_name: person.full_name,
+          phone: person.phone,
+          trade: person.trade,
+          company_name: person.company_name,
+          notes: formatPersonalRating(nextRating, parsed.note),
+        }),
+      })
+      const data = (await res.json().catch(() => null)) as {
+        error?: string
+      } | null
+      if (!res.ok) {
+        throw new Error(data?.error || tx('העריכה נכשלה'))
+      }
+      startTransition(() => router.refresh())
+    } catch {
+      setLocalRatings((prev) => ({ ...prev, [person.id]: previous }))
+      toast.push({ title: tx('העריכה נכשלה'), tone: 'critical' })
+    } finally {
+      setRatingBusyId(null)
+    }
   }
 
   async function touch(id: string) {
@@ -201,7 +240,9 @@ export function ProfessionalsBook({
           const tel = dialHref(person.phone)
           const whatsapp = whatsAppHref(person.phone)
           const busy = pending || busyId === person.id
-          const { rating } = parsePersonalRating(person.notes)
+          const parsedRating = parsePersonalRating(person.notes).rating
+          const rating = localRatings[person.id] ?? parsedRating
+          const ratingBusy = ratingBusyId === person.id
           return (
             <div
               key={person.id}
@@ -212,11 +253,21 @@ export function ProfessionalsBook({
                   <p className="t-lead font-semibold text-ink">
                     {person.full_name}
                   </p>
+                  <StarRow
+                    rating={rating}
+                    interactive
+                    onChange={(value) => {
+                      if (ratingBusy || busy) return
+                      void rateFromList(person, value)
+                    }}
+                    label={
+                      rating > 0
+                        ? `${tx('דירוג אישי')} ${rating} מתוך 5`
+                        : tx('ללא דירוג אישי')
+                    }
+                  />
                   {rating > 0 ? (
-                    <StarRow
-                      rating={rating}
-                      label={`${tx('דירוג אישי')} ${rating}`}
-                    />
+                    <span className="t-caption t-num text-ink-3">{rating}/5</span>
                   ) : null}
                 </div>
                 <p className="t-meta text-ink-2">

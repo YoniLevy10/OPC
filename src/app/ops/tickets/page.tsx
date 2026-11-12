@@ -9,11 +9,10 @@ import {
   ErrorState,
 } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
-import { QueueTabs } from './queue-tabs'
 import { TicketSearch } from './ticket-search'
 import { TicketFilters } from './ticket-filters'
-import { PurgeDemoButton } from './purge-demo-button'
 import { TicketQueueItem } from './ticket-queue-item'
+import { StoreCreateForm } from '@/app/ops/stores/store-create-form'
 import { VisitQueueShell } from './visit-multi-select'
 import { listTickets, listInternalTechnicians } from '@/modules/tickets/service'
 import {
@@ -156,9 +155,9 @@ export default async function TicketsPage({
     id: t.id,
     name: t.full_name || t.email || t.id.slice(0, 8),
   }))
-  const canPurgeDemo = Boolean(
+  const canEditStores = Boolean(
     actor?.memberships.some(
-      (m) => m.role === 'global_admin' || m.role === 'global_maintenance',
+      (m) => m.role === 'global_admin' || m.role === 'country_manager',
     ),
   )
   const canOverrideResolve = Boolean(
@@ -265,6 +264,14 @@ export default async function TicketsPage({
     code: s.code,
     name: s.name,
   }))
+  const focusedStore = storeCode
+    ? storesResult.stores.find(
+        (s) => s.code === storeCode || s.code === storeCode.replace(/^0+/, ''),
+      ) ??
+      storesResult.stores.find(
+        (s) => s.code.replace(/^0+/, '') === storeCode.replace(/^0+/, ''),
+      )
+    : null
   const vendorOptions = (vendorsResult.vendors ?? [])
     .filter((v) => v.active !== false)
     .map((v) => ({
@@ -275,14 +282,6 @@ export default async function TicketsPage({
       phone: v.contact_phone,
     }))
 
-  const tabActive =
-    view === 'attention' ||
-    view === 'urgent' ||
-    view === 'stuck' ||
-    view === 'resolved'
-      ? view
-      : 'open'
-
   return (
     <OpsAppShell>
       <div className="ari-home flex flex-col gap-3">
@@ -291,14 +290,35 @@ export default async function TicketsPage({
             <h1 className="t-title text-ink">{translate(locale, 'tickets.title')}</h1>
             <p className="t-meta mt-1 text-ink-2">{statusLine}</p>
           </div>
-          {canPurgeDemo && ticketResult.backend === 'supabase' ? (
-            <PurgeDemoButton />
+          {canEditStores ? (
+            focusedStore ? (
+              <StoreCreateForm
+                triggerLabel="עריכת סניף"
+                triggerVariant="secondary"
+                triggerSize="sm"
+                store={{
+                  id: focusedStore.id,
+                  code: focusedStore.code,
+                  name: focusedStore.name,
+                  city: focusedStore.city,
+                  address: focusedStore.address,
+                  region_id: focusedStore.region_id,
+                  area_manager: focusedStore.area_manager,
+                  manager_name: focusedStore.manager_name,
+                  manager_phone: focusedStore.manager_phone,
+                }}
+              />
+            ) : (
+              <StoreCreateForm
+                triggerLabel="הוספת סניף"
+                triggerVariant="secondary"
+                triggerSize="sm"
+              />
+            )
           ) : null}
         </header>
 
         <div className="sticky top-0 z-20 flex flex-col gap-3 bg-[var(--canvas)] py-2">
-          <QueueTabs active={tabActive} filters={queueFilters} />
-
           <div className="flex min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
             <div className="min-w-0 flex-1">
               <Suspense fallback={null}>

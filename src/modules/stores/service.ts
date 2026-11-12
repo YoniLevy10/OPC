@@ -245,7 +245,10 @@ export async function updateStore(
   if (patch.name !== undefined) payload.name = patch.name.trim()
   if (patch.city !== undefined) payload.city = patch.city?.trim() || null
   if (patch.address !== undefined) payload.address = patch.address?.trim() || null
-  if (patch.region_id !== undefined) payload.region_id = patch.region_id
+  if (patch.region_id !== undefined) {
+    // Form sends district codes (TA/CTR/…); DB column is uuid.
+    payload.region_id = resolveDbRegionId(patch.region_id)
+  }
   if (patch.is_active !== undefined) payload.is_active = patch.is_active
   if (patch.manager_name !== undefined) {
     payload.manager_name = patch.manager_name?.trim() || null

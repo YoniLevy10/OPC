@@ -36,7 +36,6 @@ import { LiveSync } from '@/components/layout/live-sync'
 import { SkipLink } from '@/components/layout/skip-link'
 import { PullToRefresh } from '@/components/layout/pull-to-refresh'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
-import { SystemStatusBanner } from '@/components/ops/system-status-banner'
 import { LargeTitleScrollSync } from '@/components/ops/large-title'
 import { LocaleSwitcher } from '@/components/i18n/locale-switcher'
 import { usePhrase, useT } from '@/components/i18n/locale-provider'
@@ -515,8 +514,8 @@ export function AppShell({
                 : 'scroll-edge-fade min-h-0 flex-1 overflow-x-clip overflow-y-auto overscroll-x-none overscroll-y-auto px-4 pt-5 pb-nav phone-pad-tab md:overflow-visible md:pt-7 md:[mask-image:none] md:[-webkit-mask-image:none]',
             )}
           >
-            <div className="mb-4 hidden items-center justify-between md:flex">
-              {navHidden ? (
+            {navHidden ? (
+              <div className="mb-4 hidden md:flex">
                 <button
                   type="button"
                   aria-label={p('הצג תפריט')}
@@ -526,11 +525,8 @@ export function AppShell({
                   <PanelRightOpen className="h-4 w-4" aria-hidden />
                   <span className="t-caption">{p('הצג תפריט')}</span>
                 </button>
-              ) : (
-                <span />
-              )}
-              <SystemStatusBanner compact />
-            </div>
+              </div>
+            ) : null}
             {children}
           </main>
         </PullToRefresh>

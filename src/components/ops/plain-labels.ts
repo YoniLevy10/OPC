@@ -8,7 +8,7 @@ import {
   type TicketPriority,
   type TicketStatus,
 } from '@/modules/tickets/constants'
-import { isBreached, type QueueTicket } from '@/modules/tickets/queue'
+import type { QueueTicket } from '@/modules/tickets/queue'
 import type { Locale } from '@/lib/i18n/locale'
 import { phrase } from '@/lib/i18n/phrases'
 
@@ -58,10 +58,14 @@ export function isTicketResolved(status: string): boolean {
   return status === 'resolved' || status === 'closed'
 }
 
-/** "פתוחה כבר שעתיים" / "חורגת" — never SLA jargon. */
+/**
+ * Calm open-duration copy for the desk ("פתוחה כבר שעתיים").
+ * Never show SLA breach labels — Ari does not need that noise in day-to-day UI.
+ * `ticket` kept for call-site compatibility; age is always from createdAt.
+ */
 export function plainOpenForHe(
   createdAt: string,
-  ticket?: Pick<
+  _ticket?: Pick<
     QueueTicket,
     | 'status'
     | 'sla_respond_by'
@@ -72,9 +76,6 @@ export function plainOpenForHe(
   now = new Date(),
   locale: Locale = 'he',
 ): { text: string; overdue: boolean } {
-  if (ticket && isBreached(ticket as QueueTicket, now)) {
-    return { text: phrase(locale, 'חורגת מהזמן'), overdue: true }
-  }
   const started = new Date(createdAt).getTime()
   if (Number.isNaN(started)) return { text: '—', overdue: false }
   const diff = Math.max(0, now.getTime() - started)

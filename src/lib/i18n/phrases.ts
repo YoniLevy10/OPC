@@ -1193,6 +1193,8 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     fr: 'Écrivez une note interne…',
   },
   'דירוג אישי': { en: 'Personal rating', fr: 'Note personnelle' },
+  'ללא דירוג אישי': { en: 'No personal rating', fr: 'Pas de note personnelle' },
+  'עריכת סניף': { en: 'Edit store', fr: 'Modifier magasin' },
   'הדפסת QR לכל הרשת': {
     en: 'Print QR for the whole network',
     fr: 'Imprimer les QR de tout le réseau',
