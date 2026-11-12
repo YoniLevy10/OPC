@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
   assign,
+  deleteTicket,
   getById,
   getTicketForMutation,
   listInternalTechnicians,
@@ -9,6 +10,7 @@ import {
   updateStatus,
   type TicketRecord,
 } from '@/modules/tickets/service'
+import { captureError } from '@/lib/monitoring'
 import { TICKET_STATUSES } from '@/modules/tickets/constants'
 import {
   authErrorResponse,
@@ -203,6 +205,41 @@ export async function PATCH(
     const message = err instanceof Error ? err.message : 'שגיאה בעדכון תקלה'
     const status =
       message.includes('לא חוקי') || message.includes('לא נמצאה') ? 400 : 500
+    return NextResponse.json({ error: message }, { status })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const actor = await requireActor(request)
+    if (!actorHasHqAccess(actor)) {
+      throw new AuthError('אין הרשאת HQ', 403)
+    }
+
+    const { id } = await context.params
+    const existing = await getTicketForMutation(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'תקלה לא נמצאה' }, { status: 404 })
+    }
+    if (!canMutateHqTicket(actor, existing)) {
+      throw new AuthError('אין הרשאה למחוק תקלה זו', 403)
+    }
+
+    const result = await deleteTicket(id)
+    logEvent('api:tickets', 'info', 'ticket_deleted', {
+      ticketId: id,
+      actorId: actor.id,
+      backend: result.backend,
+    })
+    return NextResponse.json({ ok: true, id: result.id })
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err)
+    captureError(err, { route: 'DELETE /api/tickets/[id]' })
+    const message = err instanceof Error ? err.message : 'שגיאה במחיקת תקלה'
+    const status = message.includes('לא נמצאה') ? 404 : 500
     return NextResponse.json({ error: message }, { status })
   }
 }

@@ -965,6 +965,12 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Midrag professional',
     fr: 'Professionnel Midrag',
   },
+  'למחוק את התקלה {label}? הפעולה סופית.': {
+    en: 'Delete ticket {label}? This cannot be undone.',
+    fr: 'Supprimer la panne {label} ? Action définitive.',
+  },
+  'התקלה נמחקה': { en: 'Ticket deleted', fr: 'Panne supprimée' },
+  'מחיקת תקלה': { en: 'Delete ticket', fr: 'Supprimer la panne' },
   'למחוק את {name} מהספר?': {
     en: 'Delete {name} from the book?',
     fr: 'Supprimer {name} du carnet ?',

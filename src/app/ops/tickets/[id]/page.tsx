@@ -22,6 +22,7 @@ import {
   mergeEvidence,
 } from '@/modules/tickets/attachments'
 import { EngagementPanel } from './engagement-panel'
+import { TicketDeleteButton } from '../ticket-delete-button'
 import { Tx } from '@/components/i18n/tx'
 import { Timeline } from '@/components/ui/timeline'
 import { buildActivityDesc } from '@/modules/tickets/activity'
@@ -447,6 +448,17 @@ export default async function TicketDetailPage({
             companions={companions}
             category={ticket.category || 'other'}
             city={ticket.stores?.city ?? null}
+          />
+        </div>
+
+        <div className="flex justify-end px-1 pb-2">
+          <TicketDeleteButton
+            ticketId={ticket.id}
+            label={
+              ticket.display_number ||
+              (ticket.number != null ? `OC-${ticket.number}` : ticket.id.slice(0, 8))
+            }
+            variant="critical"
           />
         </div>
       </div>

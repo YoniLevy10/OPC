@@ -412,6 +412,31 @@ export async function purgeDemoTickets(): Promise<{
   return { deleted: demoIds.length, backend: 'memory' }
 }
 
+/** Hard-delete one ticket. Related messages/events/engagements cascade in Supabase. */
+export async function deleteTicket(id: string): Promise<{
+  id: string
+  backend: 'supabase' | 'memory'
+}> {
+  const existing = await getTicketForMutation(id)
+  if (!existing) throw new Error('תקלה לא נמצאה')
+
+  if (await supabaseReady()) {
+    const supabase = createSystemClient('tickets_delete')
+    const { data, error } = await supabase
+      .from('tickets')
+      .delete()
+      .eq('id', id)
+      .select('id')
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data?.id) throw new Error('תקלה לא נמצאה')
+    return { id: data.id, backend: 'supabase' }
+  }
+
+  if (!memDeleteTicket(id)) throw new Error('תקלה לא נמצאה')
+  return { id, backend: 'memory' }
+}
+
 export async function getById(
   id: string,
   opts?: { client?: SupabaseClient },

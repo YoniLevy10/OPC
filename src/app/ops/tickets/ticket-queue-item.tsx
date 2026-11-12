@@ -15,6 +15,7 @@ import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import type { QueueTicket } from '@/modules/tickets/queue'
 import { useVisitSelection } from './visit-selection-context'
 import { TicketQueueNoteButton } from './ticket-queue-note-button'
+import { TicketDeleteButton } from './ticket-delete-button'
 
 function displayNum(t: QueueTicket): string {
   if (t.display_number?.trim()) return t.display_number
@@ -131,6 +132,14 @@ export function TicketQueueItem({
               <Link href={href}>{p('לטפל')}</Link>
             </Button>
           )}
+          <TicketDeleteButton
+            ticketId={ticket.id}
+            label={displayNum(ticket)}
+            variant="ghost"
+            redirectTo={null}
+            iconOnly
+            className="text-[var(--signal-critical)]"
+          />
         </div>
       </div>
     </article>
