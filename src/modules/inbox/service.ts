@@ -59,8 +59,10 @@ function sanitizeOptionalUuid(
 }
 
 const SESSION_SELECT_FULL =
-  'wa_id, country_id, store_id, store_code, customer_name, state, pending_description, expires_at, updated_at, human_takeover, human_takeover_until, last_inbound'
+  'wa_id, country_id, store_id, store_code, customer_name, state, pending_description, expires_at, updated_at, human_takeover, human_takeover_until, last_inbound, stores(region_id, organization_id)'
 const SESSION_SELECT_LEGACY =
+  'wa_id, country_id, store_id, store_code, state, pending_description, expires_at, updated_at, stores(region_id, organization_id)'
+const SESSION_SELECT_BARE =
   'wa_id, country_id, store_id, store_code, state, pending_description, expires_at, updated_at'
 
 const PRIORITY_RANK: Record<string, number> = {
@@ -68,6 +70,21 @@ const PRIORITY_RANK: Record<string, number> = {
   high: 1,
   medium: 2,
   low: 3,
+}
+
+function storeScopeFromRow(row: Record<string, unknown>): {
+  region_id: string | null
+  organization_id: string | null
+} {
+  const raw = row.stores
+  const store = (Array.isArray(raw) ? raw[0] : raw) as
+    | { region_id?: string | null; organization_id?: string | null }
+    | null
+    | undefined
+  return {
+    region_id: store?.region_id ?? null,
+    organization_id: store?.organization_id ?? null,
+  }
 }
 
 function mapSessionRow(
@@ -366,7 +383,13 @@ export async function listInboxSessions(actor: Actor): Promise<{
   >[] | null
   let error = full.error
 
-  if (error && isMissingColumnError(error, 'human_takeover')) {
+  if (
+    error &&
+    (isMissingColumnError(error, 'human_takeover') ||
+      isMissingColumnError(error, 'customer_name') ||
+      isMissingColumnError(error, 'human_takeover_until') ||
+      isMissingColumnError(error, 'last_inbound'))
+  ) {
     const legacy = await supabase
       .from('intake_sessions')
       .select(SESSION_SELECT_LEGACY)
@@ -374,6 +397,16 @@ export async function listInboxSessions(actor: Actor): Promise<{
       .limit(100)
     rows = (legacy.data ?? null) as Record<string, unknown>[] | null
     error = legacy.error
+  }
+
+  if (error && (isMissingTableError(error, 'stores') || /stores/i.test(error.message))) {
+    const bare = await supabase
+      .from('intake_sessions')
+      .select(SESSION_SELECT_BARE)
+      .order('updated_at', { ascending: false })
+      .limit(100)
+    rows = (bare.data ?? null) as Record<string, unknown>[] | null
+    error = bare.error
   }
 
   if (error) {
@@ -387,8 +420,11 @@ export async function listInboxSessions(actor: Actor): Promise<{
     throw new Error(error.message)
   }
 
-  const sessions = (rows ?? []).map((row) => mapSessionRow(row))
-  if (sessions.length === 0) {
+  const scopedRows = (rows ?? []).map((row) => ({
+    session: mapSessionRow(row),
+    scope: storeScopeFromRow(row),
+  }))
+  if (scopedRows.length === 0) {
     if (!testAuthAllowed()) return { sessions: [], backend: 'supabase' }
     return {
       sessions: enrichMemorySessions(seedDemoInboxIfEmpty()).filter((s) => canAccessInboxSession(actor, s)),
@@ -396,10 +432,22 @@ export async function listInboxSessions(actor: Actor): Promise<{
     }
   }
 
-  const visibleSessions = sessions.filter((session) => canAccessInboxSession(actor, session))
+  // Filter AFTER joining store region/org — regional_manager otherwise always saw [].
+  const visibleSessions = scopedRows
+    .filter(({ session, scope }) =>
+      canAccessInboxSession(actor, {
+        store_id: session.store_id,
+        country_id: session.country_id || null,
+        region_id: scope.region_id,
+        organization_id: scope.organization_id,
+      }),
+    )
+    .map(({ session }) => session)
   const waIds = [...new Set(visibleSessions.map((s) => s.wa_id))]
   const storeIds = [
-    ...new Set(sessions.map((s) => s.store_id).filter(Boolean)),
+    ...new Set(
+      scopedRows.map(({ session }) => session.store_id).filter(Boolean),
+    ),
   ] as string[]
 
   const storeMap = new Map<

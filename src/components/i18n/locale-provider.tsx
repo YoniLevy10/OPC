@@ -1,6 +1,12 @@
 'use client'
 
-import { createContext, useContext, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import {
   LOCALE_COOKIE,
@@ -67,6 +73,11 @@ export function useT() {
 
 export function usePhrase() {
   const { locale } = useLocale()
-  return (hebrew: string, vars?: Record<string, string | number>) =>
-    phrase(locale, hebrew, vars)
+  // Must be referentially stable — inbox/LiveSync loaders depend on this
+  // and an unstable `p` re-fires fetches every render (empty thread + freeze).
+  return useCallback(
+    (hebrew: string, vars?: Record<string, string | number>) =>
+      phrase(locale, hebrew, vars),
+    [locale],
+  )
 }

@@ -300,10 +300,15 @@ export function InboxClient() {
     }
     // Drop previous chat's tickets immediately so the side column does not
     // flash the wrong faults (or fake "חדשה" placeholders) then jump.
+    // Only when `selected` changes — not when loadThread identity churns.
     setOpenTickets([])
     setTicketIds([])
     setContext(null)
     setMessages([])
+  }, [selected])
+
+  useEffect(() => {
+    if (!selected) return
     void loadThread(selected)
   }, [selected, loadThread])
 
