@@ -1,8 +1,9 @@
 import { listSpends } from '@/lib/data/ops-ledger'
 import type { BundleCard } from '@/modules/whatsapp/agent/bundle'
 import { isNoPriceYet } from '@/modules/recommendations/estimate'
+import { parseBundleScope } from '@/modules/recommendations/bundle-scope'
 import type { BundleRequest } from './commit'
-import { findPendingBundle, parseBundleScope } from './commit'
+import { findPendingBundle } from './commit'
 
 export type RecommendationCardModel = {
   id: string

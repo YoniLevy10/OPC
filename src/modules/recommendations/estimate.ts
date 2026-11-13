@@ -1,5 +1,5 @@
 import { normalizeTicketCategory } from '@/modules/tickets/constants'
-import { parseBundleScope } from '@/modules/recommendations/commit'
+import { parseBundleScope } from '@/modules/recommendations/bundle-scope'
 import {
   formatIls,
   spendAmountForTrueCost,
