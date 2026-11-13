@@ -276,7 +276,7 @@ export function LoginForm({ demoEntry }: { demoEntry: boolean }) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={4}
-                    placeholder="1111"
+                    placeholder={p('סיסמה')}
                   />
                 </Field>
                 <Button type="submit" variant="primary" size="block" disabled={busy}>

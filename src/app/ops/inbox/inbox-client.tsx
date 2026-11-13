@@ -143,7 +143,10 @@ function dayKey(iso: string): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 
-function formatDayLabel(iso: string): string {
+function formatDayLabel(
+  iso: string,
+  p: (hebrew: string) => string,
+): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const today = new Date()
@@ -153,8 +156,8 @@ function formatDayLabel(iso: string): string {
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
-  if (sameDay(d, today)) return 'היום'
-  if (sameDay(d, yesterday)) return 'אתמול'
+  if (sameDay(d, today)) return p('היום')
+  if (sameDay(d, yesterday)) return p('אתמול')
   return d.toLocaleDateString('he-IL', {
     day: 'numeric',
     month: 'long',
@@ -162,7 +165,10 @@ function formatDayLabel(iso: string): string {
   })
 }
 
-function buildThreadItems(messages: ThreadMessage[]): ThreadItem[] {
+function buildThreadItems(
+  messages: ThreadMessage[],
+  p: (hebrew: string) => string,
+): ThreadItem[] {
   const items: ThreadItem[] = []
   let lastDay: string | null = null
   for (const message of messages) {
@@ -171,7 +177,7 @@ function buildThreadItems(messages: ThreadMessage[]): ThreadItem[] {
       items.push({
         kind: 'day',
         key: `day-${key}`,
-        label: formatDayLabel(message.created_at),
+        label: formatDayLabel(message.created_at, p),
       })
       lastDay = key
     }
@@ -196,6 +202,7 @@ function safeClientError(
   }
   return msg
 }
+
 
 export function InboxClient() {
   const searchParams = useSearchParams()
@@ -409,10 +416,14 @@ export function InboxClient() {
       setReply('')
       stickToBottomRef.current = true
       setNotice(
-        p(
-          'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.',
-          { minutes: HUMAN_PAUSE_WINDOW_MINUTES },
-        ),
+        json.autoTemplate
+          ? p(
+              'חלון 24 השעות היה סגור — נשלחה הודעת מעקב אוטומטית. כשהמנהל יגיב אפשר להמשיך בטקסט חופשי.',
+            )
+          : p(
+              'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.',
+              { minutes: HUMAN_PAUSE_WINDOW_MINUTES },
+            ),
       )
       await Promise.all([loadThread(selected), loadSessions()])
       composerRef.current?.focus()
@@ -423,45 +434,13 @@ export function InboxClient() {
     }
   }
 
-  async function sendTemplate() {
-    if (!selected) return
-    setBusy(true)
-    setNotice(null)
-    setError(null)
-    try {
-      const res = await fetch(
-        `/api/inbox/sessions/${encodeURIComponent(selected)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            template: true,
-            ticketId: linkedTicketId(),
-          }),
-        },
-      )
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || p('שליחת הודעת מעקב נכשלה'))
-      if (json.send && json.send.ok === false) {
-        throw new Error(p('שליחת הודעת מעקב נכשלה'))
-      }
-      stickToBottomRef.current = true
-      setNotice(
-        p('הודעת מעקב נשלחה — הלקוח יכול להשיב ולפתוח מחדש את השיחה.'),
-      )
-      await Promise.all([loadThread(selected), loadSessions()])
-    } catch (err) {
-      setError(safeClientError(err, 'שליחת הודעת מעקב נכשלה', p))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function clearChat() {
     if (!selected) return
     if (
       !window.confirm(
-        'למחוק את השיחה מתיבת ה־Ops? ההיסטוריה ב־WhatsApp של הלקוח לא תימחק.',
+        p(
+          'למחוק את השיחה מתיבת ה־Ops? ההיסטוריה ב־WhatsApp של הלקוח לא תימחק.',
+        ),
       )
     ) {
       return
@@ -545,15 +524,16 @@ export function InboxClient() {
   const pauseUntilLabel = waiting
     ? formatPauseUntilLabel(active?.human_takeover_until)
     : null
-  const careWindowOpen = active?.care_window_open !== false
-
-  const threadItems = useMemo(() => buildThreadItems(messages), [messages])
+  const threadItems = useMemo(
+    () => buildThreadItems(messages, p),
+    [messages, p],
+  )
 
   const listPanel = (
     <Panel flush elevated className="flex h-full min-h-0 flex-col overflow-hidden">
-      <PanelHeader title="שיחות" meta={`${sessions.length}`} />
+      <PanelHeader title={p('שיחות')} meta={`${sessions.length}`} />
       {sessions.length === 0 ? (
-        <EmptyState title="אין שיחות פעילות" />
+        <EmptyState title={p('אין שיחות פעילות')} />
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto overscroll-contain">
           {sessions.map((s) => {
@@ -582,7 +562,7 @@ export function InboxClient() {
                       <span className="t-body-strong flex min-w-0 items-center gap-2 text-ink">
                         {s.unread ? (
                           <span
-                            aria-label="לא נקרא"
+                            aria-label={p('לא נקרא')}
                             className="h-2 w-2 shrink-0 rounded-full bg-[var(--tenant)]"
                           />
                         ) : null}
@@ -591,7 +571,7 @@ export function InboxClient() {
                       <LiveAge createdAt={s.updated_at} className="shrink-0" />
                     </span>
                     <p className="t-body mt-0.5 line-clamp-1 text-ink-2">
-                      {s.last_message || s.last_inbound || 'אין הודעות'}
+                      {s.last_message || s.last_inbound || p('אין הודעות')}
                     </p>
                     <span className="mt-1 flex flex-wrap items-center gap-2">
                       {s.priority ? (
@@ -619,19 +599,23 @@ export function InboxClient() {
 
   const contextPanel = active ? (
     <Panel flush elevated className="flex h-full min-h-0 flex-col overflow-hidden">
-      <PanelHeader title="הקשר" />
+      <PanelHeader title={p('הקשר')} />
       <div className="space-y-4 overflow-y-auto p-4">
         <div>
           <p className="t-caption text-ink-3">
-            {managerContactName ? 'מנהל חנות / סניף' : 'לקוח / סניף'}
+            {managerContactName
+              ? p('מנהל חנות / סניף')
+              : p('לקוח / סניף')}
           </p>
           <p className="t-body-strong mt-1 text-ink">
-            {contactName || 'ללא שם לקוח'}
+            {contactName || p('ללא שם לקוח')}
           </p>
           <p className="t-body mt-0.5 text-ink-2">
             {context?.store_name ||
               active.store_name ||
-              (active.store_code ? `סניף #${active.store_code}` : 'ללא סניף')}
+              (active.store_code
+                ? p('סניף #{code}', { code: active.store_code })
+                : p('ללא סניף'))}
             {(context?.store_code || active.store_code) &&
             (context?.store_name || active.store_name)
               ? ` · #${context?.store_code || active.store_code}`
@@ -642,31 +626,35 @@ export function InboxClient() {
           </p>
           <div className="mt-3 space-y-2">
             <label className="t-caption block text-ink-3" htmlFor="inbox-customer-name">
-              {managerContactName ? 'שם מנהל חנות' : 'שם לקוח'}
+              {managerContactName ? p('שם מנהל חנות') : p('שם לקוח')}
             </label>
             <Input
               id="inbox-customer-name"
               value={editCustomerName}
               onChange={(event) => setEditCustomerName(event.target.value)}
               maxLength={120}
-              placeholder={managerContactName || 'שם לקוח'}
+              placeholder={managerContactName || p('שם לקוח')}
               disabled={busy}
             />
-            <label className="t-caption block text-ink-3" htmlFor="inbox-store-link">חיבור לסניף</label>
+            <label className="t-caption block text-ink-3" htmlFor="inbox-store-link">
+              {p('חיבור לסניף')}
+            </label>
             <Select id="inbox-store-link" value={editStoreId} onChange={(event) => setEditStoreId(event.target.value)} disabled={busy}>
-              <option value="">ללא סניף</option>
+              <option value="">{p('ללא סניף')}</option>
               {stores.map((store) => <option key={store.id} value={store.id}>#{store.code} · {store.name}</option>)}
             </Select>
-            <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void saveContactDetails()}>שמירת פרטים</Button>
+            <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void saveContactDetails()}>
+              {p('שמירת פרטים')}
+            </Button>
           </div>
         </div>
 
         <div className="min-h-[10rem]">
-          <p className="t-caption mb-2 text-ink-3">תקלות פתוחות</p>
+          <p className="t-caption mb-2 text-ink-3">{p('תקלות פתוחות')}</p>
           {threadLoading && linkedTickets.length === 0 ? (
-            <p className="t-body text-ink-3">טוען תקלות…</p>
+            <p className="t-body text-ink-3">{p('טוען תקלות…')}</p>
           ) : linkedTickets.length === 0 ? (
-            <p className="t-body text-ink-3">אין תקלות מקושרות</p>
+            <p className="t-body text-ink-3">{p('אין תקלות מקושרות')}</p>
           ) : (
             <ul className="space-y-2">
               {linkedTickets.map((t) => (
@@ -688,7 +676,7 @@ export function InboxClient() {
                       />
                     </div>
                     <p className="t-body mt-0.5 line-clamp-2 text-ink-2">
-                      {t.title || t.description || 'תקלה מקושרת'}
+                      {t.title || t.description || p('תקלה מקושרת')}
                     </p>
                     <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
                       <PriorityText priority={t.priority} className="t-caption" />
@@ -715,7 +703,7 @@ export function InboxClient() {
     >
       {!active ? (
         <div className="wa-empty-stage flex flex-1 items-center justify-center">
-          <EmptyState title="בחרו שיחה" />
+          <EmptyState title={p('בחרו שיחה')} />
         </div>
       ) : (
         <>
@@ -726,7 +714,7 @@ export function InboxClient() {
               size="sm"
               className="-ms-1 shrink-0 lg:hidden"
               onClick={backToList}
-              aria-label="חזרה לרשימה"
+              aria-label={p('חזרה לרשימה')}
             >
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
@@ -750,7 +738,7 @@ export function InboxClient() {
                 size="sm"
                 disabled={busy}
                 variant="ghost"
-                aria-label="מחק שיחה מתיבת Ops"
+                aria-label={p('מחק שיחה מתיבת Ops')}
                 className="h-8 border-0 px-2 text-ink-2 hover:bg-surface-sunken hover:text-ink"
                 onClick={() => void clearChat()}
               >
@@ -769,7 +757,7 @@ export function InboxClient() {
                 )}
                 onClick={() => void setInboxStatus(active.wa_id, 'waiting')}
               >
-                השהה בוט
+                {p('השהה בוט')}
               </Button>
               <Button
                 type="button"
@@ -784,7 +772,7 @@ export function InboxClient() {
                 )}
                 onClick={() => void setInboxStatus(active.wa_id, 'handled')}
               >
-                {waiting ? 'החזר לבוט' : 'טופל'}
+                {waiting ? p('החזר לבוט') : p('טופל')}
               </Button>
             </div>
           </header>
@@ -794,8 +782,13 @@ export function InboxClient() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="t-caption text-[var(--signal-warning)]">
                   {pauseUntilLabel
-                    ? `שיחה פרטית עד ${pauseUntilLabel} — הבוט לא מתערב כאן; בשאר השיחות ממשיך כרגיל.`
-                    : 'שיחה פרטית בשיחה זו — הבוט לא מתערב כאן; בשאר השיחות ממשיך כרגיל.'}
+                    ? p(
+                        'שיחה פרטית עד {time} — הבוט לא מתערב כאן; בשאר השיחות ממשיך כרגיל.',
+                        { time: pauseUntilLabel },
+                      )
+                    : p(
+                        'שיחה פרטית בשיחה זו — הבוט לא מתערב כאן; בשאר השיחות ממשיך כרגיל.',
+                      )}
                 </p>
                 <Button
                   type="button"
@@ -804,7 +797,7 @@ export function InboxClient() {
                   disabled={busy}
                   onClick={() => void setInboxStatus(active.wa_id, 'handled')}
                 >
-                  החזר לבוט
+                  {p('החזר לבוט')}
                 </Button>
               </div>
             </div>
@@ -813,7 +806,7 @@ export function InboxClient() {
           {linkedTickets.length > 0 ? (
             <div className="wa-ticket-strip shrink-0 border-b px-3 py-1.5">
               <p className="t-caption">
-                מקושר לתקלה:{' '}
+                {p('מקושר לתקלה:')}{' '}
                 {linkedTickets.map((t, i) => (
                   <span key={t.id}>
                     {i > 0 ? ', ' : ''}
@@ -838,7 +831,10 @@ export function InboxClient() {
           >
             {messages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
-                <EmptyState title="אין הודעות" description="השיחה תופיע כאן" />
+                <EmptyState
+                  title={p('אין הודעות')}
+                  description={p('השיחה תופיע כאן')}
+                />
               </div>
             ) : (
               <div className="mx-auto flex w-full max-w-md flex-col gap-1.5">
@@ -877,7 +873,7 @@ export function InboxClient() {
                               href={`/ops/tickets/${item.message.ticket_id}`}
                               className="me-auto text-[10px] text-ink-2 underline-offset-2 hover:underline"
                             >
-                              תקלה {item.message.ticket_id.slice(0, 8)}…
+                              {p('תקלה')} {item.message.ticket_id.slice(0, 8)}…
                             </Link>
                           ) : null}
                           <time className="wa-bubble-meta text-[10px] tabular-nums">
@@ -886,7 +882,7 @@ export function InboxClient() {
                           {item.message.direction === 'outbound' ? (
                             <CheckCheck
                               className="h-3.5 w-3.5 text-[#53bdeb]"
-                              aria-label="נשלח"
+                              aria-label={p('נשלח')}
                             />
                           ) : null}
                         </div>
@@ -898,58 +894,39 @@ export function InboxClient() {
             )}
           </div>
 
-          {!careWindowOpen ? (
-            <div className="shrink-0 border-t border-border bg-surface-sunken/50 px-3 py-3">
-              <p className="t-caption mb-2 text-ink-2">
-                {p(
-                  'חלון 24 השעות פג — לא ניתן לשלוח טקסט חופשי. שלחו הודעת מעקב כדי לפתוח מחדש את השיחה.',
-                )}
-              </p>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                disabled={busy}
-                onClick={() => void sendTemplate()}
-              >
-                {p('שליחת הודעת מעקב')}
-              </Button>
-            </div>
-          ) : (
-            <div className="wa-composer-bar flex shrink-0 items-end gap-2 px-2 py-2 sm:px-3">
-              <label className="sr-only" htmlFor="inbox-reply">
-                הודעה ללקוח
-              </label>
-              <Textarea
-                ref={composerRef}
-                id="inbox-reply"
-                rows={1}
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    void sendReply()
-                  }
-                }}
-                placeholder="כתבו הודעה ללקוח…"
-                disabled={busy}
-                className="wa-composer-input max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 px-4 py-2.5 focus:ring-0 focus:outline-none"
-              />
-              <button
-                type="button"
-                disabled={busy || !reply.trim()}
-                onClick={() => void sendReply()}
-                aria-label={busy ? 'שולח' : 'שליחה'}
-                className={cn(
-                  'wa-send-btn mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity',
-                  'shadow-[var(--shadow-1)] disabled:opacity-40',
-                )}
-              >
-                <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
-              </button>
-            </div>
-          )}
+          <div className="wa-composer-bar flex shrink-0 items-end gap-2 px-2 py-2 sm:px-3">
+            <label className="sr-only" htmlFor="inbox-reply">
+              {p('הודעה ללקוח')}
+            </label>
+            <Textarea
+              ref={composerRef}
+              id="inbox-reply"
+              rows={1}
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void sendReply()
+                }
+              }}
+              placeholder={p('כתבו הודעה ללקוח…')}
+              disabled={busy}
+              className="wa-composer-input max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 px-4 py-2.5 focus:ring-0 focus:outline-none"
+            />
+            <button
+              type="button"
+              disabled={busy || !reply.trim()}
+              onClick={() => void sendReply()}
+              aria-label={busy ? p('שולח') : p('שליחה')}
+              className={cn(
+                'wa-send-btn mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity',
+                'shadow-[var(--shadow-1)] disabled:opacity-40',
+              )}
+            >
+              <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
+            </button>
+          </div>
         </>
       )}
     </Panel>
@@ -959,7 +936,7 @@ export function InboxClient() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden md:gap-3">
       {error ? (
         <div className="shrink-0 px-4 md:px-0">
-          <ErrorState title="שגיאה" description={error} />
+          <ErrorState title={p('שגיאה')} description={error} />
         </div>
       ) : null}
       {notice ? (
@@ -992,7 +969,10 @@ export function InboxClient() {
         {conversationPanel}
         {contextPanel ?? (
           <Panel elevated className="flex h-full items-center justify-center">
-            <EmptyState title="הקשר" description="בחרו שיחה להצגת פרטים" />
+            <EmptyState
+              title={p('הקשר')}
+              description={p('בחרו שיחה להצגת פרטים')}
+            />
           </Panel>
         )}
       </div>

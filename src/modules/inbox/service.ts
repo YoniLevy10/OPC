@@ -23,6 +23,7 @@ import {
   type MemSession,
 } from '@/lib/data/memory-store'
 import {
+  isWhatsAppOutsideWindowError,
   sendWhatsAppText,
   sendWhatsAppTemplate,
 } from '@/modules/whatsapp/send'
@@ -222,6 +223,8 @@ function enrichSession(
     lastDirection: 'inbound' | 'outbound' | null
     openPriorities: string[]
     customerName: string | null
+    /** ISO timestamp of last customer inbound — never the last_inbound body text. */
+    lastInboundAt?: string | null
   },
 ): InboxSessionView {
   const storeLabel = ctx.storeName
@@ -259,7 +262,8 @@ function enrichSession(
     priority: pickHighestPriority(ctx.openPriorities),
     /** waiting = private ops window active for this chat only */
     inbox_status: paused ? 'waiting' : 'handled',
-    care_window_open: isCareWindowOpen(session.last_inbound),
+    // last_inbound column stores message body text — never Date.parse it.
+    care_window_open: isCareWindowOpen(ctx.lastInboundAt ?? null),
   }
 }
 
@@ -281,9 +285,10 @@ export type InboxSessionView = InboxSession & {
 export function isCareWindowOpen(
   lastInboundAt: string | null | undefined,
 ): boolean {
-  if (!lastInboundAt) return true
+  // No customer inbound → Meta free-text window is closed (template required).
+  if (!lastInboundAt) return false
   const lastMs = Date.parse(lastInboundAt)
-  if (!Number.isFinite(lastMs)) return true
+  if (!Number.isFinite(lastMs)) return false
   return Date.now() - lastMs <= CUSTOMER_CARE_WINDOW_MS
 }
 
@@ -338,6 +343,9 @@ function enrichMemorySessions(sessions: InboxSession[]): InboxSessionView[] {
   return sessions.map((session) => {
     const messages = memListInboxMessages(session.wa_id)
     const last = messages[messages.length - 1]
+    const lastInbound = [...messages]
+      .reverse()
+      .find((m) => m.direction === 'inbound')
     const open = ticketsForWa(session.wa_id, session.store_id)
     const customer =
       memListTickets().find((t) => t.reporter_phone === session.wa_id && t.stores?.id === session.store_id)
@@ -347,6 +355,11 @@ function enrichMemorySessions(sessions: InboxSession[]): InboxSessionView[] {
       store?.manager_phone && phonesMatch(session.wa_id, store.manager_phone)
         ? store.manager_name?.trim() || null
         : null
+    // Demo seeds store body text in last_inbound with no message rows —
+    // treat as still-open so local composer stays usable without Meta.
+    const lastInboundAt =
+      lastInbound?.created_at ??
+      (session.last_inbound ? new Date().toISOString() : null)
     return enrichSession(session, {
       storeName: resolveStoreName(session.store_id, session.store_code),
       lastMessage: last?.body ?? session.last_inbound ?? null,
@@ -354,6 +367,7 @@ function enrichMemorySessions(sessions: InboxSession[]): InboxSessionView[] {
       openPriorities: open.map((t) => t.priority),
       customerName:
         session.customer_name?.trim() || customer || managerName || null,
+      lastInboundAt,
     })
   })
 }
@@ -465,8 +479,9 @@ export async function listInboxSessions(actor: Actor): Promise<{
     string,
     { body: string; direction: 'inbound' | 'outbound' }
   >()
+  const lastInboundAtByWa = new Map<string, string>()
 
-  const [storesRes, ticketsRes, recentRes] = await Promise.all([
+  const [storesRes, ticketsRes, recentRes, inboundRes] = await Promise.all([
     storeIds.length > 0
       ? supabase
           .from('stores')
@@ -515,6 +530,17 @@ export async function listInboxSessions(actor: Actor): Promise<{
             created_at: string
           }[],
         }),
+    waIds.length > 0
+      ? supabase
+          .from('inbox_messages')
+          .select('wa_id, created_at')
+          .eq('direction', 'inbound')
+          .in('wa_id', waIds)
+          .order('created_at', { ascending: false })
+          .limit(Math.min(Math.max(waIds.length * 3, 100), 500))
+      : Promise.resolve({
+          data: [] as { wa_id: string; created_at: string }[],
+        }),
   ])
 
   for (const s of storesRes.data ?? []) {
@@ -547,6 +573,11 @@ export async function listInboxSessions(actor: Actor): Promise<{
     })
   }
 
+  for (const m of inboundRes.data ?? []) {
+    if (lastInboundAtByWa.has(m.wa_id)) continue
+    lastInboundAtByWa.set(m.wa_id, m.created_at)
+  }
+
   const views = visibleSessions.map((session) => {
     const ticketCtx = [...ticketBySession.entries()].find(([key]) => key.startsWith(`${session.wa_id}\u0000${session.store_id ?? ''}\u0000`))?.[1]
     const last = lastMsgByWa.get(session.wa_id)
@@ -571,6 +602,7 @@ export async function listInboxSessions(actor: Actor): Promise<{
         ticketCtx?.customerName ||
         managerName ||
         null,
+      lastInboundAt: lastInboundAtByWa.get(session.wa_id) ?? null,
     })
   })
 
@@ -1082,7 +1114,14 @@ export async function replyToSession(input: {
   text: string
   countryId?: string
   ticketId?: string | null
-}): Promise<{ message: InboxMessage; send: Awaited<ReturnType<typeof sendWhatsAppText>> }> {
+}): Promise<{
+  message: InboxMessage
+  send:
+    | Awaited<ReturnType<typeof sendWhatsAppText>>
+    | Awaited<ReturnType<typeof sendWhatsAppTemplate>>
+  /** True when free text was blocked and the approved follow-up template was sent instead. */
+  autoTemplate?: boolean
+}> {
   const text = input.text.trim()
   await assertSessionAccess(input.waId, input.actor)
   if (!text) throw new Error('הודעה ריקה')
@@ -1165,14 +1204,14 @@ export async function replyToSession(input: {
   // Prefer valid Meta ID from IL country; otherwise env (never demo placeholders).
   const phoneNumberId = resolveWhatsAppPhoneNumberId(phoneNumberIdCandidate)
 
-  // Active customer-care window: free-form text is allowed for 24h after last inbound.
-  if (lastInboundAt) {
-    const lastMs = Date.parse(lastInboundAt)
-    if (Number.isFinite(lastMs) && Date.now() - lastMs > CUSTOMER_CARE_WINDOW_MS) {
-      throw new Error(
-        'חלון 24 השעות של WhatsApp פג עבור שיחה זו. יש לשלוח תבנית (template) מאושרת, או לבקש מהלקוח לשלוח הודעה חדשה.',
-      )
-    }
+  // Outside 24h (or no inbound): Meta blocks free text — send follow-up template instead.
+  if (!isCareWindowOpen(lastInboundAt)) {
+    const result = await sendSessionTemplate({
+      actor: input.actor,
+      waId,
+      ticketId: ticketIdInput,
+    })
+    return { ...result, autoTemplate: true }
   }
 
   // Send first — never mute the bot if Graph delivery failed.
@@ -1184,6 +1223,19 @@ export async function replyToSession(input: {
     supabase,
     purpose: 'ops_reply',
   })
+
+  // Race / clock skew: Meta still rejects free text → fall back to template.
+  if (
+    !send.ok &&
+    isWhatsAppOutsideWindowError(send.error, send.errorCode, send.errorSubcode)
+  ) {
+    const result = await sendSessionTemplate({
+      actor: input.actor,
+      waId,
+      ticketId: ticketIdInput,
+    })
+    return { ...result, autoTemplate: true }
+  }
 
   if (!send.ok || send.dryRun) {
     throw new Error(
