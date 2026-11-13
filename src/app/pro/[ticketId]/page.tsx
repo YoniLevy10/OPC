@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { MapPin, Phone } from 'lucide-react'
 import { Notice, Panel, KeyValue } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { verifyProPortalToken } from '@/modules/pro/token'
@@ -9,6 +10,12 @@ import { formatIls } from '@/modules/spend/true-cost'
 import { StatusLabel } from '@/components/ui/signal'
 
 export const dynamic = 'force-dynamic'
+
+function mapsHref(location: string | null, storeName: string): string | null {
+  const q = (location || storeName).trim()
+  if (!q) return null
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Optical Center ${q}`)}`
+}
 
 export default async function ProTicketPage({
   params,
@@ -35,10 +42,14 @@ export default async function ProTicketPage({
     job.tickets.find((row) => row.id === ticketId) ?? job.tickets[0]
   if (!ticket) notFound()
 
+  const token = encodeURIComponent(t!)
+  const maps = mapsHref(job.storeLocation, job.storeName)
+  const tel = job.managerPhone?.replace(/\D/g, '') || null
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <Button asChild variant="ghost" size="sm" className="self-start">
-        <Link href={`/pro?t=${encodeURIComponent(t!)}`}>← כל העבודות</Link>
+        <Link href={`/pro?t=${token}`}>← כל העבודות</Link>
       </Button>
 
       <Panel elevated>
@@ -48,7 +59,7 @@ export default async function ProTicketPage({
         </div>
         <p className="t-section text-ink">{ticket.title}</p>
         {ticket.description && ticket.description !== ticket.title ? (
-          <p className="t-body mt-2 whitespace-pre-wrap text-ink-muted">
+          <p className="t-body mt-2 whitespace-pre-wrap text-ink-2">
             {ticket.description}
           </p>
         ) : null}
@@ -59,10 +70,13 @@ export default async function ProTicketPage({
           <KeyValue label="סניף">
             #{job.storeCode} · {job.storeName}
           </KeyValue>
+          {job.storeLocation ? (
+            <KeyValue label="כתובת">{job.storeLocation}</KeyValue>
+          ) : null}
           <KeyValue label="מנהל חנות">
             {job.managerPhone ? (
               <a
-                href={`tel:${job.managerPhone.replace(/\D/g, '')}`}
+                href={`tel:${tel}`}
                 className="text-accent underline"
                 dir="ltr"
               >
@@ -76,7 +90,27 @@ export default async function ProTicketPage({
             <KeyValue label="מחיר שאושר">{formatIls(job.approvedAmount)}</KeyValue>
           ) : null}
         </dl>
-        <p className="t-meta mt-3 text-ink-muted">
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {tel ? (
+            <Button asChild size="sm" variant="primary">
+              <a href={`tel:${tel}`}>
+                <Phone className="h-3.5 w-3.5" aria-hidden />
+                חייג למנהל
+              </a>
+            </Button>
+          ) : null}
+          {maps ? (
+            <Button asChild size="sm" variant="secondary">
+              <a href={maps} target="_blank" rel="noreferrer">
+                <MapPin className="h-3.5 w-3.5" aria-hidden />
+                ניווט לחנות
+              </a>
+            </Button>
+          ) : null}
+        </div>
+
+        <p className="t-meta mt-3 text-ink-3">
           תאמו הגעה ישירות עם מנהל החנות. סגירת התקלה מתבצעת אחרי אישור החנות.
         </p>
       </Panel>

@@ -1497,6 +1497,25 @@ body:has([role='dialog']) .phone-action-dock {
     background-position: -200% 0;
   }
 }
+@keyframes mo-fab-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+.ops-agent-fab {
+  animation: mo-fab-float 3.2s var(--ease, ease-in-out) infinite;
+  box-shadow:
+    0 10px 28px color-mix(in srgb, var(--ink) 22%, transparent),
+    0 2px 8px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.ops-agent-fab:hover {
+  animation-play-state: paused;
+  transform: translateY(-2px);
+}
 
 .animate-fade {
   animation: mo-fade-in var(--dur-2) var(--ease);
@@ -1571,6 +1590,8 @@ main {
   .sheet:focus-within,
   .sheet[data-active='true'],
   .air-diamond-drift,
+  .ops-agent-fab,
+  .ops-agent-fab:hover,
   .doc-page:hover {
     transform: none;
     animation: none;

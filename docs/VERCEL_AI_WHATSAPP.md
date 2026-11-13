@@ -33,5 +33,4 @@ WHATSAPP_AI_INTAKE_ENABLED=true
 
 ## Bamakor
 
-אותו עיקרון: להחליף `lib/whatsapp-ai.ts` ל־`generateText` דרך Gateway בלבד.  
-ראה גם `docs/archive/2026-stabilize/BAMAKOR_AI_WHATSAPP_COMPAT.md` (היסטורי).
+אותו עיקרון: להחליף `lib/whatsapp-ai.ts` ל־`generateText` דרך Gateway בלבד.

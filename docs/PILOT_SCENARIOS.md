@@ -2,7 +2,7 @@
 
 הריצו **אחרי** `npm run db:migrate` על Supabase אמיתי (לא `MAINTAINOS_FORCE_MEMORY`).
 
-מדד מוכנות חי: [`/api/health/pilot`](https://optical-center-rose.vercel.app/api/health/pilot) · Runbook ארכיון: [`archive/2026-stabilize/META_PILOT_HANDOFF.md`](./archive/2026-stabilize/META_PILOT_HANDOFF.md)
+מדד מוכנות חי: [`/api/health/pilot`](https://optical-center-rose.vercel.app/api/health/pilot)
 
 ## מחזור ראשי (ככה זה עובד בפועל)
 

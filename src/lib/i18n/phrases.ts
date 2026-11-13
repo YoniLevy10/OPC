@@ -2283,6 +2283,40 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'For technicians, set a mobile number on the Users screen — assignment messages are sent there when a fault is assigned.',
     fr: 'Pour les techniciens, définissez un mobile dans Utilisateurs — les messages d’affectation y sont envoyés.',
   },
+  'היסטוריית טיפולים': { en: 'Treatment history', fr: 'Historique des interventions' },
+  'סה״כ שאושר': { en: 'Total approved', fr: 'Total validé' },
+  'חנויות חוזרות': { en: 'Repeat stores', fr: 'Magasins récurrents' },
+  'אין עדיין ביקורים שמורים': {
+    en: 'No saved visits yet',
+    fr: 'Aucune visite enregistrée pour l’instant',
+  },
+  'פתח תקלה': { en: 'Open fault', fr: 'Ouvrir la panne' },
+  'הוצאות מאושרות בטווח': {
+    en: 'Approved spend in range',
+    fr: 'Dépenses validées sur la période',
+  },
+  'סכום שאושר, לא תשלום': {
+    en: 'Approved amount, not paid',
+    fr: 'Montant validé, non payé',
+  },
+  '% מהטווח': { en: '% of range', fr: '% de la période' },
+  '% מהדלי': { en: '% of bucket', fr: '% du créneau' },
+  'פירוק לפי תקופה': { en: 'Breakdown by period', fr: 'Répartition par période' },
+  'לפי חנות': { en: 'By store', fr: 'Par magasin' },
+  'לפי תקופה': { en: 'By period', fr: 'Par période' },
+  'סה״כ רשת': { en: 'Network total', fr: 'Total réseau' },
+  'סה״כ תקופה': { en: 'Period total', fr: 'Total période' },
+  'אין הוצאות מאושרות בתקופה': {
+    en: 'No approved spend in this period',
+    fr: 'Aucune dépense validée sur cette période',
+  },
+  'סיכום רשת': { en: 'Network summary', fr: 'Synthèse réseau' },
+  'פירוק': { en: 'Breakdown', fr: 'Répartition' },
+  שבוע: { en: 'Week', fr: 'Semaine' },
+  שנה: { en: 'Year', fr: 'Année' },
+  'ייצוא CSV': { en: 'Export CSV', fr: 'Exporter CSV' },
+  'תצוגת היסטוריה': { en: 'History view', fr: 'Vue historique' },
+  יומן: { en: 'Journal', fr: 'Journal' },
 }
 
 export function phrase(

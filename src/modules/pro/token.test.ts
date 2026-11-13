@@ -35,6 +35,7 @@ describe('buildProAssignmentSms', () => {
       portalUrl: 'https://example.com/pro?t=abc',
     })
     expect(text).toContain('Optical Center · חנות: ניסיון (#100)')
+    expect(text).not.toContain('כתובת:')
     expect(text).toContain('2 תקלות:')
     expect(text).toContain('- יש צורך בתיקון דלת הכניסה.')
     expect(text).toContain(
@@ -83,5 +84,19 @@ describe('buildProAssignmentSms', () => {
     )
     expect(text).toContain('טלפון: 050-5884881')
     expect(text).not.toContain('מנהל חנות:')
+  })
+
+  it('includes store address when provided', () => {
+    const text = buildProAssignmentSms({
+      storeName: 'ירושלים כיכר ציון',
+      storeCode: '6001',
+      storeCity: 'ירושלים',
+      storeAddress: 'כיכר ציון',
+      managerName: 'קרן',
+      managerPhone: '054-7718456',
+      faultLines: ['דלת לא נסגרת'],
+      portalUrl: 'https://example.com/pro?t=tok',
+    })
+    expect(text).toContain('כתובת: ירושלים · כיכר ציון')
   })
 })

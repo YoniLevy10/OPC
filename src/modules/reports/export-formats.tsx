@@ -21,6 +21,7 @@ import {
 import { formatIls } from '@/modules/spend/true-cost'
 import { phrase } from '@/lib/i18n/phrases'
 import type { Locale } from '@/lib/i18n/locale'
+import type { CostBucket, CostGrain, NetworkCostSummary } from '@/modules/reports/summary'
 
 export type ReportExportRow = {
   tickets: QueueTicket[]
@@ -36,6 +37,11 @@ export type ReportExportRow = {
     network: number
     stores: { storeName: string; amount: number }[]
   }
+  /** Approved Ari spend in the selected range + store %. */
+  costSummary?: NetworkCostSummary
+  /** Period breakdown for leadership export. */
+  costBuckets?: CostBucket[]
+  costGrain?: CostGrain
   /** UI / export column labels (default Hebrew). */
   locale?: Locale
 }
@@ -314,7 +320,47 @@ export function buildTicketsCsv(data: ReportExportRow): string {
       line.amount == null ? '' : String(line.amount),
     ]),
   ]
-  if (data.annualCosts) {
+  if (data.costSummary && data.costSummary.byStore.length > 0) {
+    rows.push([])
+    rows.push([
+      xl(data, 'הוצאות מאושרות בטווח'),
+      String(data.costSummary.networkTotal),
+      xl(data, 'סכום שאושר, לא תשלום'),
+    ])
+    rows.push([
+      xl(data, 'חנות'),
+      xl(data, 'סכום'),
+      xl(data, '% מהטווח'),
+      xl(data, 'ביקורים'),
+    ])
+    for (const store of data.costSummary.byStore) {
+      rows.push([
+        store.storeName,
+        String(store.amount),
+        String(store.pctOfNetwork),
+        String(store.jobCount),
+      ])
+    }
+  }
+  if (data.costBuckets && data.costBuckets.length > 0) {
+    rows.push([])
+    rows.push([
+      xl(data, 'פירוק לפי תקופה'),
+      data.costGrain ?? '',
+    ])
+    for (const bucket of data.costBuckets) {
+      rows.push([])
+      rows.push([bucket.label, String(bucket.networkTotal)])
+      for (const store of bucket.byStore) {
+        rows.push([
+          store.storeName,
+          String(store.amount),
+          String(store.pctOfNetwork),
+          String(store.pctOfRange),
+        ])
+      }
+    }
+  } else if (data.annualCosts) {
     rows.push([])
     rows.push([`מחיר שאושר ${data.annualCosts.year}`, 'סכום שאושר, לא תשלום'])
     for (const store of data.annualCosts.stores) {
@@ -442,6 +488,12 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
       priced.reduce((total, line) => total + (line.amount ?? 0), 0),
     ])
   }
+  if (data.costSummary && data.costSummary.networkTotal > 0) {
+    metrics.push([
+      xl(data, 'הוצאות מאושרות בטווח'),
+      data.costSummary.networkTotal,
+    ])
+  }
   metrics.forEach((pair, index) => {
     const row = summary.getRow(8 + index)
     row.values = pair
@@ -565,7 +617,89 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
     row.eachCell((cell) => paintBody(cell, index % 2 === 1))
   })
 
-  if (data.annualCosts) {
+  if (data.costSummary && data.costSummary.byStore.length > 0) {
+    const money = wb.addWorksheet(xl(data, 'לפי חנות'), {
+      views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+    })
+    money.columns = [{ width: 28 }, { width: 16 }, { width: 12 }, { width: 12 }]
+    const header = money.getRow(1)
+    header.values = [
+      xl(data, 'חנות'),
+      xl(data, 'סכום'),
+      xl(data, '% מהטווח'),
+      xl(data, 'ביקורים'),
+    ]
+    paintHeader(header)
+    data.costSummary.byStore.forEach((store, index) => {
+      const row = money.getRow(2 + index)
+      row.values = [
+        store.storeName,
+        store.amount,
+        store.pctOfNetwork,
+        store.jobCount,
+      ]
+      row.eachCell((cell) => paintBody(cell, index % 2 === 1))
+    })
+    const total = money.getRow(2 + data.costSummary.byStore.length)
+    total.values = [
+      xl(data, 'סה״כ רשת'),
+      data.costSummary.networkTotal,
+      100,
+      data.costSummary.jobCount,
+    ]
+    total.eachCell((cell) => paintBody(cell, false))
+  }
+
+  if (data.costBuckets && data.costBuckets.length > 0) {
+    const periods = wb.addWorksheet(xl(data, 'לפי תקופה'), {
+      views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+    })
+    periods.columns = [
+      { width: 22 },
+      { width: 26 },
+      { width: 14 },
+      { width: 12 },
+      { width: 14 },
+    ]
+    const header = periods.getRow(1)
+    header.values = [
+      xl(data, 'תקופה'),
+      xl(data, 'חנות'),
+      xl(data, 'סכום'),
+      xl(data, '% מהדלי'),
+      xl(data, '% מהטווח'),
+    ]
+    paintHeader(header)
+    let rowIndex = 2
+    for (const bucket of data.costBuckets) {
+      if (bucket.byStore.length === 0) {
+        const row = periods.getRow(rowIndex++)
+        row.values = [bucket.label, xl(data, 'סה״כ רשת'), bucket.networkTotal, '', '']
+        row.eachCell((cell) => paintBody(cell, false))
+        continue
+      }
+      for (const [index, store] of bucket.byStore.entries()) {
+        const row = periods.getRow(rowIndex++)
+        row.values = [
+          index === 0 ? bucket.label : '',
+          store.storeName,
+          store.amount,
+          store.pctOfNetwork,
+          store.pctOfRange,
+        ]
+        row.eachCell((cell) => paintBody(cell, rowIndex % 2 === 0))
+      }
+      const total = periods.getRow(rowIndex++)
+      total.values = [
+        '',
+        xl(data, 'סה״כ תקופה'),
+        bucket.networkTotal,
+        100,
+        '',
+      ]
+      total.eachCell((cell) => paintBody(cell, false))
+    }
+  } else if (data.annualCosts) {
     const money = wb.addWorksheet('עלויות', {
       views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
     })
@@ -924,9 +1058,65 @@ function ReportPdfDocument({
               )}
             </View>
           </View>
+          {data.costSummary && data.costSummary.byStore.length > 0 ? (
+            <View style={{ marginTop: 14 }}>
+              <Heb style={pdf.section}>{xl(data, 'הוצאות מאושרות בטווח')}</Heb>
+              <Heb style={pdf.note}>
+                {`${xl(data, 'סה״כ רשת')}: ${formatIls(data.costSummary.networkTotal)} · ${xl(data, 'סכום שאושר, לא תשלום')}`}
+              </Heb>
+              <MiniTable
+                headers={[
+                  xl(data, 'חנות'),
+                  xl(data, 'סכום'),
+                  xl(data, '% מהטווח'),
+                ]}
+                rows={data.costSummary.byStore.slice(0, STORE_CAP).map((store) => [
+                  store.storeName,
+                  formatIls(store.amount),
+                  `${store.pctOfNetwork}%`,
+                ])}
+                flex={[2.4, 1.2, 1]}
+              />
+            </View>
+          ) : null}
         </View>
         <Footer issued={issued} />
       </Page>
+      {data.costBuckets && data.costBuckets.length > 0
+        ? data.costBuckets.map((bucket) => (
+            <Page key={bucket.key} size="A4" style={pdf.page}>
+              <View style={pdf.bandTight}>
+                <Heb style={pdf.brand}>{`Optical Center · ${xl(data, 'פירוק לפי תקופה')}`}</Heb>
+                <Heb style={pdf.period}>{bucket.label}</Heb>
+              </View>
+              <View style={pdf.body}>
+                <Heb style={pdf.section}>
+                  {`${xl(data, 'סה״כ תקופה')}: ${formatIls(bucket.networkTotal)}`}
+                </Heb>
+                {bucket.byStore.length > 0 ? (
+                  <MiniTable
+                    headers={[
+                      xl(data, 'חנות'),
+                      xl(data, 'סכום'),
+                      xl(data, '% מהדלי'),
+                      xl(data, '% מהטווח'),
+                    ]}
+                    rows={bucket.byStore.map((store) => [
+                      store.storeName,
+                      formatIls(store.amount),
+                      `${store.pctOfNetwork}%`,
+                      `${store.pctOfRange}%`,
+                    ])}
+                    flex={[2.2, 1.1, 1, 1]}
+                  />
+                ) : (
+                  <Heb style={pdf.cell}>{xl(data, 'אין הוצאות מאושרות בתקופה')}</Heb>
+                )}
+              </View>
+              <Footer issued={issued} />
+            </Page>
+          ))
+        : null}
       {pages.map((pageLines, pageIndex) => (
         <Page key={pageLines[0]?.number ?? pageIndex} size="A4" style={pdf.page}>
           <View style={pdf.bandTight}>

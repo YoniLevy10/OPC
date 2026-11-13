@@ -115,4 +115,3 @@
 
 - Roadmap ליבה: [`CORE_FEATURES_ROADMAP.md`](CORE_FEATURES_ROADMAP.md)
 - החלטות פיילוט: [`PRODUCT_DECISIONS.md`](PRODUCT_DECISIONS.md)
-- ארכיטקטורה (ארכיון): [`archive/2026-stabilize/OPTICAL_CENTER_ARCHITECTURE_RESEARCH.md`](archive/2026-stabilize/OPTICAL_CENTER_ARCHITECTURE_RESEARCH.md)

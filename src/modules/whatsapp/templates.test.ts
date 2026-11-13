@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   META_WA_TEMPLATES,
+  FOLLOWUP_ALL_OK_ACK,
   defaultDeskAlertTemplateName,
   defaultSessionTemplateName,
   defaultSessionTemplateLang,
   deskAlertParameter,
+  isFollowupAllOkReply,
+  isFollowupWantUpdateReply,
 } from './templates'
 
 describe('META_WA_TEMPLATES', () => {
@@ -16,6 +19,16 @@ describe('META_WA_TEMPLATES', () => {
     expect(META_WA_TEMPLATES.followup.quickReplies.every((t) => t.length <= 25)).toBe(
       true,
     )
+  })
+
+  it('matches follow-up quick replies and all-ok ack copy', () => {
+    expect(isFollowupWantUpdateReply('אשמח לעדכון')).toBe(true)
+    expect(isFollowupWantUpdateReply('  אשמח לעדכון  ')).toBe(true)
+    expect(isFollowupWantUpdateReply('הכל בסדר תודה')).toBe(false)
+    expect(isFollowupAllOkReply('הכל בסדר תודה')).toBe(true)
+    expect(isFollowupAllOkReply('אשמח לעדכון')).toBe(false)
+    expect(FOLLOWUP_ALL_OK_ACK).toContain('תגובתך התקבלה')
+    expect(FOLLOWUP_ALL_OK_ACK).toContain('Optical Center')
   })
 
   it('defaults session template from env or maintainos_followup', () => {

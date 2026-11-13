@@ -41,6 +41,35 @@ export const META_WA_TEMPLATES = {
   },
 } as const
 
+const [FOLLOWUP_WANT_UPDATE, FOLLOWUP_ALL_OK] =
+  META_WA_TEMPLATES.followup.quickReplies
+
+/** Normalize inbound for matching follow-up quick-reply titles. */
+function normalizeFollowupReply(text: string): string {
+  return text
+    .trim()
+    .replace(/[\u0591-\u05C7]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+/** Store tapped «אשמח לעדכון» on maintainos_followup — deliver held Ops notice. */
+export function isFollowupWantUpdateReply(
+  text: string | null | undefined,
+): boolean {
+  if (!text) return false
+  return normalizeFollowupReply(text) === FOLLOWUP_WANT_UPDATE
+}
+
+/** Store tapped «הכל בסדר תודה» — ack only; do not send held notice. */
+export function isFollowupAllOkReply(text: string | null | undefined): boolean {
+  if (!text) return false
+  return normalizeFollowupReply(text) === FOLLOWUP_ALL_OK
+}
+
+/** Reply when the store says everything is fine after the follow-up template. */
+export const FOLLOWUP_ALL_OK_ACK =
+  'תודה — תגובתך התקבלה.\nצוות האחזקה של Optical Center לשירותכם.'
+
 /** Default session-reopen template name (env WHATSAPP_SESSION_TEMPLATE overrides). */
 export function defaultSessionTemplateName(): string {
   return (

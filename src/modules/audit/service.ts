@@ -61,33 +61,61 @@ async function resolveActorNames(
   return nameById
 }
 
+function inDayRange(
+  iso: string,
+  from?: string | null,
+  to?: string | null,
+): boolean {
+  const day = iso.slice(0, 10)
+  if (from && day < from.slice(0, 10)) return false
+  if (to && day > to.slice(0, 10)) return false
+  return true
+}
+
 /**
  * Recent ticket journal for Ari's history screen.
  * Prefers real actions over SLA-breach spam so the feed stays usable.
  */
-export async function listRecentAuditEvents(limit = 200): Promise<{
+export async function listRecentAuditEvents(
+  limit = 200,
+  range?: { from?: string | null; to?: string | null },
+): Promise<{
   events: AuditEventRow[]
   slaCount: number
   backend: 'supabase' | 'memory'
 }> {
+  const from = range?.from ?? null
+  const to = range?.to ?? null
+
   if (await supabaseReady()) {
     const supabase = createSystemClient('audit_list')
     const select =
       'id, ticket_id, event_type, actor_id, payload, created_at, tickets(display_number, stores(code, name))'
 
+    let actionsQuery = supabase
+      .from('ticket_events')
+      .select(select)
+      .neq('event_type', 'sla_breached')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    let slaQuery = supabase
+      .from('ticket_events')
+      .select(select)
+      .eq('event_type', 'sla_breached')
+      .order('created_at', { ascending: false })
+      .limit(80)
+    if (from) {
+      actionsQuery = actionsQuery.gte('created_at', `${from.slice(0, 10)}T00:00:00.000Z`)
+      slaQuery = slaQuery.gte('created_at', `${from.slice(0, 10)}T00:00:00.000Z`)
+    }
+    if (to) {
+      actionsQuery = actionsQuery.lte('created_at', `${to.slice(0, 10)}T23:59:59.999Z`)
+      slaQuery = slaQuery.lte('created_at', `${to.slice(0, 10)}T23:59:59.999Z`)
+    }
+
     const [actionsRes, slaRes, slaCountRes] = await Promise.all([
-      supabase
-        .from('ticket_events')
-        .select(select)
-        .neq('event_type', 'sla_breached')
-        .order('created_at', { ascending: false })
-        .limit(limit),
-      supabase
-        .from('ticket_events')
-        .select(select)
-        .eq('event_type', 'sla_breached')
-        .order('created_at', { ascending: false })
-        .limit(80),
+      actionsQuery,
+      slaQuery,
       supabase
         .from('ticket_events')
         .select('id', { count: 'exact', head: true })
@@ -107,15 +135,21 @@ export async function listRecentAuditEvents(limit = 200): Promise<{
         ),
       ]
       const nameById = await resolveActorNames(supabase, actorIds)
+      const events = mapRows(
+        merged as Array<Record<string, unknown>>,
+        nameById,
+      ).filter((e) => inDayRange(e.created_at, from, to))
       return {
         backend: 'supabase',
         slaCount: slaCountRes.count ?? slaRows.length,
-        events: mapRows(merged as Array<Record<string, unknown>>, nameById),
+        events,
       }
     }
   }
 
-  const all = memListRecentEvents(Math.max(limit * 3, 400))
+  const all = memListRecentEvents(Math.max(limit * 3, 400)).filter((e) =>
+    inDayRange(e.created_at, from, to),
+  )
   const actions = all.filter((e) => e.event_type !== 'sla_breached').slice(0, limit)
   const sla = all.filter((e) => e.event_type === 'sla_breached')
   const events = [...actions, ...sla.slice(0, 80)].sort((a, b) =>

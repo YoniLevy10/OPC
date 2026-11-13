@@ -3,6 +3,8 @@ import { normalizePhoneDigits } from '@/lib/phone'
 import { listEngagements, type Engagement } from '@/modules/engagements/service'
 import { getById, type TicketDetail } from '@/modules/tickets/service'
 import { managerPhoneForStoreCode } from '@/modules/stores/manager-identity'
+import { getStoreByCode } from '@/modules/stores/service'
+import { formatStoreAddressLine } from '@/modules/pro/sms-copy'
 
 export type ProJob = {
   engagementId: string
@@ -10,6 +12,10 @@ export type ProJob = {
   bundledTicketIds: string[]
   storeCode: string
   storeName: string
+  storeCity: string | null
+  storeAddress: string | null
+  /** city · address for display / Maps */
+  storeLocation: string | null
   managerPhone: string | null
   professionalName: string
   professionalPhone: string
@@ -60,13 +66,24 @@ export async function listProJobsForPhone(phoneRaw: string): Promise<ProJob[]> {
       })
     }
     if (tickets.length === 0) continue
-    const managerPhone = await managerPhoneForStoreCode(row.storeCode)
+    const [managerPhone, storeLookup] = await Promise.all([
+      managerPhoneForStoreCode(row.storeCode),
+      getStoreByCode(row.storeCode).catch(() => ({ store: null })),
+    ])
+    const storeCity = storeLookup.store?.city ?? null
+    const storeAddress = storeLookup.store?.address ?? null
     jobs.push({
       engagementId: row.id,
       ticketId: row.ticketId,
       bundledTicketIds: row.bundledTicketIds,
       storeCode: row.storeCode,
       storeName: row.storeName,
+      storeCity,
+      storeAddress,
+      storeLocation: formatStoreAddressLine({
+        city: storeCity,
+        address: storeAddress,
+      }),
       managerPhone,
       professionalName: row.professionalName,
       professionalPhone: row.professionalPhone,

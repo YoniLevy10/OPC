@@ -252,7 +252,7 @@ export function ActivityLog({
       <div className="flex flex-wrap items-center gap-2">
         <div
           role="tablist"
-          aria-label="תצוגת היסטוריה"
+          aria-label={p('תצוגת היסטוריה')}
           className="inline-flex rounded-full border border-border bg-surface p-1"
         >
           <button

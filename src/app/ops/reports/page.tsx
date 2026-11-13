@@ -40,8 +40,8 @@ import {
 } from '@/modules/reports/snapshots'
 import { cn } from '@/lib/utils'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
-import { annualMaintenanceCost, approvedByFaultType, compareStorePeriods } from '@/modules/engagements/cost'
 import { closedEngagementCosts } from '@/modules/engagements/service'
+import { maintenanceCostInRange } from '@/modules/reports/summary'
 import { formatIls } from '@/modules/spend/true-cost'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
@@ -153,8 +153,12 @@ export default async function ReportsPage({
   const kpis = computeDashboardKpis(all, technicians)
   const sla = computeSlaReport(all)
   const storeReport = computeStoreReport(all).slice(0, 15)
-  const maxCategory = Math.max(1, ...kpis.byCategory.map((c) => c.count))
+  const categoryTotal = Math.max(
+    1,
+    kpis.byCategory.reduce((sum, c) => sum + c.count, 0),
+  )
   const topFaultStores = [...storeReport].sort((a, b) => b.total - a.total).slice(0, 3)
+  const ticketTotal = Math.max(1, all.length)
 
   const history = [...all]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -224,11 +228,8 @@ export default async function ReportsPage({
     },
   ]
 
-  const costYear = Number((from ?? '').slice(0, 4)) || new Date().getFullYear()
   const closedCosts = await closedEngagementCosts().catch(() => [])
-  const annual = annualMaintenanceCost(closedCosts, costYear)
-  const byFaultType = approvedByFaultType(closedCosts, costYear)
-  const periodComparison = compareStorePeriods(closedCosts, costYear)
+  const costSummary = maintenanceCostInRange(closedCosts, from, to)
 
   return (
     <OpsAppShell>
@@ -245,60 +246,76 @@ export default async function ReportsPage({
           }
         />
 
-        {annual.stores.length > 0 ? (
-          <Panel elevated className="!p-4 md:!p-5">
-            <PanelHeader
-              title={`מחיר שאושר ${annual.year}`}
-              meta={`סה״כ רשת ${formatIls(annual.network)} · כולל שיבוצים פתוחים · לא תשלום שבוצע`}
-            />
-            <ul className="mt-4 grid gap-2">
-              {annual.stores.map((store) => (
-                <li key={store.storeCode || store.storeName} className="flex justify-between gap-3">
-                  <span className="t-body text-ink">{store.storeName}</span>
-                  <span className="t-body-strong t-num text-ink">{formatIls(store.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-        ) : null}
-
-        {byFaultType.length > 0 ? (
-          <Panel elevated className="!p-4 md:!p-5">
-            <PanelHeader
-              title="מחיר שאושר לפי סוג תקלה"
-              meta={`${annual.year} · לא תשלום שבוצע`}
-            />
-            <ul className="mt-4 grid gap-2">
-              {byFaultType.map((row) => (
-                <li key={row.category} className="flex justify-between gap-3">
+        <Panel elevated className="!p-4 md:!p-5">
+          <PanelHeader
+            title={p('סיכום רשת')}
+            meta={`${rangeLabel} · ${p('סכום שאושר, לא תשלום')}`}
+          />
+          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-3">
+            <p className="t-meta text-ink-2">{p('הוצאות מאושרות בטווח')}</p>
+            <p className="t-title t-num text-ink">
+              {costSummary.networkTotal > 0
+                ? formatIls(costSummary.networkTotal)
+                : '—'}
+            </p>
+          </div>
+          {costSummary.byStore.length === 0 ? (
+            <p className="t-body mt-3 text-ink-2">
+              {p('אין הוצאות מאושרות בתקופה')}
+            </p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>{p('חנות')}</TH>
+                    <TH className="text-end">{p('סכום')}</TH>
+                    <TH className="text-end">{p('% מהטווח')}</TH>
+                    <TH className="text-end">{p('ביקורים')}</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {costSummary.byStore.map((store) => (
+                    <TR key={store.storeCode || store.storeName}>
+                      <TD>
+                        <Link
+                          href={queueHref({
+                            store: store.storeCode || undefined,
+                          })}
+                          className="t-body text-ink underline-offset-2 hover:underline"
+                        >
+                          {store.storeName}
+                        </Link>
+                      </TD>
+                      <TD className="t-num text-end">
+                        {formatIls(store.amount)}
+                      </TD>
+                      <TD className="t-num text-end">{store.pctOfNetwork}%</TD>
+                      <TD className="t-num text-end">{store.jobCount}</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          )}
+          {costSummary.byCategory.length > 0 ? (
+            <ul className="mt-4 grid gap-2 border-t border-border pt-3">
+              {costSummary.byCategory.map((row) => (
+                <li
+                  key={row.category}
+                  className="flex justify-between gap-3"
+                >
                   <span className="t-body text-ink">
                     {TICKET_CATEGORY_LABELS_HE[row.category] ?? row.category}
                   </span>
-                  <span className="t-body-strong t-num text-ink">{formatIls(row.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-        ) : null}
-
-        {periodComparison.length > 0 ? (
-          <Panel elevated className="!p-4 md:!p-5">
-            <PanelHeader
-              title="השוואת חנויות"
-              meta={`${annual.year} מול ${annual.year - 1} · מחיר שאושר`}
-            />
-            <ul className="mt-4 grid gap-2">
-              {periodComparison.map((row) => (
-                <li key={row.storeCode || row.storeName} className="flex justify-between gap-3">
-                  <span className="t-body text-ink">{row.storeName}</span>
                   <span className="t-body t-num text-ink">
-                    {formatIls(row.current)} · קודם {formatIls(row.previous)}
+                    {formatIls(row.amount)} · {row.pctOfNetwork}%
                   </span>
                 </li>
               ))}
             </ul>
-          </Panel>
-        ) : null}
+          ) : null}
+        </Panel>
 
         <PhoneFoldStack>
         <PhoneFold title={p('סינון')} summary={rangeLabel}>
@@ -340,19 +357,19 @@ export default async function ReportsPage({
             ) : (
               <ul className="mt-4 space-y-3">
                 {kpis.byCategory.map((c) => {
-                  const pct = Math.round((c.count / maxCategory) * 100)
+                  const pct = Math.round((c.count / categoryTotal) * 1000) / 10
                   return (
                     <li key={c.key}>
                       <div className="mb-1 flex items-baseline justify-between gap-2">
                         <span className="t-body text-ink">{c.label}</span>
                         <span className="t-body-strong t-num text-ink">
-                          {c.count}
+                          {c.count} · {pct}%
                         </span>
                       </div>
                       <div
                         className="h-2 overflow-hidden rounded-full bg-surface-sunken"
                         role="img"
-                        aria-label={`${c.label}: ${c.count}`}
+                        aria-label={`${c.label}: ${c.count} (${pct}%)`}
                       >
                         <div
                           className="h-full rounded-full bg-[var(--tenant)] transition-[width] duration-[var(--dur-2)]"
@@ -426,7 +443,9 @@ export default async function ReportsPage({
                       <span className="t-num">#{s.code}</span> · {s.name}
                     </Link>
                     <p className="t-caption t-num mt-1 text-ink-2">
-                      {s.total} סה״כ · {s.open} פתוחות · {s.breached} חריגות
+                      {s.total} סה״כ ·{' '}
+                      {Math.round((s.total / ticketTotal) * 1000) / 10}% ·{' '}
+                      {s.open} פתוחות · {s.breached} חריגות
                     </p>
                   </li>
                 ))}
@@ -436,6 +455,7 @@ export default async function ReportsPage({
                   <THead>
                     <TH>{p('סניף')}</TH>
                     <TH>{p('סה״כ')}</TH>
+                    <TH>{p('% מהטווח')}</TH>
                     <TH>{p('פתוחות')}</TH>
                     <TH>{p('חריגות SLA')}</TH>
                   </THead>
@@ -452,6 +472,11 @@ export default async function ReportsPage({
                         </TD>
                         <TD>
                           <span className="t-num t-body-strong">{s.total}</span>
+                        </TD>
+                        <TD>
+                          <span className="t-num">
+                            {Math.round((s.total / ticketTotal) * 1000) / 10}%
+                          </span>
                         </TD>
                         <TD>
                           <span className="t-num">{s.open}</span>

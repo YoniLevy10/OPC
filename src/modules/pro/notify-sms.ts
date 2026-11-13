@@ -6,6 +6,7 @@ import {
   managerNameForStoreCode,
   managerPhoneForStoreCode,
 } from '@/modules/stores/manager-identity'
+import { getStoreByCode } from '@/modules/stores/service'
 import { proPortalPath, signProPortalToken } from '@/modules/pro/token'
 import { buildProAssignmentSms } from '@/modules/pro/sms-copy'
 
@@ -36,13 +37,16 @@ export async function notifyProfessionalSms(input: {
   }
 
   const portalUrl = `${getPublicAppUrl()}${proPortalPath(token)}`
-  const [managerPhone, managerName] = await Promise.all([
+  const [managerPhone, managerName, storeLookup] = await Promise.all([
     managerPhoneForStoreCode(input.storeCode),
     managerNameForStoreCode(input.storeCode),
+    getStoreByCode(input.storeCode).catch(() => ({ store: null })),
   ])
   const message = buildProAssignmentSms({
     storeName: input.storeName,
     storeCode: input.storeCode,
+    storeCity: storeLookup.store?.city ?? null,
+    storeAddress: storeLookup.store?.address ?? null,
     managerName,
     managerPhone,
     faultLines: input.faultLines,

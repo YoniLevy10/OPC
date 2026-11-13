@@ -1,8 +1,7 @@
 # החלטות מוצר — פיילוט Optical Center IL
 
 תיעוד החלטות הנהלה (Phase E + ישיבת מנהלים).  
-מצפן בידול: [`DIFFERENTIATION.md`](DIFFERENTIATION.md).  
-תמונת מצב חיה: [`OPC_3_EXECUTIVE_STATUS.md`](OPC_3_EXECUTIVE_STATUS.md).
+מצפן בידול: [`DIFFERENTIATION.md`](DIFFERENTIATION.md).
 
 | נושא | החלטה | יישום |
 |------|--------|--------|

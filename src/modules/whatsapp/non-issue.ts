@@ -32,6 +32,9 @@ const EXACT_ACKS = new Set([
   'אין בעיה',
   'הכל בסדר',
   'הכול בסדר',
+  // maintainos_followup quick reply
+  'הכל בסדר תודה',
+  'הכול בסדר תודה',
 ])
 
 function normalizeAckText(text: string): string {

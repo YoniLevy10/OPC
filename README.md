@@ -66,9 +66,8 @@ npm run db:sync-managers
 MAINTAINOS_FORCE_MEMORY=1
 ```
 
-## מסמכים (חיים)
+## מסמכים
 
-- [`docs/OPC_3_EXECUTIVE_STATUS.md`](docs/OPC_3_EXECUTIVE_STATUS.md) — תמונת מצב להנהלה — OPC מול גרסה 3.0
 - [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) — בידול ופילטר פיצ׳רים
 - [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — מערכת עיצוב
 - [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) — החלטות מוצר
@@ -79,7 +78,6 @@ MAINTAINOS_FORCE_MEMORY=1
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 - [`docs/SECURITY.md`](docs/SECURITY.md)
 - [`docs/MESSAGING_COST_POLICY.md`](docs/MESSAGING_COST_POLICY.md)
+- [`docs/META_WHATSAPP_TEMPLATE_FOLLOWUP.md`](docs/META_WHATSAPP_TEMPLATE_FOLLOWUP.md)
 - [`docs/VERCEL_AI_WHATSAPP.md`](docs/VERCEL_AI_WHATSAPP.md)
 - [`docs/WHATSAPP_PHONE_CONNECT_PLAN.md`](docs/WHATSAPP_PHONE_CONNECT_PLAN.md)
-
-ארכיון תוכניות/QA ישנים: [`docs/archive/2026-stabilize/`](docs/archive/2026-stabilize/).

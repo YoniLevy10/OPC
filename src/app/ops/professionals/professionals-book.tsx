@@ -9,6 +9,8 @@ import { PhoneList, PhoneSheet } from '@/components/mobile'
 import { useToast } from '@/components/ui/toast'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import type { Professional } from '@/modules/professionals/types'
+import type { ProfessionalVisitRow } from '@/modules/engagements/service'
+import { ProfessionalHistoryButton } from './professional-history'
 import {
   formatPersonalRating,
   parsePersonalRating,
@@ -80,10 +82,26 @@ function StarRow({
   )
 }
 
+function visitsForProfessional(
+  person: Professional,
+  byId: Record<string, ProfessionalVisitRow[]>,
+  byPhone: Record<string, ProfessionalVisitRow[]>,
+): ProfessionalVisitRow[] {
+  const fromId = byId[person.id]
+  if (fromId?.length) return fromId
+  const phone = normalizePhoneDigits(person.phone)
+  if (!phone) return []
+  return byPhone[phone] ?? []
+}
+
 export function ProfessionalsBook({
   professionals,
+  historyByProfessionalId = {},
+  historyByPhone = {},
 }: {
   professionals: Professional[]
+  historyByProfessionalId?: Record<string, ProfessionalVisitRow[]>
+  historyByPhone?: Record<string, ProfessionalVisitRow[]>
 }) {
   const tx = usePhrase()
   const router = useRouter()
@@ -324,6 +342,14 @@ export function ProfessionalsBook({
                   </span>
                 )}
                 <div className="flex items-center gap-1">
+                  <ProfessionalHistoryButton
+                    name={person.full_name}
+                    visits={visitsForProfessional(
+                      person,
+                      historyByProfessionalId,
+                      historyByPhone,
+                    )}
+                  />
                   <Button
                     type="button"
                     variant="secondary"

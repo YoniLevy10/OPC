@@ -58,6 +58,11 @@ import {
 } from './store-person'
 import { isAriSender, phonesMatch, splitSpokenFaults } from './classify'
 import { isNonIssueAck } from './non-issue'
+import {
+  FOLLOWUP_ALL_OK_ACK,
+  isFollowupAllOkReply,
+  isFollowupWantUpdateReply,
+} from './templates'
 import type { ReporterTicket } from './intent'
 import {
   confirmStoreFix,
@@ -1198,13 +1203,46 @@ export async function processInboundMessage(
     await updateSession(supabase, session, {
       last_inbound: text || (message.mediaUrl ? '[media]' : null),
     })
+    const followupAllOk = isFollowupAllOkReply(text)
+    const followupWantUpdate = isFollowupWantUpdateReply(text)
     const pendingNotice = session.draft_payload?.pending_notice
     if (typeof pendingNotice === 'string' && pendingNotice.trim()) {
       const payload = { ...(session.draft_payload ?? {}) }
       delete payload.pending_notice
       await updateSession(supabase, session, { draft_payload: payload })
       session = { ...session, draft_payload: payload }
+      // «הכל בסדר תודה»: discard held Ops notice; send Optical Center ack only.
+      if (followupAllOk) {
+        await sendReply(
+          supabase,
+          message,
+          country,
+          FOLLOWUP_ALL_OK_ACK,
+          null,
+          options,
+          session,
+        )
+        return { ok: true, reply: FOLLOWUP_ALL_OK_ACK, state: session.state }
+      }
+      // Any other reply (incl. «אשמח לעדכון») delivers Ari/Ops held update.
       await sendReply(supabase, message, country, pendingNotice, null, options, session)
+      if (followupWantUpdate) {
+        return { ok: true, reply: pendingNotice, state: session.state }
+      }
+    } else if (followupAllOk) {
+      await sendReply(
+        supabase,
+        message,
+        country,
+        FOLLOWUP_ALL_OK_ACK,
+        null,
+        options,
+        session,
+      )
+      return { ok: true, reply: FOLLOWUP_ALL_OK_ACK, state: session.state }
+    } else if (followupWantUpdate) {
+      // Window reopened; no held notice — stop so the button text does not open a ticket.
+      return { ok: true, reply: null, state: session.state }
     }
 
     const visitButton = parseVisitButton(message.interactiveId)

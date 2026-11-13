@@ -123,6 +123,49 @@ export async function listEngagements(organizationId?: string): Promise<Engageme
   return [...memoryRows()].sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
 }
 
+export type ProfessionalVisitRow = {
+  engagementId: string
+  ticketId: string
+  bundledTicketIds: string[]
+  storeCode: string
+  storeName: string
+  approvedAmount: number
+  approvedAt: string
+  status: Engagement['status']
+  closedAt: string | null
+}
+
+/** Past visits for a contact-book professional (id first, phone fallback). */
+export async function listEngagementsForProfessional(input: {
+  professionalId?: string | null
+  phone?: string | null
+}): Promise<ProfessionalVisitRow[]> {
+  const id = input.professionalId?.trim() || null
+  const phone = normalizePhoneDigits(input.phone)
+  if (!id && !phone) return []
+
+  const rows = await listEngagements()
+  const matched = rows.filter((row) => {
+    if (id && row.professionalId === id) return true
+    if (phone && normalizePhoneDigits(row.professionalPhone) === phone) return true
+    return false
+  })
+
+  return matched
+    .map((row) => ({
+      engagementId: row.id,
+      ticketId: row.ticketId,
+      bundledTicketIds: row.bundledTicketIds,
+      storeCode: row.storeCode,
+      storeName: row.storeName,
+      approvedAmount: row.approvedAmount,
+      approvedAt: row.approvedAt,
+      status: row.status,
+      closedAt: row.closedAt,
+    }))
+    .sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
+}
+
 /** Rebuild a locked engagement from the ticket timeline when the engagements row is missing. */
 async function engagementFromTicketEvents(
   ticketId: string,

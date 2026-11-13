@@ -22,4 +22,9 @@ describe('isNonIssueAck', () => {
     expect(isNonIssueAck('תודה על הטיפול')).toBe(true)
     expect(isNonIssueAck('תודה, תוקן')).toBe(true)
   })
+
+  it('treats maintainos_followup all-ok quick reply as ack', () => {
+    expect(isNonIssueAck('הכל בסדר תודה')).toBe(true)
+    expect(isNonIssueAck('הכול בסדר תודה')).toBe(true)
+  })
 })

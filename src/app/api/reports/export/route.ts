@@ -22,6 +22,12 @@ import {
   buildTicketsPdf,
   buildTicketsXlsx,
 } from '@/modules/reports/export-formats'
+import {
+  bucketCosts,
+  defaultCostGrain,
+  maintenanceCostInRange,
+  parseCostGrain,
+} from '@/modules/reports/summary'
 import { captureError } from '@/lib/monitoring'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { getLocale } from '@/lib/i18n/server'
@@ -105,7 +111,13 @@ export async function GET(request: Request) {
     const techNames: Record<string, string> = {}
     for (const tech of technicians) techNames[tech.id] = tech.name
     const year = Number((from ?? '').slice(0, 4)) || new Date().getFullYear()
-    const annual = annualMaintenanceCost(await closedEngagementCosts().catch(() => []), year)
+    const closedCosts = await closedEngagementCosts().catch(() => [])
+    const annual = annualMaintenanceCost(closedCosts, year)
+    const grain =
+      parseCostGrain(url.searchParams.get('grain')) ??
+      defaultCostGrain(from, to)
+    const costSummary = maintenanceCostInRange(closedCosts, from, to)
+    const costBuckets = bucketCosts(closedCosts, from, to, grain)
     const report = {
       tickets: scoped,
       kpis,
@@ -115,6 +127,9 @@ export async function GET(request: Request) {
       techNames,
       recorded,
       locale,
+      costSummary,
+      costBuckets,
+      costGrain: grain,
       annualCosts: {
         year: annual.year,
         network: annual.network,

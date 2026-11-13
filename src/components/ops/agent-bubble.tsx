@@ -3,6 +3,7 @@
 import { usePhrase } from '@/components/i18n/locale-provider'
 import { MessageSquare, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AgentHistoryButton, AgentHistoryList } from '@/components/ops/agent-history'
 import { AgentTurns } from '@/components/ops/agent-turn'
 import { useAgentThreads } from '@/components/ops/use-agent-threads'
@@ -23,7 +24,12 @@ export function AgentBubble() {
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const briefed = useRef(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!open || !ready || briefed.current) return
@@ -94,91 +100,103 @@ export function AgentBubble() {
       .finally(() => setPending(false))
   }
 
-  return (
-    <div className="fixed left-4 z-40 bottom-[calc(var(--bottomnav-h)+var(--bottomnav-gap)+var(--safe-b)+12px)] md:bottom-6 md:left-auto md:right-[calc(var(--nav-w)+1rem)]">
-      {open ? (
-        <section
-          role="dialog"
-          aria-label={p('העוזר של ארי')}
-          className="absolute bottom-16 left-0 flex h-[min(32rem,70dvh)] w-[min(22rem,calc(100dvw-2rem))] max-w-[calc(100dvw-2rem)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface text-ink shadow-[var(--shadow-2)] md:left-auto md:right-0"
-        >
-          <header className="flex items-center justify-between border-b border-border px-4 py-3">
-            <p className="text-sm font-medium">{p('העוזר של ארי')}</p>
-            <div className="flex items-center">
-              <AgentHistoryButton pressed={history} onClick={() => setHistory((value) => !value)} />
-              <button
-                type="button"
-                aria-label={p('סגור')}
-                onClick={() => setOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-sunken"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-          </header>
-          {history ? (
-            <AgentHistoryList
-              threads={threads}
-              activeId={activeId}
-              onOpen={(id) => {
-                restore(id)
-                setHistory(false)
-              }}
-              onNew={beginNew}
-            />
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3">
-              <AgentTurns turns={turns} compact />
-              {pending ? <p className="text-xs text-ink-3">{p('מסתכל על הרשת…')}</p> : null}
-              {error ? <p className="text-sm text-[var(--signal-critical)]">{error}</p> : null}
-            </div>
-          )}
-          <div className="flex flex-nowrap gap-2 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {starters.map((starter) => (
-              <button
-                key={starter}
-                type="button"
-                disabled={pending}
-                onClick={() => send(starter)}
-                className="shrink-0 whitespace-nowrap rounded-full border border-border px-3 py-1 text-xs text-ink-2"
-              >
-                {starter}
-              </button>
-            ))}
-          </div>
-          <form
-            className="flex gap-2 border-t border-border p-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void send(draft)
-            }}
+  if (!mounted) return null
+
+  return createPortal(
+    <div className="pointer-events-none fixed inset-0 z-[60]">
+      <div className="pointer-events-auto absolute left-4 bottom-[calc(var(--bottomnav-h)+var(--bottomnav-gap)+var(--safe-b)+12px)] md:bottom-6 md:left-auto md:right-[calc(var(--nav-w)+1rem)]">
+        {open ? (
+          <section
+            role="dialog"
+            aria-label={p('העוזר של ארי')}
+            className="absolute bottom-16 left-0 flex h-[min(32rem,70dvh)] w-[min(22rem,calc(100dvw-2rem))] max-w-[calc(100dvw-2rem)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface text-ink shadow-[var(--shadow-2)] md:left-auto md:right-0"
           >
-            <input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={p('שאלה לארי')}
-              aria-label={p('שאלה לסוכן')}
-              className="min-w-0 flex-1 rounded-full border border-border bg-surface px-3 py-2 text-sm text-ink outline-none"
-            />
-            <button
-              type="submit"
-              disabled={pending || !draft.trim()}
-              className="rounded-full bg-ink px-3 py-2 text-sm text-[var(--canvas)] disabled:opacity-40"
+            <header className="flex items-center justify-between border-b border-border px-4 py-3">
+              <p className="text-sm font-medium">{p('העוזר של ארי')}</p>
+              <div className="flex items-center">
+                <AgentHistoryButton
+                  pressed={history}
+                  onClick={() => setHistory((value) => !value)}
+                />
+                <button
+                  type="button"
+                  aria-label={p('סגור')}
+                  onClick={() => setOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-sunken"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            </header>
+            {history ? (
+              <AgentHistoryList
+                threads={threads}
+                activeId={activeId}
+                onOpen={(id) => {
+                  restore(id)
+                  setHistory(false)
+                }}
+                onNew={beginNew}
+              />
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3">
+                <AgentTurns turns={turns} compact />
+                {pending ? (
+                  <p className="text-xs text-ink-3">{p('מסתכל על הרשת…')}</p>
+                ) : null}
+                {error ? (
+                  <p className="text-sm text-[var(--signal-critical)]">{error}</p>
+                ) : null}
+              </div>
+            )}
+            <div className="flex flex-nowrap gap-2 overflow-x-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {starters.map((starter) => (
+                <button
+                  key={starter}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => send(starter)}
+                  className="shrink-0 whitespace-nowrap rounded-full border border-border px-3 py-1 text-xs text-ink-2"
+                >
+                  {starter}
+                </button>
+              ))}
+            </div>
+            <form
+              className="flex gap-2 border-t border-border p-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void send(draft)
+              }}
             >
-              {p('שלח')}
-            </button>
-          </form>
-        </section>
-      ) : null}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={open ? p('סגור את הסוכן') : p('פתח את הסוכן')}
-        onClick={() => setOpen((value) => !value)}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-ink text-[var(--canvas)] shadow-[var(--shadow-2)]"
-      >
-        <MessageSquare className="h-6 w-6" aria-hidden />
-      </button>
-    </div>
+              <input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={p('שאלה לארי')}
+                aria-label={p('שאלה לסוכן')}
+                className="min-w-0 flex-1 rounded-full border border-border bg-surface px-3 py-2 text-sm text-ink outline-none"
+              />
+              <button
+                type="submit"
+                disabled={pending || !draft.trim()}
+                className="rounded-full bg-ink px-3 py-2 text-sm text-[var(--canvas)] disabled:opacity-40"
+              >
+                {p('שלח')}
+              </button>
+            </form>
+          </section>
+        ) : null}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={open ? p('סגור את הסוכן') : p('פתח את הסוכן')}
+          onClick={() => setOpen((value) => !value)}
+          className="ops-agent-fab flex h-14 w-14 items-center justify-center rounded-full bg-ink text-[var(--canvas)]"
+        >
+          <MessageSquare className="h-6 w-6" aria-hidden />
+        </button>
+      </div>
+    </div>,
+    document.body,
   )
 }

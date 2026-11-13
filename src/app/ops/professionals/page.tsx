@@ -7,6 +7,10 @@ import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { getLocale } from '@/lib/i18n/server'
 import { phrase } from '@/lib/i18n/phrases'
 import { listProfessionals } from '@/modules/professionals/service'
+import {
+  listEngagements,
+  type ProfessionalVisitRow,
+} from '@/modules/engagements/service'
 import { midragSectorsForSelect } from '@/modules/vendors/midrag/catalog'
 import { ProfessionalsBook } from './professionals-book'
 import { ProfessionalsManualAdd } from './professionals-manual-add'
@@ -92,6 +96,44 @@ export default async function ProfessionalsPage() {
     professionals = result.professionals
   } catch {
     professionals = []
+  }
+
+  const historyByProfessionalId: Record<string, ProfessionalVisitRow[]> = {}
+  const historyByPhone: Record<string, ProfessionalVisitRow[]> = {}
+  try {
+    const engagements = await listEngagements()
+    for (const row of engagements) {
+      const visit: ProfessionalVisitRow = {
+        engagementId: row.id,
+        ticketId: row.ticketId,
+        bundledTicketIds: row.bundledTicketIds,
+        storeCode: row.storeCode,
+        storeName: row.storeName,
+        approvedAmount: row.approvedAmount,
+        approvedAt: row.approvedAt,
+        status: row.status,
+        closedAt: row.closedAt,
+      }
+      if (row.professionalId) {
+        const list = historyByProfessionalId[row.professionalId] ?? []
+        list.push(visit)
+        historyByProfessionalId[row.professionalId] = list
+      }
+      const phone = normalizePhoneDigits(row.professionalPhone)
+      if (phone) {
+        const list = historyByPhone[phone] ?? []
+        list.push(visit)
+        historyByPhone[phone] = list
+      }
+    }
+    for (const list of Object.values(historyByProfessionalId)) {
+      list.sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
+    }
+    for (const list of Object.values(historyByPhone)) {
+      list.sort((a, b) => (a.approvedAt < b.approvedAt ? 1 : -1))
+    }
+  } catch {
+    // Book still works without visit history.
   }
 
   const ranked = rankKnownVendors(outcomes, 'hvac')
@@ -231,7 +273,11 @@ export default async function ProfessionalsPage() {
                 className="py-12"
               />
             ) : (
-              <ProfessionalsBook professionals={professionals} />
+              <ProfessionalsBook
+                professionals={professionals}
+                historyByProfessionalId={historyByProfessionalId}
+                historyByPhone={historyByPhone}
+              />
             )}
           </Panel>
         </section>
