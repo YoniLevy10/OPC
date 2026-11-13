@@ -6,6 +6,7 @@ import {
   formatCostBand,
   repairRangeLine,
   formatRecordedAmount,
+  isNoPriceYet,
   recordedTicketAmount,
 } from './estimate'
 
@@ -53,6 +54,13 @@ describe('repairRangeLine', () => {
     expect(repairRangeLine('other')).toContain('₪')
     expect(repairRangeLine('plumbing', { low: 400, high: 700 })).toContain('לפי מחיר שאושר')
   })
+
+  it('localizes the repair range for English', () => {
+    expect(repairRangeLine('hvac', null, 'en')).toContain('Estimated repair range')
+    expect(repairRangeLine('plumbing', { low: 400, high: 700 }, 'en')).toContain(
+      'approved prices',
+    )
+  })
 })
 
 describe('formatCostBand', () => {
@@ -66,6 +74,9 @@ describe('formatCostBand', () => {
 
   it('says there is no price when nothing was recorded', () => {
     expect(formatCostBand(null)).toBe('אין עדיין מחיר')
+    expect(formatCostBand(null, 'en')).toBe('No price yet')
+    expect(formatCostBand(null, 'fr')).toBe('Pas encore de prix')
+    expect(isNoPriceYet(formatCostBand(null, 'en'))).toBe(true)
   })
 })
 
@@ -83,5 +94,8 @@ describe('recordedTicketAmount', () => {
     ]
     expect(formatRecordedAmount(recordedTicketAmount(spends, 't1'))).toBe('₪700')
     expect(formatRecordedAmount(recordedTicketAmount(spends, 't3'))).toBe('אין עדיין מחיר')
+    expect(formatRecordedAmount(recordedTicketAmount(spends, 't3'), 'en')).toBe(
+      'No price yet',
+    )
   })
 })

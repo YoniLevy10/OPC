@@ -12,6 +12,7 @@ import {
   PanelHeader,
 } from '@/components/ui/primitives'
 import { WhatsAppShareButton } from '@/components/ui/whatsapp-share-button'
+import { usePhrase } from '@/components/i18n/locale-provider'
 type Snapshot = {
   id: string
   label: string
@@ -49,6 +50,7 @@ function downloadHref(s: Snapshot, format: 'csv' | 'xlsx' | 'pdf') {
 }
 
 export function ReportsHistoryClient() {
+  const p = usePhrase()
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -109,9 +111,9 @@ export function ReportsHistoryClient() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel elevated className="!p-4 md:!p-5">
-          <h2 className="t-section mb-3 text-ink">יצירת דוח חודשי</h2>
+          <h2 className="t-section mb-3 text-ink">{p('יצירת דוח חודשי')}</h2>
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="חודש" htmlFor="history-month">
+            <Field label={p('חודש')} htmlFor="history-month">
               <Input
                 id="history-month"
                 type="month"
@@ -127,7 +129,7 @@ export function ReportsHistoryClient() {
               disabled={busy || !month}
               onClick={() => void generate({ month })}
             >
-              {busy ? 'יוצר…' : 'יצירה ושמירה'}
+              {busy ? '…' : p('יצירה ושמירה')}
             </Button>
           </div>
           <p className="t-caption mt-3 text-ink-3">
@@ -137,9 +139,9 @@ export function ReportsHistoryClient() {
         </Panel>
 
         <Panel elevated className="!p-4 md:!p-5">
-          <h2 className="t-section mb-3 text-ink">יצירה לפי טווח תאריכים</h2>
+          <h2 className="t-section mb-3 text-ink">{p('יצירה לפי טווח תאריכים')}</h2>
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="מתאריך" htmlFor="history-from">
+            <Field label={p('מתאריך')} htmlFor="history-from">
               <Input
                 id="history-from"
                 type="date"
@@ -148,7 +150,7 @@ export function ReportsHistoryClient() {
                 onChange={(e) => setFrom(e.target.value)}
               />
             </Field>
-            <Field label="עד תאריך" htmlFor="history-to">
+            <Field label={p('עד תאריך')} htmlFor="history-to">
               <Input
                 id="history-to"
                 type="date"
@@ -164,7 +166,7 @@ export function ReportsHistoryClient() {
               disabled={busy || !from || !to}
               onClick={() => void generate({ from, to })}
             >
-              {busy ? 'יוצר…' : 'שמירת טווח'}
+              {busy ? '…' : p('שמירת טווח')}
             </Button>
           </div>
         </Panel>
@@ -172,11 +174,11 @@ export function ReportsHistoryClient() {
 
       <Panel flush elevated>
         <PanelHeader
-          title="ארכיון שמורים"
+          title={p('ארכיון שמורים')}
           meta={loading ? '…' : String(snapshots.length)}
           action={
             <Button asChild variant="ghost" size="sm">
-              <Link href="/ops/reports">סיכום חי</Link>
+              <Link href="/ops/reports">{p('סיכום חי')}</Link>
             </Button>
           }
         />
@@ -184,7 +186,7 @@ export function ReportsHistoryClient() {
           <p className="t-body px-4 py-8 text-ink-2">טוען…</p>
         ) : snapshots.length === 0 ? (
           <EmptyState
-            title="אין דוחות שמורים"
+            title={p('אין דוחות שמורים')}
             description="ב-1 לחודש נשמר כאן אוטומטית דוח של החודש שהסתיים. אפשר גם לשמור טווח למעלה."
           />
         ) : (
@@ -215,7 +217,7 @@ export function ReportsHistoryClient() {
                     </Button>
                     <WhatsAppShareButton
                       prefillText={shareText(s)}
-                      label="שיתוף"
+                      label={p('שיתוף')}
                       size="sm"
                     />
                   </div>

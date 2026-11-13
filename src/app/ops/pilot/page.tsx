@@ -109,8 +109,8 @@ export default async function PilotPage() {
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 md:gap-5">
         <OpsPageHero
-          title="כמה נחסך"
-          status="הכסף שנרשם, והסניף שדורש אותך."
+          title={p('כמה נחסך')}
+          status={p('הכסף שנרשם, והסניף שדורש אותך.')}
         />
 
         <section className="rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-4 md:px-5 md:py-5">

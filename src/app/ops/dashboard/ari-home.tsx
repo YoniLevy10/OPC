@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { SearchField } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { AriHomeModel, AriHomeStore } from '@/modules/ops/ari-home'
+import { isNoPriceYet } from '@/modules/recommendations/estimate'
 export type AriHomeStats = {
   open: number
   closedToday: number
@@ -34,7 +35,7 @@ function StoreFolder({
     0,
   )
   const range = storeCost[store.id]
-  const recorded = range && range !== 'אין עדיין מחיר' ? range : null
+  const recorded = range && !isNoPriceYet(range) ? range : null
 
   return (
     <article
@@ -125,7 +126,7 @@ function StoreFolder({
                 {category.rows.map((row) => {
                   const price = ticketCost[row.id]
                   const shownPrice =
-                    price && price !== 'אין עדיין מחיר' ? price : null
+                    price && !isNoPriceYet(price) ? price : null
                   return (
                     <li key={row.id}>
                       <Link
@@ -290,7 +291,7 @@ export function AriHomeBoard({
             <SearchField
               value={storeQuery}
               onValueChange={setStoreQuery}
-              placeholder="שם או קוד סניף"
+              placeholder={p('שם או קוד סניף')}
               className="w-full max-w-md"
             />
           </header>

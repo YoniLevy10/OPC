@@ -145,7 +145,7 @@ export default async function StoreDetailPage({
       <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-6xl">
         <PageToolbar
           backHref="/ops/stores"
-          backLabel="חזרה לחנויות"
+          backLabel={p("חזרה לחנויות")}
           showRefresh
           actions={
             <StoreSecondaryActions
@@ -173,30 +173,30 @@ export default async function StoreDetailPage({
         <div className="grid min-w-0 gap-3 lg:grid-cols-2 lg:items-start xl:grid-cols-12">
           <div className="flex min-w-0 flex-col gap-3 lg:col-span-1 xl:col-span-7">
             <PhoneFold
-              title="כתובת ואנשי קשר"
+              title={p("כתובת ואנשי קשר")}
               summary={store.city ?? store.address ?? store.code}
             >
               <Panel elevated>
                 <dl className="divide-y divide-border">
-                  <KeyValue label="כתובת">{store.address ?? "—"}</KeyValue>
-                  <KeyValue label="עיר">{store.city ?? "—"}</KeyValue>
-                  <KeyValue label="טלפון חנות">
+                  <KeyValue label={p("כתובת")}>{store.address ?? "—"}</KeyValue>
+                  <KeyValue label={p("עיר")}>{store.city ?? "—"}</KeyValue>
+                  <KeyValue label={p("טלפון חנות")}>
                     {store.store_phone ?? "—"}
                   </KeyValue>
-                  <KeyValue label="מייל">{store.store_email ?? "—"}</KeyValue>
-                  <KeyValue label="מנהל/ת">
+                  <KeyValue label={p("מייל")}>{store.store_email ?? "—"}</KeyValue>
+                  <KeyValue label={p("מנהל/ת")}>
                     {store.manager_name
                       ? `${store.manager_name}${store.manager_name_en ? ` · ${store.manager_name_en}` : ""}`
                       : "—"}
                   </KeyValue>
-                  <KeyValue label="טלפון מנהל">
+                  <KeyValue label={p("טלפון מנהל")}>
                     {store.manager_phone ?? "—"}
                   </KeyValue>
-                  <KeyValue label="מנהל אזור">
+                  <KeyValue label={p("מנהל אזור")}>
                     {store.area_manager ?? "—"}
                   </KeyValue>
-                  <KeyValue label="סטטוס">
-                    {store.is_active === false ? "מושבת" : "פעיל"}
+                  <KeyValue label={p("סטטוס")}>
+                    {store.is_active === false ? p("מושבת") : p("פעיל")}
                   </KeyValue>
                 </dl>
                 {canEdit ? (
@@ -213,11 +213,11 @@ export default async function StoreDetailPage({
             </PhoneFold>
 
             <PhoneFold
-              title="תיקיית מסמכים"
-              summary={`${storeDocuments.length} מסמכים`}
+              title={p("תיקיית מסמכים")}
+              summary={`${storeDocuments.length} ${p("מסמכים")}`}
             >
               <Panel elevated className="overflow-hidden">
-                <p className="t-section mb-3 text-ink">תיקיית מסמכים</p>
+                <p className="t-section mb-3 text-ink">{p("תיקיית מסמכים")}</p>
                 {storeDocuments.length > 0 ? (
                   <DocumentCabinet
                     documents={storeDocuments}
@@ -225,8 +225,8 @@ export default async function StoreDetailPage({
                   />
                 ) : (
                   <EmptyState
-                    title="אין מסמכים לסניף"
-                    description="מסמכים שיוקצו לסניף יופיעו כאן."
+                    title={p("אין מסמכים לסניף")}
+                    description={p("מסמכים שיוקצו לסניף יופיעו כאן.")}
                   />
                 )}
               </Panel>
@@ -234,17 +234,17 @@ export default async function StoreDetailPage({
             {!canDispatch || recent.length === 0 ? (
               <Panel elevated className="overflow-hidden">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="t-section text-ink">תקלות פתוחות</p>
+                  <p className="t-section text-ink">{p("תקלות פתוחות")}</p>
                   <Button asChild variant="ghost" size="sm">
                     <Link
                       href={`/ops/tickets?view=open&store=${encodeURIComponent(store.code)}`}
                     >
-                      לתור המלא
+                      {p("לתור המלא")}
                     </Link>
                   </Button>
                 </div>
                 {recent.length === 0 ? (
-                  <EmptyState title="אין תקלות פתוחות בחנות זו" />
+                  <EmptyState title={p("אין תקלות פתוחות בחנות זו")} />
                 ) : (
                   <ul className="divide-y divide-border">
                     {recent.map((t) => {
@@ -309,9 +309,9 @@ export default async function StoreDetailPage({
               />
             ) : null}
             {canEdit ? (
-              <PhoneFold title="עריכה" summary={store.name}>
+              <PhoneFold title={p("עריכה")} summary={store.name}>
                 <Panel elevated id="store-edit">
-                  <p className="t-section mb-3 text-ink">עריכה</p>
+                  <p className="t-section mb-3 text-ink">{p("עריכה")}</p>
                   <StoreEditControls
                     id={store.id}
                     name={store.name}
@@ -324,16 +324,16 @@ export default async function StoreDetailPage({
           </div>
 
           <div className="grid min-w-0 gap-3 lg:col-span-2 xl:col-span-12 lg:grid-cols-2">
-            <PhoneFold title="ציוד" summary={store.name}>
+            <PhoneFold title={p("ציוד")} summary={store.name}>
               <StoreAssetsPanel storeId={store.id} storeCode={store.code} />
             </PhoneFold>
 
             <PhoneFold
-              title="סניף ואנשי קשר"
+              title={p("סניף ואנשי קשר")}
               summary={store.manager_name ?? store.area_manager ?? "—"}
             >
               <Panel elevated>
-                <p className="t-section mb-3 text-ink">סניף ואנשי קשר</p>
+                <p className="t-section mb-3 text-ink">{p("סניף ואנשי קשר")}</p>
                 <StoreDirectoryPanel
                   storeId={store.id}
                   code={store.code}

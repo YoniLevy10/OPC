@@ -10,10 +10,15 @@ import { listSpends } from '@/lib/data/ops-ledger'
 import { spendAmountForTrueCost, spendsContributeToTrueCost } from '@/modules/spend/true-cost'
 import { PartsStock } from '../inventory/parts-stock'
 import { PhoneFold } from '@/components/layout/phone-fold'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AssetsPage() {
+  const locale = await getLocale()
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
 
@@ -48,13 +53,15 @@ export default async function AssetsPage() {
     <OpsAppShell>
       <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <OpsPageHero
-          title="ציוד וחלקים"
-          status="למעלה הציוד בסניף. למטה החלקים במחסן."
+          title={p('ציוד וחלקים')}
+          status={p('למעלה הציוד בסניף. למטה החלקים במחסן.')}
         />
         <section id="store" className="flex flex-col gap-3">
           <div>
-            <h2 className="t-section text-ink">בסניף</h2>
-            <p className="t-meta mt-1 text-ink-2">המזגן, המנעול והקופה, עם העלות שנרשמה עליהם.</p>
+            <h2 className="t-section text-ink">{p('בסניף')}</h2>
+            <p className="t-meta mt-1 text-ink-2">
+              {p('המזגן, המנעול והקופה, עם העלות שנרשמה עליהם.')}
+            </p>
           </div>
         <AssetsAdmin
           stores={stores.map((s) => ({
@@ -66,7 +73,7 @@ export default async function AssetsPage() {
           assetTrueCost={assetTrueCost}
         />
         </section>
-        <PhoneFold title="חלקים במחסן" summary="מלאי">
+        <PhoneFold title={p('חלקים במחסן')} summary={p('מלאי')}>
         <PartsStock />
         </PhoneFold>
       </div>

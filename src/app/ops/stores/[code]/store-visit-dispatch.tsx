@@ -15,6 +15,7 @@ import {
   type VisitResult,
 } from '@/app/ops/tickets/visit-confirm-sheet'
 import { lockPlannedVisitAction } from '@/app/ops/tickets/engagement-actions'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type TicketOpt = {
   id: string
@@ -55,6 +56,7 @@ export function StoreVisitDispatch({
   initialSelectedIds?: string[]
 }) {
   const router = useRouter()
+  const p = usePhrase()
   const toast = useToast()
   const [, startTransition] = useTransition()
   const [selected, setSelected] = useState<Set<string>>(
@@ -123,7 +125,7 @@ export function StoreVisitDispatch({
       opts?.retryFailedOnly && plannedTicketIds.length > 0
         ? plannedTicketIds
         : planTicketIds()
-    if (ids.length === 0) throw new Error('אין תקלות לביקור')
+    if (ids.length === 0) throw new Error(p('אין תקלות לביקור'))
     setPlannedTicketIds(ids)
     const key = buildVisitIdempotencyKey({
       storeId,
@@ -147,11 +149,11 @@ export function StoreVisitDispatch({
     const data = await res.json().catch(() => ({}))
     if (!res.ok && res.status !== 207) {
       throw new Error(
-        typeof data.error === 'string' ? data.error : 'תכנון הביקור נכשל',
+        typeof data.error === 'string' ? data.error : p('תכנון הביקור נכשל'),
       )
     }
     const visit = data.visit as VisitResult | undefined
-    if (!visit?.items) throw new Error('תשובה לא תקינה מהשרת')
+    if (!visit?.items) throw new Error(p('תשובה לא תקינה מהשרת'))
     return visit
   }
 
@@ -161,7 +163,7 @@ export function StoreVisitDispatch({
     amount: number
     scope: string
   }) {
-    let line = 'השליחה לחנות נכשלה'
+    let line = p('השליחה לחנות נכשלה')
     let ok = false
     await run(async () => {
       try {
@@ -208,14 +210,14 @@ export function StoreVisitDispatch({
         const failed = visit.items.filter((i) => i.can_retry).length
         if (failed > 0) {
           toast.push({
-            title: `שיגור חלקי · ${failed} נכשלו`,
+            title: p('שיגור חלקי · {n} נכשלו', { n: failed }),
             tone: 'critical',
           })
         }
         startTransition(() => router.refresh())
       } catch (error) {
         toast.push({
-          title: error instanceof Error ? error.message : 'ניסיון חוזר נכשל',
+          title: error instanceof Error ? error.message : p('ניסיון חוזר נכשל'),
           tone: 'critical',
         })
       }
@@ -224,9 +226,9 @@ export function StoreVisitDispatch({
 
   return (
     <Panel elevated>
-      <p className="t-section mb-1 text-ink">תכנון ביקור</p>
+      <p className="t-section mb-1 text-ink">{p('תכנון ביקור')}</p>
       <p className="t-caption mb-3 text-ink-3">
-        סמנו תקלות בחנות זו. הזינו איש מקצוע; המחיר אופציונלי.
+        {p('סמנו תקלות בחנות זו. הזינו איש מקצוע; המחיר אופציונלי.')}
       </p>
       <ul className="mb-3 space-y-2">
         {tickets.map((t) => {
@@ -254,7 +256,7 @@ export function StoreVisitDispatch({
                 </span>
                 {engaged ? (
                   <span className="t-caption block font-semibold text-[var(--tenant)]">
-                    נשלח איש מקצוע לתיקון
+                    {p('נשלח איש מקצוע לתיקון')}
                   </span>
                 ) : null}
                 {t.spendBlock ? (
@@ -270,7 +272,9 @@ export function StoreVisitDispatch({
       </ul>
       {vendors.length === 0 ? (
         <p className="t-body mb-2 text-[var(--signal-warning)]" role="status">
-          אין ספקים פעילים לשיגור אוטומטי — אפשר להזין איש מקצוע ידנית
+          {p(
+            'אין ספקים פעילים לשיגור אוטומטי — אפשר להזין איש מקצוע ידנית',
+          )}
         </p>
       ) : null}
       <Button
@@ -282,7 +286,7 @@ export function StoreVisitDispatch({
         onClick={openSheet}
       >
         <Truck className="h-4 w-4" aria-hidden />
-        תכנן ביקור ({selectedList.length})
+        {p('תכנן ביקור')} ({selectedList.length})
       </Button>
 
       <VisitConfirmSheet
@@ -291,8 +295,8 @@ export function StoreVisitDispatch({
           setOpen(next)
           if (!next) setResult(null)
         }}
-        title={`ביקור · חנות #${storeCode}`}
-        storeLabel={`חנות #${storeCode}`}
+        title={`${p('ביקור')} · ${p('חנות')} #${storeCode}`}
+        storeLabel={`${p('חנות')} #${storeCode}`}
         tickets={selectedList}
         vendors={vendors}
         city={city}

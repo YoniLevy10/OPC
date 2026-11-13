@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { he } from 'date-fns/locale'
-import { usePhrase } from '@/components/i18n/locale-provider'
+import { enUS, fr, he } from 'date-fns/locale'
+import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
+import type { Locale } from '@/lib/i18n/locale'
 import { EmptyState, Panel, PanelHeader } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 import type {
@@ -34,9 +35,15 @@ const SOURCE_LABEL: Record<AlertSource, string> = {
   store_confirm: 'אישור חנות',
 }
 
-function fmtWhen(iso: string): string {
+function dateFnsLocale(locale: Locale) {
+  if (locale === 'fr') return fr
+  if (locale === 'en') return enUS
+  return he
+}
+
+function fmtWhen(iso: string, locale: Locale): string {
   try {
-    return format(parseISO(iso), 'd/M HH:mm', { locale: he })
+    return format(parseISO(iso), 'd/M HH:mm', { locale: dateFnsLocale(locale) })
   } catch {
     return iso
   }
@@ -54,6 +61,7 @@ export function AlertsClient({
   partialFailure: boolean
 }) {
   const p = usePhrase()
+  const { locale } = useLocale()
   const [bucket, setBucket] = useState<AlertBucket | 'open'>('open')
   const [storeCode, setStoreCode] = useState('')
   const [source, setSource] = useState<AlertSource | 'all'>('all')
@@ -96,12 +104,12 @@ export function AlertsClient({
       const hottest = [...alerts].sort((a, b) => rank(a.severity) - rank(b.severity))[0]
       return {
         key,
-        name: hottest?.storeName || 'בלי סניף',
+        name: hottest?.storeName || p('בלי סניף'),
         alerts,
         hottest: hottest?.nextAction ?? '',
       }
     })
-  }, [filtered])
+  }, [filtered, p])
 
   function alertPriority(
     severity: OpsAlert['severity'],
@@ -119,7 +127,7 @@ export function AlertsClient({
     )
     const meta = [
       withStore && alert.storeName ? alert.storeName : null,
-      late ? 'באיחור' : null,
+      late ? p('באיחור') : null,
       alert.nextAction,
     ]
       .filter(Boolean)
@@ -129,7 +137,7 @@ export function AlertsClient({
         key={alert.id}
         href={alert.href}
         priority={alertPriority(alert.severity)}
-        leading={fmtWhen(alert.at)}
+        leading={fmtWhen(alert.at, locale)}
         title={alert.title}
         subtitle={meta || undefined}
       />
@@ -149,11 +157,13 @@ export function AlertsClient({
           <p className="t-meta mt-1 text-ink-2">
             {p('חלק מהמקורות לא נטענו')}
             {' · '}
-            תקלות: {sources.tickets === 'failed' ? 'נכשל' : 'תקין'}
+            {p('תקלות')}:{' '}
+            {sources.tickets === 'failed' ? p('נכשל') : p('תקין')}
             {' · '}
-            פנקס: {sources.ledger === 'failed' ? 'נכשל' : 'תקין'}
+            {p('פנקס')}: {sources.ledger === 'failed' ? p('נכשל') : p('תקין')}
             {' · '}
-            היסטוריה: {sources.history === 'failed' ? 'נכשל' : 'תקין'}
+            {p('היסטוריה')}:{' '}
+            {sources.history === 'failed' ? p('נכשל') : p('תקין')}
           </p>
         </div>
       ) : null}
@@ -227,7 +237,7 @@ export function AlertsClient({
             <option value="all">{p('כל המקורות')}</option>
             {(Object.keys(SOURCE_LABEL) as AlertSource[]).map((key) => (
               <option key={key} value={key}>
-                {SOURCE_LABEL[key]}
+                {p(SOURCE_LABEL[key])}
               </option>
             ))}
           </select>
@@ -283,7 +293,7 @@ export function AlertsClient({
                 <PhoneRow
                   key={row.id}
                   href={row.href}
-                  leading={fmtWhen(row.at)}
+                  leading={fmtWhen(row.at, locale)}
                   title={row.summary}
                 />
               ) : (
@@ -293,7 +303,7 @@ export function AlertsClient({
                 >
                   <span className="t-body text-ink">{row.summary}</span>
                   <span className="t-meta t-num shrink-0 text-ink-3">
-                    {fmtWhen(row.at)}
+                    {fmtWhen(row.at, locale)}
                   </span>
                 </div>
               ),

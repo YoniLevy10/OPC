@@ -111,6 +111,8 @@ export default async function TicketsPage({
   }
   await hydrateOpsLedger()
   const locale = await getLocale()
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
 
   const resolved = await resolveTicketsSupabase(actor)
 
@@ -293,7 +295,7 @@ export default async function TicketsPage({
           {canEditStores ? (
             focusedStore ? (
               <StoreCreateForm
-                triggerLabel="עריכת סניף"
+                triggerLabel={p('עריכת סניף')}
                 triggerVariant="secondary"
                 triggerSize="sm"
                 store={{
@@ -310,7 +312,7 @@ export default async function TicketsPage({
               />
             ) : (
               <StoreCreateForm
-                triggerLabel="הוספת סניף"
+                triggerLabel={p('הוספת סניף')}
                 triggerVariant="secondary"
                 triggerSize="sm"
               />
@@ -342,7 +344,7 @@ export default async function TicketsPage({
 
         {listError ? (
           <ErrorState
-            title="שגיאה בטעינה"
+            title={p('שגיאה בטעינה')}
             description={listError}
             action={
               <Button asChild variant="secondary" size="sm">
@@ -383,14 +385,15 @@ export default async function TicketsPage({
             <Panel flush elevated className="overflow-hidden">
               {rows.length === 0 ? (
                 <EmptyState
-                  title="אין תקלות פתוחות"
-                  description="כשתדווח תקלה חדשה — היא תופיע כאן."
+                  title={p('אין תקלות פתוחות')}
+                  description={p('כשתדווח תקלה חדשה — היא תופיע כאן.')}
                   icon={PartyPopper}
                 />
               ) : (
                 <TicketStoreGroups
                   rows={rows}
                   cards={bundleCards}
+                  locale={locale}
                   renderRow={(t) => (
                     <TicketQueueItem
                       key={t.id}
@@ -415,12 +418,12 @@ export default async function TicketsPage({
               <EmptyState
                 title={
                   view === 'resolved'
-                    ? 'אין תקלות שהסתיימו עדיין'
-                    : 'אין תקלות פתוחות'
+                    ? p('אין תקלות שהסתיימו עדיין')
+                    : p('אין תקלות פתוחות')
                 }
                 description={
                   view === 'open'
-                    ? 'כשתדווח תקלה חדשה — היא תופיע כאן.'
+                    ? p('כשתדווח תקלה חדשה — היא תופיע כאן.')
                     : undefined
                 }
                 icon={PartyPopper}
@@ -429,6 +432,7 @@ export default async function TicketsPage({
               <TicketStoreGroups
                 rows={rows}
                 cards={bundleCards}
+                locale={locale}
                 renderRow={(t) => (
                   <TicketQueueItem
                     key={t.id}
@@ -450,9 +454,11 @@ export default async function TicketsPage({
         {totalPages > 1 ? (
           <nav className="flex items-center justify-between gap-3 border-t border-border pt-3">
             <p className="t-meta t-num text-ink-3">
-              {(current - 1) * PAGE_SIZE + 1}–
-              {Math.min(current * PAGE_SIZE, filtered.length)} מתוך{' '}
-              {filtered.length}
+              {p('{from}–{to} מתוך {total}', {
+                from: (current - 1) * PAGE_SIZE + 1,
+                to: Math.min(current * PAGE_SIZE, filtered.length),
+                total: filtered.length,
+              })}
             </p>
             <div className="flex gap-2">
               <Button
@@ -464,7 +470,7 @@ export default async function TicketsPage({
                 <Link
                   href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}page=${current - 1}`}
                 >
-                  הקודם
+                  {p('הקודם')}
                 </Link>
               </Button>
               <Button
@@ -478,7 +484,7 @@ export default async function TicketsPage({
                 <Link
                   href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}page=${current + 1}`}
                 >
-                  הבא
+                  {p('הבא')}
                 </Link>
               </Button>
             </div>

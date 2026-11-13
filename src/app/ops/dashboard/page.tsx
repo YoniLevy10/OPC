@@ -32,7 +32,8 @@ export default async function OpsDashboardPage({
   }
   await hydrateOpsLedger()
   const locale = await getLocale()
-  const p = (text: string) => phrase(locale, text)
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const noticeCode = (await searchParams).notice
 
   const [openResult, doneResult, storesResult] = await Promise.all([
@@ -82,7 +83,7 @@ export default async function OpsDashboardPage({
   let recordedMissing = 0
   for (const ticket of openTickets) {
     const amount = recordedTicketAmount(spends, ticket.id)
-    ticketCost[ticket.id] = formatRecordedAmount(amount)
+    ticketCost[ticket.id] = formatRecordedAmount(amount, locale)
     const storeId = ticket.store_id || ''
     const row = byStore.get(storeId) ?? { sum: 0, missing: 0 }
     if (amount == null) {
@@ -95,11 +96,14 @@ export default async function OpsDashboardPage({
     byStore.set(storeId, row)
   }
   for (const [storeId, row] of byStore) {
-    if (row.sum <= 0) storeCost[storeId] = 'אין עדיין מחיר'
+    if (row.sum <= 0) storeCost[storeId] = p('אין עדיין מחיר')
     else if (row.missing > 0) {
-      storeCost[storeId] = `${formatRecordedAmount(row.sum)} נרשמו, ${row.missing} בלי מחיר`
+      storeCost[storeId] = p('{amount} נרשמו, {missing} בלי מחיר', {
+        amount: formatRecordedAmount(row.sum, locale),
+        missing: row.missing,
+      })
     }
-    else storeCost[storeId] = formatRecordedAmount(row.sum)
+    else storeCost[storeId] = formatRecordedAmount(row.sum, locale)
   }
   const notice =
     noticeCode === 'sent'
@@ -131,8 +135,11 @@ export default async function OpsDashboardPage({
               : recordedSum <= 0
                 ? p('אין עדיין מחיר')
                 : recordedMissing > 0
-                  ? `${formatRecordedAmount(recordedSum)} נרשמו, ${recordedMissing} בלי מחיר`
-                  : formatRecordedAmount(recordedSum)
+                  ? p('{amount} נרשמו, {missing} בלי מחיר', {
+                      amount: formatRecordedAmount(recordedSum, locale),
+                      missing: recordedMissing,
+                    })
+                  : formatRecordedAmount(recordedSum, locale)
           }
           notice={notice}
         />

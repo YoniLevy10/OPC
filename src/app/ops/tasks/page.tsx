@@ -13,6 +13,8 @@ import { ISRAEL_STORES, israelStoreId } from '@/modules/stores/israel-stores'
 import { readTaskStatus } from '@/modules/tasks/status'
 import { voiceTasksAction } from '../work-actions'
 import { TaskBoard } from './task-board'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,32 +72,45 @@ export default async function TasksPage() {
   const counts = { open: 0, doing: 0, waiting: 0, done: 0 }
   for (const task of tasks) counts[readTaskStatus(task)] += 1
 
+  const locale = await getLocale()
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
+  const statusLine = tasks.length
+    ? `${counts.open} ${p('פתוחות')} · ${counts.doing} ${p('בטיפול')} · ${counts.waiting} ${p('ממתינות')} · ${counts.done} ${p('הושלמו')}`
+    : p('אין משימות פתוחות')
+
   return (
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 overflow-x-clip lg:max-w-4xl">
-        <OpsPageHero
-          largeTitle
-          title="משימות"
-          status={
-            tasks.length
-              ? `${counts.open} פתוחות · ${counts.doing} בטיפול · ${counts.waiting} ממתינות · ${counts.done} הושלמו`
-              : 'אין משימות פתוחות'
-          }
-        />
+        <OpsPageHero largeTitle title={p('משימות')} status={statusLine} />
         {tasks.length ? <TaskBoard tasks={tasks} /> : null}
         <PhoneFoldStack>
-        <PhoneFold title="תחזוקה מונעת" summary="כיבוי אש · כיול · מחזור">
+        <PhoneFold
+          title={p('תחזוקה מונעת')}
+          summary={p('כיבוי אש · כיול · מחזור')}
+        >
           <form action={addMaintenanceTaskAction} className="grid gap-3">
             <p className="t-meta text-ink-2">
-              משימת תחזוקה שחוזרת — למשל בדיקת כיבוי אש או כיול ציוד. אחרי השלמה נפתח המופע הבא לפי המחזור.
+              {p(
+                'משימת תחזוקה שחוזרת — למשל בדיקת כיבוי אש או כיול ציוד. אחרי השלמה נפתח המופע הבא לפי המחזור.',
+              )}
             </p>
-            <Field label="משימה" htmlFor="task-title" hint="למשל: בדיקת כיבוי אש · כיול אודיומטר">
-              <Input id="task-title" name="title" placeholder="בדיקת כיבוי אש" required />
+            <Field
+              label={p('משימה')}
+              htmlFor="task-title"
+              hint={p('למשל: בדיקת כיבוי אש · כיול אודיומטר')}
+            >
+              <Input
+                id="task-title"
+                name="title"
+                placeholder={p('בדיקת כיבוי אש')}
+                required
+              />
             </Field>
-            <Field label="סניף" htmlFor="task-store">
+            <Field label={p('סניף')} htmlFor="task-store">
               <Select id="task-store" name="storeCode" required defaultValue="">
                 <option value="" disabled>
-                  בחירת סניף
+                  {p('בחירת סניף')}
                 </option>
                 {ISRAEL_STORES.map((store) => (
                   <option key={store.code} value={store.code}>
@@ -105,23 +120,23 @@ export default async function TasksPage() {
               </Select>
             </Field>
             {/* Real storeId is resolved from storeCode in addMaintenanceTaskAction */}
-            <Field label="אחראי" htmlFor="task-owner">
-              <Input id="task-owner" name="assignee" placeholder="שם" />
+            <Field label={p('אחראי')} htmlFor="task-owner">
+              <Input id="task-owner" name="assignee" placeholder={p('שם')} />
             </Field>
-            <Field label="מועד" htmlFor="task-due">
+            <Field label={p('מועד')} htmlFor="task-due">
               <Input id="task-due" name="due" type="date" />
             </Field>
             <Field
-              label="מחזור חזרה"
+              label={p('מחזור חזרה')}
               htmlFor="task-repeat"
-              hint="30 יום · 90 יום · שנה — או מספר ימים מותאם"
+              hint={p('30 יום · 90 יום · שנה — או מספר ימים מותאם')}
             >
               <div className="grid gap-2">
                 <Select id="task-repeat" name="repeatDays" defaultValue="365">
-                  <option value="">בלי מחזור</option>
+                  <option value="">{p('בלי מחזור')}</option>
                   {REPEAT_PRESETS.map((preset) => (
                     <option key={preset.days} value={preset.days}>
-                      {preset.label}
+                      {p(preset.label)}
                     </option>
                   ))}
                 </Select>
@@ -130,32 +145,41 @@ export default async function TasksPage() {
                   name="repeatDaysCustom"
                   type="number"
                   min={1}
-                  placeholder="או מספר ימים מותאם (אופציונלי)"
-                  aria-label="מספר ימים מותאם"
+                  placeholder={p('או מספר ימים מותאם (אופציונלי)')}
+                  aria-label={p('מספר ימים מותאם')}
                 />
               </div>
             </Field>
-            <Field label="תקלה מקושרת" htmlFor="task-ticket">
-              <Input id="task-ticket" name="ticketId" placeholder="מספר תקלה, אם יש" />
+            <Field label={p('תקלה מקושרת')} htmlFor="task-ticket">
+              <Input
+                id="task-ticket"
+                name="ticketId"
+                placeholder={p('מספר תקלה, אם יש')}
+              />
             </Field>
-            <Button type="submit">הוספת משימת תחזוקה</Button>
+            <Button type="submit">{p('הוספת משימת תחזוקה')}</Button>
           </form>
         </PhoneFold>
-        <PhoneFold title="פיצול מהקלטה" summary="כמה משימות במשפט">
+        <PhoneFold
+          title={p('פיצול מהקלטה')}
+          summary={p('כמה משימות במשפט')}
+        >
           <form action={voiceTasksAction} className="grid gap-3">
             <Field
-              label="פיצול מהקלטה"
+              label={p('פיצול מהקלטה')}
               htmlFor="task-transcript"
-              hint="כמה משימות במשפט אחד, מופרדות ב«וגם»."
+              hint={p('כמה משימות במשפט אחד, מופרדות ב«וגם».')}
             >
               <Input
                 id="task-transcript"
                 name="transcript"
-                placeholder="לבדוק מזגן בסניף 6018 וגם להזמין מנעולן"
+                placeholder={p('לבדוק מזגן בסניף 6018 וגם להזמין מנעולן')}
                 required
               />
             </Field>
-            <Button type="submit" variant="secondary">פיצול מהקלטה</Button>
+            <Button type="submit" variant="secondary">
+              {p('פיצול מהקלטה')}
+            </Button>
           </form>
         </PhoneFold>
         </PhoneFoldStack>

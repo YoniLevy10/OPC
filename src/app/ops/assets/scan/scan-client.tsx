@@ -19,6 +19,7 @@ import {
   loadScanHistory,
   type ScanHistoryEntry,
 } from '@/modules/assets/barcode'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type StoreOpt = { id: string; code: string; name: string }
 
@@ -39,6 +40,7 @@ type LastResult =
   | null
 
 export function AssetScanClient() {
+  const p = usePhrase()
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [stores, setStores] = useState<StoreOpt[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,7 +66,7 @@ export function AssetScanClient() {
         fetch('/api/stores'),
       ])
       const assetsJson = await assetsRes.json()
-      if (!assetsRes.ok) throw new Error(assetsJson.error || 'טעינת נכסים נכשלה')
+      if (!assetsRes.ok) throw new Error(assetsJson.error || p('טעינת נכסים נכשלה'))
       setAssets(assetsJson.assets ?? [])
 
       if (storesRes.ok) {
@@ -80,11 +82,11 @@ export function AssetScanClient() {
         setStoreId((prev) => prev || list[0]?.id || '')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה')
+      setError(err instanceof Error ? err.message : p('טעינה נכשלה'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [p])
 
   useEffect(() => {
     void load()
@@ -106,16 +108,16 @@ export function AssetScanClient() {
 
       if (match) {
         setLast({ kind: 'found', asset: match as AssetRow })
-        setNotice(`נמצא · ${match.code} — ${match.name}`)
+        setNotice(p('נמצא · {code} — {name}', { code: match.code, name: match.name }))
         return
       }
 
       setLast({ kind: 'missing', query: raw })
       setBarcode(raw)
       setCode(raw.slice(0, 32))
-      setNotice(`לא נמצא · ${raw}`)
+      setNotice(p('לא נמצא · {query}', { query: raw }))
     },
-    [assets],
+    [assets, p],
   )
 
   async function onCreate(e: FormEvent) {
@@ -135,16 +137,16 @@ export function AssetScanClient() {
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'יצירה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('יצירה נכשלה'))
       setCreateOpen(false)
       setName('')
-      setNotice('הנכס נוסף')
+      setNotice(p('הנכס נוסף'))
       await load()
       if (json.asset) {
         setLast({ kind: 'found', asset: json.asset })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'יצירה נכשלה')
+      setError(err instanceof Error ? err.message : p('יצירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -152,24 +154,24 @@ export function AssetScanClient() {
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
-      {error ? <ErrorState title="שגיאה" description={error} /> : null}
+      {error ? <ErrorState title={p('שגיאה')} description={error} /> : null}
       {notice ? <Notice tone="progress">{notice}</Notice> : null}
 
       <Panel className="overflow-hidden p-4">
-        <h2 className="t-body-strong text-ink">מצלמה רציפה</h2>
+        <h2 className="t-body-strong text-ink">{p('מצלמה רציפה')}</h2>
         <p className="t-meta mt-1 text-ink-3">
-          סרקו ברקוד מוצר או תווית optical:asset. סריקות כפולות מסוננות.
+          {p('סרקו ברקוד מוצר או תווית optical:asset. סריקות כפולות מסוננות.')}
         </p>
         <div className="mt-4">
           {loading ? (
-            <p className="t-body text-ink-2">טוען נכסים…</p>
+            <p className="t-body text-ink-2">{p('טוען נכסים…')}</p>
           ) : (
             <BarcodeScannerModal
               open
               continuous
               onOpenChange={() => undefined}
               onScan={onScan}
-              title="סריקה"
+              title={p('סריקה')}
             />
           )}
         </div>
@@ -177,7 +179,7 @@ export function AssetScanClient() {
 
       {last?.kind === 'found' ? (
         <Panel className="p-4">
-          <p className="t-caption text-ink-3">תוצאה</p>
+          <p className="t-caption text-ink-3">{p('תוצאה')}</p>
           <h3 className="t-title mt-1 text-ink">{last.asset.name}</h3>
           <p className="t-body t-num mt-1 text-ink-2" dir="ltr">
             {last.asset.code}
@@ -185,17 +187,20 @@ export function AssetScanClient() {
           </p>
           <p className="t-meta mt-1 text-ink-3">
             {last.asset.store_code
-              ? `סניף ${last.asset.store_code}${last.asset.store_name ? ` · ${last.asset.store_name}` : ''}`
-              : 'סניף לא ידוע'}
+              ? p('סניף {code}{name}', {
+                  code: last.asset.store_code,
+                  name: last.asset.store_name ? ` · ${last.asset.store_name}` : '',
+                })
+              : p('סניף לא ידוע')}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button asChild variant="primary" size="sm">
               <Link href={`/ops/tickets?q=${encodeURIComponent(last.asset.code)}`}>
-                תקלות לנכס
+                {p('תקלות לנכס')}
               </Link>
             </Button>
             <Button asChild variant="secondary" size="sm">
-              <Link href="/ops/assets">רשימת נכסים</Link>
+              <Link href="/ops/assets">{p('רשימת נכסים')}</Link>
             </Button>
           </div>
         </Panel>
@@ -204,8 +209,8 @@ export function AssetScanClient() {
       {last?.kind === 'missing' ? (
         <Panel className="p-4">
           <EmptyState
-            title="נכס לא נמצא"
-            description={`אין התאמה ל־${last.query}`}
+            title={p('נכס לא נמצא')}
+            description={p('אין התאמה ל־{query}', { query: last.query })}
             icon={Package}
             action={
               <Button
@@ -216,7 +221,7 @@ export function AssetScanClient() {
                 disabled={!stores.length}
               >
                 <Plus className="h-4 w-4" aria-hidden />
-                הוספת נכס
+                {p('הוספת נכס')}
               </Button>
             }
           />
@@ -225,7 +230,7 @@ export function AssetScanClient() {
 
       {history.length > 0 ? (
         <Panel className="p-4">
-          <h3 className="t-caption text-ink-3">היסטוריית סריקה</h3>
+          <h3 className="t-caption text-ink-3">{p('היסטוריית סריקה')}</h3>
           <ul className="mt-2 divide-y divide-border">
             {history.slice(0, 12).map((item) => (
               <li
@@ -242,8 +247,8 @@ export function AssetScanClient() {
                   </span>
                   <span className="t-caption text-ink-3">
                     {item.success
-                      ? item.foundName ?? 'נמצא'
-                      : 'לא נמצא'}
+                      ? item.foundName ?? p('נמצא')
+                      : p('לא נמצא')}
                   </span>
                 </button>
                 <span className="t-meta shrink-0 text-ink-3">
@@ -261,11 +266,11 @@ export function AssetScanClient() {
       <Modal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="הוספת נכס מסריקה"
-        description="הברקוד שנסרק כבר מולא."
+        title={p('הוספת נכס מסריקה')}
+        description={p('הברקוד שנסרק כבר מולא.')}
       >
         <form onSubmit={onCreate} className="space-y-3">
-          <Field label="סניף" htmlFor="scan-store">
+          <Field label={p('סניף')} htmlFor="scan-store">
             <Select
               id="scan-store"
               value={storeId}
@@ -279,7 +284,7 @@ export function AssetScanClient() {
               ))}
             </Select>
           </Field>
-          <Field label="קוד פנימי" htmlFor="scan-code">
+          <Field label={p('קוד פנימי')} htmlFor="scan-code">
             <Input
               id="scan-code"
               required
@@ -288,7 +293,7 @@ export function AssetScanClient() {
               dir="ltr"
             />
           </Field>
-          <Field label="ברקוד מוצר" htmlFor="scan-barcode">
+          <Field label={p('ברקוד מוצר')} htmlFor="scan-barcode">
             <Input
               id="scan-barcode"
               value={barcode}
@@ -296,25 +301,25 @@ export function AssetScanClient() {
               dir="ltr"
             />
           </Field>
-          <Field label="שם" htmlFor="scan-name">
+          <Field label={p('שם')} htmlFor="scan-name">
             <Input
               id="scan-name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="שם הנכס"
+              placeholder={p('שם הנכס')}
             />
           </Field>
-          <Field label="סוג" htmlFor="scan-type">
+          <Field label={p('סוג')} htmlFor="scan-type">
             <Select
               id="scan-type"
               value={assetType}
               onChange={(e) => setAssetType(e.target.value)}
             >
-              <option value="hvac">מיזוג</option>
-              <option value="electrical">חשמל</option>
-              <option value="optical">ציוד אופטי</option>
-              <option value="other">אחר</option>
+              <option value="hvac">{p('מיזוג')}</option>
+              <option value="electrical">{p('חשמל')}</option>
+              <option value="optical">{p('ציוד אופטי')}</option>
+              <option value="other">{p('אחר')}</option>
             </Select>
           </Field>
           <div className="flex justify-end gap-2 pt-1">
@@ -324,7 +329,7 @@ export function AssetScanClient() {
               size="sm"
               onClick={() => setCreateOpen(false)}
             >
-              ביטול
+              {p('ביטול')}
             </Button>
             <Button
               type="submit"
@@ -332,7 +337,7 @@ export function AssetScanClient() {
               size="sm"
               disabled={busy || !storeId}
             >
-              {busy ? 'שומר…' : 'הוספה'}
+              {busy ? p('שומר…') : p('הוספה')}
             </Button>
           </div>
         </form>

@@ -1,4 +1,6 @@
 import type { MemberRole } from '@/lib/auth/types'
+import type { Locale } from '@/lib/i18n/locale'
+import { phrase } from '@/lib/i18n/phrases'
 
 /**
  * Product roles for Optical Center (pilot).
@@ -38,6 +40,14 @@ export const PRODUCT_ROLE_HELP_HE: Record<ProductRole, string> = {
   internal_technician: 'שטח: רואה רק עבודות ששויכו אליו ב־/tech',
 }
 
+export function productRoleLabel(role: ProductRole, locale: Locale = 'he'): string {
+  return phrase(locale, PRODUCT_ROLE_LABELS_HE[role])
+}
+
+export function productRoleHelp(role: ProductRole, locale: Locale = 'he'): string {
+  return phrase(locale, PRODUCT_ROLE_HELP_HE[role])
+}
+
 export const PRODUCT_ROLE_OPTIONS: {
   value: ProductRole
   label: string
@@ -45,6 +55,16 @@ export const PRODUCT_ROLE_OPTIONS: {
   value,
   label: PRODUCT_ROLE_LABELS_HE[value],
 }))
+
+export function productRoleOptions(locale: Locale = 'he'): {
+  value: ProductRole
+  label: string
+}[] {
+  return PRODUCT_ROLES.map((value) => ({
+    value,
+    label: productRoleLabel(value, locale),
+  }))
+}
 
 export function isProductRole(role: string): role is ProductRole {
   return (PRODUCT_ROLES as readonly string[]).includes(role)
@@ -56,25 +76,36 @@ export function isAssignableRole(role: MemberRole): role is ProductRole {
 
 /** Display label for any DB role (legacy → nearest product label). */
 export function roleLabelHe(role: MemberRole | string): string {
+  return roleLabel(role, 'he')
+}
+
+/** Display label for any DB role (legacy → nearest product label). */
+export function roleLabel(role: MemberRole | string, locale: Locale = 'he'): string {
   switch (role) {
     case 'global_admin':
-      return PRODUCT_ROLE_LABELS_HE.global_admin
+      return productRoleLabel('global_admin', locale)
     case 'global_maintenance':
     case 'country_manager':
     case 'regional_manager':
       return role === 'global_maintenance'
-        ? PRODUCT_ROLE_LABELS_HE.global_maintenance
-        : `${PRODUCT_ROLE_LABELS_HE.global_maintenance} (ישן)`
+        ? productRoleLabel('global_maintenance', locale)
+        : phrase(locale, '{role} (ישן)', {
+            role: productRoleLabel('global_maintenance', locale),
+          })
     case 'store_employee':
     case 'store_manager':
       return role === 'store_employee'
-        ? PRODUCT_ROLE_LABELS_HE.store_employee
-        : `${PRODUCT_ROLE_LABELS_HE.store_employee} (ישן)`
+        ? productRoleLabel('store_employee', locale)
+        : phrase(locale, '{role} (ישן)', {
+            role: productRoleLabel('store_employee', locale),
+          })
     case 'internal_technician':
     case 'external_provider':
       return role === 'internal_technician'
-        ? PRODUCT_ROLE_LABELS_HE.internal_technician
-        : `${PRODUCT_ROLE_LABELS_HE.internal_technician} (ישן)`
+        ? productRoleLabel('internal_technician', locale)
+        : phrase(locale, '{role} (ישן)', {
+            role: productRoleLabel('internal_technician', locale),
+          })
     default:
       return role
   }

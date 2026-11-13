@@ -19,6 +19,8 @@ import {
   TICKET_STATUS_LABELS_HE,
 } from '@/modules/tickets/constants'
 import { formatIls } from '@/modules/spend/true-cost'
+import { phrase } from '@/lib/i18n/phrases'
+import type { Locale } from '@/lib/i18n/locale'
 
 export type ReportExportRow = {
   tickets: QueueTicket[]
@@ -34,6 +36,33 @@ export type ReportExportRow = {
     network: number
     stores: { storeName: string; amount: number }[]
   }
+  /** UI / export column labels (default Hebrew). */
+  locale?: Locale
+}
+
+function exportLocale(data: ReportExportRow): Locale {
+  return data.locale ?? 'he'
+}
+
+function xl(data: ReportExportRow, hebrew: string): string {
+  return phrase(exportLocale(data), hebrew)
+}
+
+const TICKET_CSV_HEADER_KEYS = [
+  'מספר',
+  'סניף',
+  'מה קרה',
+  'סטטוס',
+  'עדיפות',
+  'סוג',
+  'נפתחה',
+  'נסגרה',
+  'משויך',
+  'נרשם',
+] as const
+
+function ticketCsvHeaders(data: ReportExportRow): string[] {
+  return TICKET_CSV_HEADER_KEYS.map((key) => xl(data, key))
 }
 
 const INK = '1F1C19'
@@ -268,22 +297,10 @@ function esc(value: unknown): string {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
-const CSV_HEADERS = [
-  'מספר',
-  'סניף',
-  'מה קרה',
-  'סטטוס',
-  'עדיפות',
-  'סוג',
-  'נפתחה',
-  'נסגרה',
-  'משויך',
-  'נרשם',
-]
-
 export function buildTicketsCsv(data: ReportExportRow): string {
+  const headers = ticketCsvHeaders(data)
   const rows = [
-    CSV_HEADERS,
+    headers,
     ...reportLines(data).map((line) => [
       line.number,
       line.store,
@@ -347,10 +364,10 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
   const money = moneySentence(lines)
   const wb = new ExcelJS.Workbook()
   wb.creator = 'MILO'
-  wb.title = 'Optical Center — דוח תפעול'
+  wb.title = `Optical Center — ${xl(data, 'דוח תפעול')}`
   wb.created = new Date()
 
-  const summary = wb.addWorksheet('סיכום', {
+  const summary = wb.addWorksheet(xl(data, 'סיכום'), {
     views: [{ rightToLeft: true, showGridLines: false }],
     pageSetup: {
       orientation: 'landscape',
@@ -379,7 +396,7 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
   summary.getRow(1).height = 32
 
   summary.mergeCells('A2:E2')
-  summary.getCell('A2').value = 'דוח תפעול'
+  summary.getCell('A2').value = xl(data, 'דוח תפעול')
   summary.getCell('A2').font = {
     name: 'Arial',
     size: 16,
@@ -404,14 +421,14 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
   summary.getRow(5).height = 36
 
   const metricHeader = summary.getRow(7)
-  metricHeader.values = ['מדד', 'ערך']
+  metricHeader.values = [xl(data, 'מדד'), xl(data, 'ערך')]
   paintHeader(metricHeader)
   const metrics: [string, string | number][] = [
-    ['פתוחות', data.kpis.open],
-    ['עברו את זמן הטיפול', data.kpis.breached],
-    ['נפתרו', data.kpis.resolvedCount],
+    [xl(data, 'פתוחות'), data.kpis.open],
+    [xl(data, 'עברו את זמן הטיפול'), data.kpis.breached],
+    [xl(data, 'נפתרו'), data.kpis.resolvedCount],
     [
-      'בזמן',
+      xl(data, 'בזמן'),
       data.sla.pctWithinSla != null ? `${data.sla.pctWithinSla}%` : '—',
     ],
   ]
@@ -434,7 +451,12 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
 
   const storeStart = 8 + metrics.length + 2
   const storeHeader = summary.getRow(storeStart)
-  storeHeader.values = ['סניף', 'תקלות', 'פתוחות', 'באיחור']
+  storeHeader.values = [
+    xl(data, 'סניף'),
+    xl(data, 'תקלות'),
+    xl(data, 'פתוחות'),
+    xl(data, 'באיחור'),
+  ]
   paintHeader(storeHeader)
   stores.forEach((store, index) => {
     const row = summary.getRow(storeStart + 1 + index)
@@ -444,7 +466,7 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
 
   const categoryStart = storeStart + stores.length + 3
   const categoryHeader = summary.getRow(categoryStart)
-  categoryHeader.values = ['סוג', 'תקלות']
+  categoryHeader.values = [xl(data, 'סוג'), xl(data, 'תקלות')]
   paintHeader(categoryHeader)
   categories.forEach((category, index) => {
     const row = summary.getRow(categoryStart + 1 + index)
@@ -452,7 +474,7 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
     row.eachCell((cell) => paintBody(cell, index % 2 === 1))
   })
 
-  const tickets = wb.addWorksheet('תקלות', {
+  const tickets = wb.addWorksheet(xl(data, 'תקלות'), {
     views: [{ rightToLeft: true, state: 'frozen', ySplit: 4 }],
     pageSetup: {
       orientation: 'landscape',
@@ -475,7 +497,7 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
     { width: 14 },
   ]
   tickets.mergeCells('A1:J1')
-  tickets.getCell('A1').value = 'Optical Center — תקלות'
+  tickets.getCell('A1').value = `Optical Center — ${xl(data, 'תקלות')}`
   tickets.getCell('A1').font = {
     name: 'Arial',
     size: 16,
@@ -488,7 +510,7 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
   tickets.getCell('A2').font = { name: 'Arial', size: 11, color: { argb: `FF${MUTED}` } }
   tickets.getCell('A2').alignment = { horizontal: 'right', readingOrder: 'rtl' }
   const ticketHeader = tickets.getRow(4)
-  ticketHeader.values = CSV_HEADERS
+  ticketHeader.values = ticketCsvHeaders(data)
   paintHeader(ticketHeader)
   lines.forEach((line, index) => {
     const row = tickets.getRow(5 + index)
@@ -519,7 +541,7 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
     }
   }
 
-  const byStore = wb.addWorksheet('סניפים', {
+  const byStore = wb.addWorksheet(xl(data, 'סניפים'), {
     views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, paperSize: 9 },
   })
@@ -530,7 +552,12 @@ export async function buildTicketsXlsx(data: ReportExportRow): Promise<Buffer> {
     { width: 14 },
   ]
   const byStoreHeader = byStore.getRow(1)
-  byStoreHeader.values = ['סניף', 'תקלות', 'פתוחות', 'באיחור']
+  byStoreHeader.values = [
+    xl(data, 'סניף'),
+    xl(data, 'תקלות'),
+    xl(data, 'פתוחות'),
+    xl(data, 'באיחור'),
+  ]
   paintHeader(byStoreHeader)
   stores.forEach((store, index) => {
     const row = byStore.getRow(2 + index)
@@ -835,7 +862,7 @@ function ReportPdfDocument({
       <Page size="A4" style={pdf.page}>
         <View style={pdf.band}>
           <Heb style={pdf.brand}>Optical Center · MILO</Heb>
-          <Heb style={pdf.title}>דוח תפעול</Heb>
+          <Heb style={pdf.title}>{xl(data, 'דוח תפעול')}</Heb>
           <Heb style={pdf.period}>{period}</Heb>
         </View>
         <View style={pdf.body}>
@@ -847,10 +874,10 @@ function ReportPdfDocument({
           </View>
           <View style={pdf.metrics}>
             {[
-              [String(data.kpis.open), 'פתוחות', false],
-              [String(data.kpis.breached), 'באיחור', data.kpis.breached > 0],
-              [String(data.kpis.resolvedCount), 'נפתרו', false],
-              [within, 'בזמן', false],
+              [String(data.kpis.open), xl(data, 'פתוחות'), false],
+              [String(data.kpis.breached), xl(data, 'באיחור'), data.kpis.breached > 0],
+              [String(data.kpis.resolvedCount), xl(data, 'נפתרו'), false],
+              [within, xl(data, 'בזמן'), false],
             ].map(([value, label, hot]) => (
               <View key={String(label)} style={pdf.metric}>
                 <Text style={hot ? [pdf.metricValue, pdf.late] : pdf.metricValue}>
@@ -865,10 +892,15 @@ function ReportPdfDocument({
           ) : null}
           <View style={pdf.columns}>
             <View style={pdf.column}>
-              <Heb style={pdf.section}>סניפים</Heb>
+              <Heb style={pdf.section}>{xl(data, 'סניפים')}</Heb>
               {storeRows.length > 0 ? (
                 <MiniTable
-                  headers={['סניף', 'תקלות', 'פתוחות', 'באיחור']}
+                  headers={[
+                    xl(data, 'סניף'),
+                    xl(data, 'תקלות'),
+                    xl(data, 'פתוחות'),
+                    xl(data, 'באיחור'),
+                  ]}
                   rows={storeRows}
                   flex={[2.2, 1, 1, 1]}
                 />
@@ -880,10 +912,10 @@ function ReportPdfDocument({
               ) : null}
             </View>
             <View style={pdf.column}>
-              <Heb style={pdf.section}>סוגי תקלות</Heb>
+              <Heb style={pdf.section}>{xl(data, 'סוגי תקלות')}</Heb>
               {categoryRows.length > 0 ? (
                 <MiniTable
-                  headers={['סוג', 'תקלות']}
+                  headers={[xl(data, 'סוג'), xl(data, 'תקלות')]}
                   rows={categoryRows}
                   flex={[2.4, 1]}
                 />
@@ -906,7 +938,7 @@ function ReportPdfDocument({
               {pageIndex === 0 ? 'התקלות' : 'התקלות, המשך'}
             </Heb>
             <View style={pdf.tableHead}>
-              {['מספר', 'סניף', 'מה קרה', 'סטטוס', 'עדיפות', 'נפתחה', 'נרשם'].map(
+              {[xl(data, 'מספר'), xl(data, 'סניף'), xl(data, 'מה קרה'), xl(data, 'סטטוס'), xl(data, 'עדיפות'), xl(data, 'נפתחה'), xl(data, 'נרשם')].map(
                 (header, index) => (
                   <View
                     key={header}

@@ -5,10 +5,13 @@ import { UsersAdmin } from './users-admin'
 import { fetchStores } from '@/modules/stores/data'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UsersPage() {
+  const locale = await getLocale()
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
   const { stores } = await fetchStores()
@@ -17,8 +20,8 @@ export default async function UsersPage() {
     <OpsAppShell>
       <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <OpsPageHero
-          title="משתמשים"
-          status="HQ לארי · חנות וטכנאי לשטח"
+          title={phrase(locale, 'משתמשים')}
+          status={phrase(locale, 'HQ לארי · חנות וטכנאי לשטח')}
         />
         <UsersAdmin
           actorId={actor?.id ?? null}

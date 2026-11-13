@@ -7,8 +7,19 @@ import {
 } from '@/modules/spend/true-cost'
 import type { SpendRequest } from '@/modules/spend/policy'
 import type { VendorOutcome } from '@/modules/vendors/outcomes'
+import type { Locale } from '@/lib/i18n/locale'
+import { phrase } from '@/lib/i18n/phrases'
 
 export type CostBand = { low: number; high: number }
+
+/** Hebrew sentinel for “no recorded price yet” (stable across locales for comparisons). */
+export const NO_PRICE_YET = 'אין עדיין מחיר'
+
+export function isNoPriceYet(text: string | null | undefined): boolean {
+  if (!text) return false
+  if (text === NO_PRICE_YET) return true
+  return text === phrase('en', NO_PRICE_YET) || text === phrase('fr', NO_PRICE_YET)
+}
 
 /** The amount written on this fault. Other faults' quotes are not borrowed. */
 export function recordedTicketAmount(spends: SpendRequest[], ticketId: string): number | null {
@@ -30,14 +41,20 @@ function rankRecorded(spend: SpendRequest): number {
   return 0
 }
 
-export function formatRecordedAmount(amount: number | null): string {
-  if (amount == null) return 'אין עדיין מחיר'
+export function formatRecordedAmount(
+  amount: number | null,
+  locale: Locale = 'he',
+): string {
+  if (amount == null) return phrase(locale, NO_PRICE_YET)
   return formatIls(amount)
 }
 
 /** Recorded prices only. A single sample stays a point, not an invented spread. */
-export function formatCostBand(band: CostBand | null): string {
-  if (!band) return 'אין עדיין מחיר'
+export function formatCostBand(
+  band: CostBand | null,
+  locale: Locale = 'he',
+): string {
+  if (!band) return phrase(locale, NO_PRICE_YET)
   if (band.low === band.high) return formatIls(band.low)
   return `${formatIls(band.low)}–${formatIls(band.high)}`
 }
@@ -69,13 +86,19 @@ export function estimateFaultCost(
 }
 
 /** Every new fault gets a repair range, even before a quote is written. */
-export function repairRangeLine(category: string, recorded: CostBand | null = null): string {
+export function repairRangeLine(
+  category: string,
+  recorded: CostBand | null = null,
+  locale: Locale = 'he',
+): string {
   const estimate = estimateFaultCost(category, recorded)
-  const text = formatCostBand(estimate.band)
+  const text = formatCostBand(estimate.band, locale)
   if (estimate.basis === 'recorded') {
-    return `טווח משוער לתיקון, לפי מחיר שאושר על אותו סוג: ${text}.`
+    return phrase(locale, 'טווח משוער לתיקון, לפי מחיר שאושר על אותו סוג: {range}.', {
+      range: text,
+    })
   }
-  return `טווח משוער לתיקון: ${text}.`
+  return phrase(locale, 'טווח משוער לתיקון: {range}.', { range: text })
 }
 
 export function bandFromPrices(prices: number[]): CostBand | null {

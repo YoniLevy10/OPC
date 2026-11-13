@@ -23,6 +23,7 @@ import {
 } from '@/modules/assets/barcode'
 import { assetWhatsAppPrefill } from '@/modules/assets/service'
 import { cn } from '@/lib/utils'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type StoreOpt = { id: string; code: string; name: string }
 
@@ -52,18 +53,7 @@ export type AssetTicketHint = {
   number: number | null
 }
 
-const TYPES = [
-  { value: 'hvac', label: 'מיזוג' },
-  { value: 'electrical', label: 'חשמל' },
-  { value: 'optical', label: 'ציוד אופטי' },
-  { value: 'other', label: 'אחר' },
-]
-
-const STATUS_LABELS: Record<AssetStatus, string> = {
-  ok: 'תקין',
-  in_service: 'בטיפול',
-  disabled: 'מושבת',
-}
+const ASSET_TYPES = ['hvac', 'electrical', 'optical', 'other'] as const
 
 function isOpenTicket(status: string) {
   return status !== 'closed' && status !== 'cancelled' && status !== 'resolved'
@@ -123,6 +113,24 @@ export function AssetsAdmin({
   /** B01 — cumulative true cost by asset id (₪). */
   assetTrueCost?: Record<string, number>
 }) {
+  const p = usePhrase()
+  const typeLabels = useMemo(
+    () => ({
+      hvac: p('מיזוג'),
+      electrical: p('חשמל'),
+      optical: p('ציוד אופטי'),
+      other: p('אחר'),
+    }),
+    [p],
+  )
+  const statusLabels = useMemo(
+    () => ({
+      ok: p('תקין'),
+      in_service: p('בטיפול'),
+      disabled: p('מושבת'),
+    }),
+    [p],
+  )
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -157,14 +165,14 @@ export function AssetsAdmin({
       const qs = filterStore ? `?store=${encodeURIComponent(filterStore)}` : ''
       const res = await fetch(`/api/assets${qs}`)
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'טעינה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
       setAssets(json.assets ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה')
+      setError(err instanceof Error ? err.message : p('טעינה נכשלה'))
     } finally {
       setLoading(false)
     }
-  }, [filterStore])
+  }, [filterStore, p])
 
   useEffect(() => {
     void load()
@@ -211,30 +219,30 @@ export function AssetsAdmin({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'יצירה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('יצירה נכשלה'))
       setCode('')
       setBarcode('')
       setName('')
-      setNotice('הנכס נוסף')
+      setNotice(p('הנכס נוסף'))
       setCreateOpen(false)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'יצירה נכשלה')
+      setError(err instanceof Error ? err.message : p('יצירה נכשלה'))
     } finally {
       setBusy(false)
     }
   }
 
   async function onDelete(id: string) {
-    if (!confirm('למחוק נכס זה?')) return
+    if (!confirm(p('למחוק נכס זה?'))) return
     setBusy(true)
     try {
       const res = await fetch(`/api/assets/${id}`, { method: 'DELETE' })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'מחיקה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('מחיקה נכשלה'))
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'מחיקה נכשלה')
+      setError(err instanceof Error ? err.message : p('מחיקה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -252,7 +260,7 @@ export function AssetsAdmin({
       if (scanTarget === 'create') {
         setBarcode(raw)
         if (!code.trim()) setCode(raw.slice(0, 32))
-        setNotice(`ברקוד נסרק · ${raw}`)
+        setNotice(p('ברקוד נסרק · {code}', { code: raw }))
         return
       }
 
@@ -272,7 +280,12 @@ export function AssetsAdmin({
       if (match) {
         setHighlightId(match.id)
         setNotice(
-          `נמצא נכס · ${match.name}${match.store_code ? ` · סניף ${match.store_code}` : ''}`,
+          match.store_code
+            ? p('נמצא נכס · {name} · סניף {code}', {
+                name: match.name,
+                code: match.store_code,
+              })
+            : p('נמצא נכס · {name}', { name: match.name }),
         )
         return
       }
@@ -281,9 +294,9 @@ export function AssetsAdmin({
       setBarcode(raw)
       setCode(raw.slice(0, 32))
       setCreateOpen(true)
-      setNotice(`לא נמצא נכס עם ברקוד ${raw} — אפשר להוסיף אותו עכשיו.`)
+      setNotice(p('לא נמצא נכס עם ברקוד {code} — אפשר להוסיף אותו עכשיו.', { code: raw }))
     },
-    [assets, code, scanTarget],
+    [assets, code, scanTarget, p],
   )
 
   useEffect(() => {
@@ -294,7 +307,7 @@ export function AssetsAdmin({
 
   return (
     <div className="flex w-full max-w-full flex-col gap-4 overflow-x-clip">
-      {error ? <ErrorState title="שגיאה" description={error} /> : null}
+      {error ? <ErrorState title={p('שגיאה')} description={error} /> : null}
       {notice ? <Notice tone="progress">{notice}</Notice> : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -302,11 +315,11 @@ export function AssetsAdmin({
           <SearchField
             value={q}
             onValueChange={setQ}
-            placeholder="חיפוש לפי שם · סידורי · ברקוד · סניף"
+            placeholder={p('חיפוש לפי שם · סידורי · ברקוד · סניף')}
             autoFocusKey="/"
             className="w-full sm:min-w-[16rem] sm:flex-1"
           />
-          <Field label="סטטוס" htmlFor="asset-status-filter">
+          <Field label={p('סטטוס')} htmlFor="asset-status-filter">
             <Select
               id="asset-status-filter"
               value={statusFilter}
@@ -315,20 +328,20 @@ export function AssetsAdmin({
               }
               className="min-w-[8.5rem]"
             >
-              <option value="">הכל</option>
-              <option value="ok">תקין</option>
-              <option value="in_service">בטיפול</option>
-              <option value="disabled">מושבת</option>
+              <option value="">{p('הכל')}</option>
+              <option value="ok">{statusLabels.ok}</option>
+              <option value="in_service">{statusLabels.in_service}</option>
+              <option value="disabled">{statusLabels.disabled}</option>
             </Select>
           </Field>
-          <Field label="סניף" htmlFor="filter-store">
+          <Field label={p('סניף')} htmlFor="filter-store">
             <Select
               id="filter-store"
               value={filterStore}
               onChange={(e) => setFilterStore(e.target.value)}
               className="min-w-[11rem]"
             >
-              <option value="">כל הסניפים</option>
+              <option value="">{p('כל הסניפים')}</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} · {s.name}
@@ -346,10 +359,10 @@ export function AssetsAdmin({
             onClick={() => openScanner('lookup')}
           >
             <ScanBarcode className="h-4 w-4" aria-hidden />
-            סריקת ברקוד
+            {p('סריקת ברקוד')}
           </Button>
           <Button asChild variant="ghost" size="touch" className="md:h-9 md:px-3.5">
-            <Link href="/ops/assets/scan">מצב סריקה</Link>
+            <Link href="/ops/assets/scan">{p('מצב סריקה')}</Link>
           </Button>
           <Button
             type="button"
@@ -360,14 +373,14 @@ export function AssetsAdmin({
             disabled={!stores.length}
           >
             <Plus className="h-4 w-4" aria-hidden />
-            הוספת נכס
+            {p('הוספת נכס')}
           </Button>
         </div>
       </div>
 
       {scanHistory.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="t-caption text-ink-3">סריקות אחרונות</span>
+          <span className="t-caption text-ink-3">{p('סריקות אחרונות')}</span>
           {scanHistory.slice(0, 6).map((item) => (
             <button
               key={`${item.query}-${item.at}`}
@@ -378,21 +391,23 @@ export function AssetsAdmin({
               <span className="t-num" dir="ltr">
                 {item.query}
               </span>
-              {item.success ? ' ✓' : ' · חדש'}
+              {item.success ? ' ✓' : p(' · חדש')}
             </button>
           ))}
         </div>
       ) : null}
 
-      <p className="t-meta t-num text-ink-3">{filtered.length} נכסים</p>
+      <p className="t-meta t-num text-ink-3">
+        {p('{count} נכסים', { count: filtered.length })}
+      </p>
 
       <Panel flush elevated className="overflow-hidden">
         {loading ? (
-          <p className="t-body px-4 py-8 text-ink-2">טוען…</p>
+          <p className="t-body px-4 py-8 text-ink-2">{p('טוען…')}</p>
         ) : filtered.length === 0 ? (
           <EmptyState
-            title="אין נכסים"
-            description="הוסיפו יחידת מיזוג או ציוד אופטי לפי סניף."
+            title={p('אין נכסים')}
+            description={p('הוסיפו יחידת מיזוג או ציוד אופטי לפי סניף.')}
             icon={Package}
           />
         ) : (
@@ -416,7 +431,7 @@ export function AssetsAdmin({
                       </p>
                       <h3 className="t-body-strong text-ink">{a.name}</h3>
                       <p className="t-meta text-ink-2">
-                        {TYPES.find((t) => t.value === a.asset_type)?.label ??
+                        {typeLabels[a.asset_type as keyof typeof typeLabels] ??
                           a.asset_type}
                         {a.store_name ? ` · ${a.store_name}` : ''}
                       </p>
@@ -431,20 +446,22 @@ export function AssetsAdmin({
                         aria-hidden
                         className={cn('h-1.5 w-1.5 rounded-full', statusDot(status))}
                       />
-                      {STATUS_LABELS[status]}
+                      {statusLabels[status]}
                     </span>
                   </div>
                   <div className="rounded-[var(--radius-md)] bg-surface-sunken/50 px-3 py-2">
-                    <p className="t-caption text-ink-3">תקלה אחרונה</p>
+                    <p className="t-caption text-ink-3">{p('תקלה אחרונה')}</p>
                     <p className="t-body mt-0.5 line-clamp-2 text-ink-2">
                       {last
                         ? `${ticketLabel(last)} · ${last.title || last.description}`
-                        : 'אין היסטוריה'}
+                        : p('אין היסטוריה')}
                     </p>
                     <p className="t-meta mt-1 text-ink-3">
-                      בטיפול: {open} · טופלו: {treated}
+                      {p('בטיפול: {open} · טופלו: {treated}', { open, treated })}
                       {trueCost > 0
-                        ? ` · עלות אמיתית ₪${Math.round(trueCost).toLocaleString('he-IL')}`
+                        ? p('· עלות אמיתית ₪{amount}', {
+                            amount: Math.round(trueCost).toLocaleString('he-IL'),
+                          })
                         : ''}
                     </p>
                   </div>
@@ -453,17 +470,17 @@ export function AssetsAdmin({
                       type="button"
                       variant="secondary"
                       size="sm"
-                      aria-label={`תווית לנכס ${a.code}`}
+                      aria-label={p('תווית לנכס {code}', { code: a.code })}
                       onClick={() => setLabelAsset(a)}
                     >
                       <Tag className="h-3.5 w-3.5" aria-hidden />
-                      תווית
+                      {p('תווית')}
                     </Button>
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      aria-label={`QR WhatsApp לנכס ${a.code}`}
+                      aria-label={p('QR WhatsApp לנכס {code}', { code: a.code })}
                       onClick={() => setQrAsset(a)}
                     >
                       <QrCode className="h-3.5 w-3.5" aria-hidden />
@@ -473,7 +490,7 @@ export function AssetsAdmin({
                       <Link
                         href={`/ops/tickets?q=${encodeURIComponent(a.code)}`}
                       >
-                        תקלות
+                        {p('תקלות')}
                       </Link>
                     </Button>
                     <Button
@@ -484,7 +501,7 @@ export function AssetsAdmin({
                       className="text-[var(--signal-critical)]"
                       onClick={() => void onDelete(a.id)}
                     >
-                      מחיקה
+                      {p('מחיקה')}
                     </Button>
                   </div>
                 </article>
@@ -495,16 +512,16 @@ export function AssetsAdmin({
             <div className="hidden overflow-x-auto md:block">
               <Table>
                 <THead>
-                  <TH>שם</TH>
-                  <TH className="w-[100px]">קוד</TH>
-                  <TH className="w-[120px]">ברקוד</TH>
-                  <TH>סניף</TH>
-                  <TH className="w-[100px]">סטטוס</TH>
-                  <TH>תקלה אחרונה</TH>
-                  <TH className="w-[110px]">היסטוריה</TH>
-                  <TH className="w-[100px]">עלות</TH>
+                  <TH>{p('שם')}</TH>
+                  <TH className="w-[100px]">{p('קוד')}</TH>
+                  <TH className="w-[120px]">{p('ברקוד')}</TH>
+                  <TH>{p('סניף')}</TH>
+                  <TH className="w-[100px]">{p('סטטוס')}</TH>
+                  <TH>{p('תקלה אחרונה')}</TH>
+                  <TH className="w-[110px]">{p('היסטוריה')}</TH>
+                  <TH className="w-[100px]">{p('עלות')}</TH>
                   <TH className="w-[200px]" align="end">
-                    פעולות
+                    {p('פעולות')}
                   </TH>
                 </THead>
                 <TBody>
@@ -518,7 +535,7 @@ export function AssetsAdmin({
                       <TD>
                         <span className="t-body-strong text-ink">{a.name}</span>
                         <span className="t-caption mt-0.5 block text-ink-3">
-                          {TYPES.find((t) => t.value === a.asset_type)?.label ??
+                          {typeLabels[a.asset_type as keyof typeof typeLabels] ??
                             a.asset_type}
                         </span>
                       </TD>
@@ -552,7 +569,7 @@ export function AssetsAdmin({
                               statusDot(status),
                             )}
                           />
-                          {STATUS_LABELS[status]}
+                          {statusLabels[status]}
                         </span>
                       </TD>
                       <TD>
@@ -585,17 +602,17 @@ export function AssetsAdmin({
                             type="button"
                             variant="secondary"
                             size="sm"
-                            aria-label={`תווית לנכס ${a.code}`}
+                            aria-label={p('תווית לנכס {code}', { code: a.code })}
                             onClick={() => setLabelAsset(a)}
                           >
                             <Tag className="h-3.5 w-3.5" aria-hidden />
-                            תווית
+                            {p('תווית')}
                           </Button>
                           <Button
                             type="button"
                             variant="secondary"
                             size="sm"
-                            aria-label={`QR WhatsApp לנכס ${a.code}`}
+                            aria-label={p('QR WhatsApp לנכס {code}', { code: a.code })}
                             onClick={() => setQrAsset(a)}
                           >
                             <QrCode className="h-3.5 w-3.5" aria-hidden />
@@ -605,7 +622,7 @@ export function AssetsAdmin({
                             <Link
                               href={`/ops/tickets?q=${encodeURIComponent(a.code)}`}
                             >
-                              תקלות
+                              {p('תקלות')}
                             </Link>
                           </Button>
                           <Button
@@ -616,7 +633,7 @@ export function AssetsAdmin({
                             className="text-[var(--signal-critical)]"
                             onClick={() => void onDelete(a.id)}
                           >
-                            מחיקה
+                            {p('מחיקה')}
                           </Button>
                         </div>
                       </TD>
@@ -632,11 +649,11 @@ export function AssetsAdmin({
       <Modal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="הוספת נכס"
-        description="ציוד לפי סניף — יופיע בטופס דיווח."
+        title={p('הוספת נכס')}
+        description={p('ציוד לפי סניף — יופיע בטופס דיווח.')}
       >
         <form onSubmit={onCreate} className="space-y-3">
-          <Field label="סניף" htmlFor="asset-store">
+          <Field label={p('סניף')} htmlFor="asset-store">
             <Select
               id="asset-store"
               value={storeId}
@@ -650,7 +667,7 @@ export function AssetsAdmin({
               ))}
             </Select>
           </Field>
-          <Field label="קוד פנימי" htmlFor="asset-code">
+          <Field label={p('קוד פנימי')} htmlFor="asset-code">
             <Input
               id="asset-code"
               required
@@ -660,13 +677,13 @@ export function AssetsAdmin({
               dir="ltr"
             />
           </Field>
-          <Field label="ברקוד מוצר (EAN / Code128)" htmlFor="asset-barcode">
+          <Field label={p('ברקוד מוצר (EAN / Code128)')} htmlFor="asset-barcode">
             <div className="flex gap-2">
               <Input
                 id="asset-barcode"
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
-                placeholder="אופציונלי — סריקה או הקלדה"
+                placeholder={p('אופציונלי — סריקה או הקלדה')}
                 dir="ltr"
                 className="flex-1"
               />
@@ -675,32 +692,32 @@ export function AssetsAdmin({
                 variant="secondary"
                 size="sm"
                 className="shrink-0"
-                aria-label="סריקת ברקוד לשדה הברקוד"
+                aria-label={p('סריקת ברקוד לשדה הברקוד')}
                 onClick={() => openScanner('create')}
               >
                 <ScanBarcode className="h-4 w-4" aria-hidden />
-                סריקה
+                {p('סריקה')}
               </Button>
             </div>
           </Field>
-          <Field label="שם" htmlFor="asset-name">
+          <Field label={p('שם')} htmlFor="asset-name">
             <Input
               id="asset-name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="יחידת מיזוג"
+              placeholder={p('יחידת מיזוג')}
             />
           </Field>
-          <Field label="סוג" htmlFor="asset-type">
+          <Field label={p('סוג')} htmlFor="asset-type">
             <Select
               id="asset-type"
               value={assetType}
               onChange={(e) => setAssetType(e.target.value)}
             >
-              {TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
+              {ASSET_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {typeLabels[value]}
                 </option>
               ))}
             </Select>
@@ -712,7 +729,7 @@ export function AssetsAdmin({
               size="sm"
               onClick={() => setCreateOpen(false)}
             >
-              ביטול
+              {p('ביטול')}
             </Button>
             <Button
               type="submit"
@@ -720,7 +737,7 @@ export function AssetsAdmin({
               size="sm"
               disabled={busy || !storeId}
             >
-              {busy ? 'שומר…' : 'הוספה'}
+              {busy ? p('שומר…') : p('הוספה')}
             </Button>
           </div>
         </form>
@@ -731,8 +748,12 @@ export function AssetsAdmin({
         onOpenChange={(open) => {
           if (!open) setLabelAsset(null)
         }}
-        title={labelAsset ? `תווית · ${labelAsset.code}` : 'תווית'}
-        description="ברקוד Code128 לזיהוי · QR פנימי (optical:asset) — נפרד מ-WhatsApp"
+        title={
+          labelAsset ? p('תווית · {code}', { code: labelAsset.code }) : p('תווית')
+        }
+        description={p(
+          'ברקוד Code128 לזיהוי · QR פנימי (optical:asset) — נפרד מ-WhatsApp',
+        )}
       >
         {labelAsset ? (
           <AssetLabels
@@ -752,7 +773,9 @@ export function AssetsAdmin({
         title={qrAsset ? `WhatsApp QR · ${qrAsset.code}` : 'WhatsApp QR'}
         description={
           qrAsset
-            ? `פתיחת קריאה מהירה · ${qrAsset.name}${qrAsset.store_code ? ` · סניף ${qrAsset.store_code}` : ''}`
+            ? p('פתיחת קריאה מהירה · {details}', {
+                details: `${qrAsset.name}${qrAsset.store_code ? ` · ${p('סניף')} ${qrAsset.store_code}` : ''}`,
+              })
             : undefined
         }
       >
@@ -761,7 +784,10 @@ export function AssetsAdmin({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/stores/qr?code=${encodeURIComponent(qrAsset.store_code)}&asset=${encodeURIComponent(qrAsset.code)}&format=svg`}
-              alt={`QR לנכס ${qrAsset.code} בסניף ${qrAsset.store_code}`}
+              alt={p('QR לנכס {code} בסניף {store}', {
+                code: qrAsset.code,
+                store: qrAsset.store_code ?? '',
+              })}
               className="h-44 w-44 rounded-[var(--radius-md)] border border-border bg-surface p-2"
             />
             <p
@@ -776,7 +802,7 @@ export function AssetsAdmin({
                   href={`/api/stores/qr?code=${encodeURIComponent(qrAsset.store_code)}&asset=${encodeURIComponent(qrAsset.code)}&format=svg`}
                   download={`asset-${qrAsset.store_code}-${qrAsset.code}-qr.svg`}
                 >
-                  הורדת SVG
+                  {p('הורדת SVG')}
                 </a>
               </Button>
               <Button asChild variant="secondary" size="sm">
@@ -784,7 +810,7 @@ export function AssetsAdmin({
                   href={`/api/stores/qr?code=${encodeURIComponent(qrAsset.store_code)}&asset=${encodeURIComponent(qrAsset.code)}&format=png`}
                   download={`asset-${qrAsset.store_code}-${qrAsset.code}-qr.png`}
                 >
-                  הורדת PNG
+                  {p('הורדת PNG')}
                 </a>
               </Button>
             </div>
@@ -797,12 +823,16 @@ export function AssetsAdmin({
         onOpenChange={setScanOpen}
         onScan={onBarcodeScan}
         title={
-          scanTarget === 'create' ? 'סריקת ברקוד לנכס חדש' : 'סריקת ברקוד מוצר'
+          scanTarget === 'create'
+            ? p('סריקת ברקוד לנכס חדש')
+            : p('סריקת ברקוד מוצר')
         }
         description={
           scanTarget === 'create'
-            ? 'הברקוד ייכנס לשדה ברקוד המוצר.'
-            : 'חיפוש לפי ברקוד / קוד / תווית optical:asset — אם לא נמצא, נפתח טופס הוספה.'
+            ? p('הברקוד ייכנס לשדה ברקוד המוצר.')
+            : p(
+                'חיפוש לפי ברקוד / קוד / תווית optical:asset — אם לא נמצא, נפתח טופס הוספה.',
+              )
         }
       />
     </div>

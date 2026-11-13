@@ -15,10 +15,12 @@ import { Modal } from '@/components/ui/overlay'
 import { TechFieldLinkCopy } from '@/components/ops/tech-link-copy'
 import type { MemberRole, Membership } from '@/lib/auth/types'
 import {
-  PRODUCT_ROLE_HELP_HE,
-  PRODUCT_ROLE_OPTIONS,
-  roleLabelHe,
+  type ProductRole,
+  productRoleHelp,
+  productRoleOptions,
+  roleLabel,
 } from '@/lib/auth/roles'
+import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
 
 type StoreOpt = { id: string; code: string; name: string }
 
@@ -31,10 +33,6 @@ type UserRow = {
   last_login_at?: string | null
   active?: boolean
 }
-
-const ROLE_OPTIONS = PRODUCT_ROLE_OPTIONS
-
-const ROLE_HELP: Record<string, string> = PRODUCT_ROLE_HELP_HE
 
 const IL_COUNTRY = '22222222-2222-2222-2222-222222222222'
 const FR_COUNTRY = '33333333-3333-3333-3333-333333333333'
@@ -61,6 +59,9 @@ export function UsersAdmin({
   stores: StoreOpt[]
   actorId: string | null
 }) {
+  const { locale } = useLocale()
+  const p = usePhrase()
+  const roleOptions = useMemo(() => productRoleOptions(locale), [locale])
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -324,7 +325,7 @@ export function UsersAdmin({
           className="w-40"
         >
           <option value="">כל התפקידים</option>
-          {ROLE_OPTIONS.map((opt) => (
+          {roleOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -339,8 +340,8 @@ export function UsersAdmin({
           className="w-32"
         >
           <option value="all">כל הסטטוסים</option>
-          <option value="active">פעיל</option>
-          <option value="inactive">לא פעיל</option>
+          <option value="active">{p('פעיל')}</option>
+          <option value="inactive">{p('לא פעיל')}</option>
         </Select>
         <Button type="button" variant="primary" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" aria-hidden />
@@ -367,8 +368,8 @@ export function UsersAdmin({
               const m = u.memberships[0]
               const active = u.active !== false
               const role =
-                ROLE_OPTIONS.find((o) => o.value === m?.role)?.label ??
-                (m?.role ? roleLabelHe(m.role) : '—')
+                roleOptions.find((o) => o.value === m?.role)?.label ??
+                (m?.role ? roleLabel(m.role, locale) : '—')
               const branch = branchLabel(m)
               return (
                 <li
@@ -391,7 +392,7 @@ export function UsersAdmin({
                             : 't-caption text-ink-3'
                         }
                       >
-                        {active ? 'פעיל' : 'לא פעיל'}
+                        {active ? p('פעיל') : p('לא פעיל')}
                       </span>
                     </span>
                     <span className="t-meta block text-ink-2">
@@ -422,7 +423,7 @@ export function UsersAdmin({
                     aria-label={`עריכת ${u.full_name || u.email || 'משתמש'}`}
                     onClick={() => openEdit(u)}
                   >
-                    עריכה
+                    {p('עריכה')}
                   </Button>
                 </li>
               )
@@ -506,14 +507,16 @@ export function UsersAdmin({
               value={role}
               onChange={(e) => setRole(e.target.value as MemberRole)}
             >
-              {ROLE_OPTIONS.map((opt) => (
+              {roleOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
             </Select>
-            {ROLE_HELP[role] ? (
-              <p className="t-caption mt-1 text-ink-3">{ROLE_HELP[role]}</p>
+            {productRoleHelp(role as ProductRole, locale) ? (
+              <p className="t-caption mt-1 text-ink-3">
+                {productRoleHelp(role as ProductRole, locale)}
+              </p>
             ) : null}
           </Field>
           <Field label="מדינה" htmlFor="user-country">
@@ -595,14 +598,16 @@ export function UsersAdmin({
                 disabled={busy}
                 onChange={(e) => setEditRole(e.target.value as MemberRole)}
               >
-                {ROLE_OPTIONS.map((opt) => (
+                {roleOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
               </Select>
-              {ROLE_HELP[editRole] ? (
-                <p className="t-caption mt-1 text-ink-3">{ROLE_HELP[editRole]}</p>
+              {productRoleHelp(editRole as ProductRole, locale) ? (
+                <p className="t-caption mt-1 text-ink-3">
+                  {productRoleHelp(editRole as ProductRole, locale)}
+                </p>
               ) : null}
             </Field>
             <Field label="סניף" htmlFor="edit-store">
@@ -718,7 +723,7 @@ export function UsersAdmin({
               <strong>{confirmRole.user.full_name || confirmRole.user.email}</strong>{' '}
               ל־
               <strong>
-                {ROLE_OPTIONS.find((o) => o.value === confirmRole.nextRole)?.label}
+                {roleOptions.find((o) => o.value === confirmRole.nextRole)?.label}
               </strong>
               ?
             </Notice>

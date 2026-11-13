@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export function ReplaceManagerForm({
   storeId,
@@ -17,6 +18,7 @@ export function ReplaceManagerForm({
   managerNameEn: string | null
 }) {
   const router = useRouter()
+  const p = usePhrase()
   const [name, setName] = useState(initialName ?? '')
   const [nameEn, setNameEn] = useState(initialNameEn ?? '')
   const [phone, setPhone] = useState(initialPhone ?? '')
@@ -41,11 +43,11 @@ export function ReplaceManagerForm({
         }),
       })
       const json = (await res.json()) as { error?: string }
-      if (!res.ok) throw new Error(json.error || 'החלפת מנהל נכשלה')
+      if (!res.ok) throw new Error(json.error || p('החלפת מנהל נכשלה'))
       setOk(true)
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'החלפת מנהל נכשלה')
+      setError(err instanceof Error ? err.message : p('החלפת מנהל נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -54,11 +56,12 @@ export function ReplaceManagerForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
       <p className="t-meta text-ink-muted">
-        החלפת מנהל מעדכנת את הזיהוי בוואטסאפ — המספר החדש יקושר לסניף אוטומטית;
-        המספר הישן יפסיק לזהות את החנות.
+        {p(
+          'החלפת מנהל מעדכנת את הזיהוי בוואטסאפ — המספר החדש יקושר לסניף אוטומטית; המספר הישן יפסיק לזהות את החנות.',
+        )}
       </p>
       <div className="flex flex-wrap items-end gap-2">
-        <Field label="שם מנהל/ת" htmlFor={`mgr-name-${storeId}`}>
+        <Field label={p('שם מנהל/ת')} htmlFor={`mgr-name-${storeId}`}>
           <Input
             id={`mgr-name-${storeId}`}
             value={name}
@@ -67,7 +70,7 @@ export function ReplaceManagerForm({
             className="min-w-[8rem]"
           />
         </Field>
-        <Field label="שם באנגלית" htmlFor={`mgr-en-${storeId}`}>
+        <Field label={p('שם באנגלית')} htmlFor={`mgr-en-${storeId}`}>
           <Input
             id={`mgr-en-${storeId}`}
             value={nameEn}
@@ -75,7 +78,7 @@ export function ReplaceManagerForm({
             className="min-w-[7rem]"
           />
         </Field>
-        <Field label="טלפון" htmlFor={`mgr-phone-${storeId}`}>
+        <Field label={p('טלפון')} htmlFor={`mgr-phone-${storeId}`}>
           <Input
             id={`mgr-phone-${storeId}`}
             value={phone}
@@ -87,7 +90,7 @@ export function ReplaceManagerForm({
           />
         </Field>
         <Button type="submit" size="sm" disabled={busy}>
-          {busy ? 'שומר…' : 'החלף מנהל'}
+          {busy ? p('שומר…') : p('החלף מנהל')}
         </Button>
       </div>
       {error ? (
@@ -95,7 +98,7 @@ export function ReplaceManagerForm({
       ) : null}
       {ok ? (
         <p className="t-meta text-[var(--signal-resolved)]">
-          מנהל עודכן וסונכרן לזיהוי WhatsApp
+          {p('מנהל עודכן וסונכרן לזיהוי WhatsApp')}
         </p>
       ) : null}
     </form>

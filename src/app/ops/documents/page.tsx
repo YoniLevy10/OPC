@@ -14,10 +14,15 @@ import { addDocumentAction, ingestFileAction } from '../work-actions'
 import { DocumentCabinet, preferStoredFiles } from './document-cabinet'
 import { DriveImportForm } from './drive-import-form'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DocumentsPage() {
+  const locale = await getLocale()
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
   await hydrateOpsLedger()
@@ -36,24 +41,29 @@ export default async function DocumentsPage() {
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 overflow-x-clip lg:max-w-6xl">
         <OpsPageHero
-          title="מסמכים ותוקף"
+          title={p('מסמכים ותוקף')}
           status={
             documents.length
-              ? `${folderCount} תיקיות · ${documents.length} מסמכים · ${withExpiry} עם תאריך תוקף`
+              ? p(
+                  '{folders} תיקיות · {docs} מסמכים · {withExpiry} עם תאריך תוקף',
+                  { folders: folderCount, docs: documents.length, withExpiry },
+                )
               : review
-                ? `${review} קבצים דורשים בדיקה`
-                : 'תוקף מהמסמך נשמר בנפרד ממועד שחושב'
+                ? p('{review} קבצים דורשים בדיקה', { review })
+                : p('תוקף מהמסמך נשמר בנפרד ממועד שחושב')
           }
         />
         {documents.length === 0 ? (
           <Panel elevated>
             <EmptyState
-              title="אין מסמכים במעקב"
-              description="חברו את תיקיית הדרייב של ארי, או שמרו מסמך עם קישור למקור."
+              title={p('אין מסמכים במעקב')}
+              description={p(
+                'חברו את תיקיית הדרייב של ארי, או שמרו מסמך עם קישור למקור.',
+              )}
             />
           </Panel>
         ) : (
-          <DocumentCabinet documents={documents} files={files} />
+          <DocumentCabinet documents={documents} files={files} locale={locale} />
         )}
         <PhoneFoldStack>
         <PhoneFold title="סנכרון עם גוגל דרייב" summary={statusLine ?? 'לא סונכרן'}>

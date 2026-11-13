@@ -101,15 +101,17 @@ export default async function TicketDetailPage({
 
   const attachments = mergeEvidence(storedAttachments, ticket.messages ?? [])
   const locale = await getLocale()
-  const p = (text: string) => phrase(locale, text)
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const openFor = plainOpenForHe(ticket.created_at, ticket, new Date(), locale)
   const decision = ticketDecision(ticket, new Date(), locale)
   const openTicket = !['resolved', 'closed', 'cancelled'].includes(ticket.status)
-  const verb = decision
+  const verbRaw = decision
     ? decision.action.split('·')[0]?.trim()
     : openTicket
-      ? p('לטפל')
+      ? 'לטפל'
       : null
+  const verb = verbRaw ? p(verbRaw) : null
   const storeName = ticket.stores?.name?.trim() || p('חנות')
   const storeCode = ticket.stores?.code?.trim()
   const whatsBroken = ticket.description || ticket.title || p('ללא תיאור')
@@ -320,15 +322,15 @@ export default async function TicketDetailPage({
     ? [latest.label, latest.body?.trim()].filter(Boolean).join(' · ')
     : p('אין פעילות')
   const cost = trueCostBreakdown(ticketSpends)
-  const estimateText = formatCostBand(faultEstimate.band)
+  const estimateText = formatCostBand(faultEstimate.band, locale)
   const costSummary =
-    cost.count === 0 ? `משוער ${estimateText}` : formatIls(cost.total)
+    cost.count === 0 ? p('משוער {range}', { range: estimateText }) : formatIls(cost.total)
   const stepLabel =
     ticket.status === 'engaged'
-      ? 'נשלח איש מקצוע לתיקון'
+      ? p('נשלח איש מקצוע לתיקון')
       : urgent
-        ? 'מחכה לאישור'
-        : 'לא דחוף'
+        ? p('מחכה לאישור')
+        : p('לא דחוף')
   const call = serviceCallRecord({
     store: storeName,
     type: categoryLabel,
@@ -345,7 +347,7 @@ export default async function TicketDetailPage({
   return (
     <OpsAppShell>
       <div className="ari-home mx-auto flex min-w-0 w-full max-w-2xl flex-col gap-3 overflow-x-clip phone-pad-tab phone-pad-dock md:max-w-4xl md:gap-5 md:!pb-0">
-        <PageToolbar backHref="/ops/tickets" backLabel="חזרה" showRefresh />
+        <PageToolbar backHref="/ops/tickets" backLabel={p('חזרה')} showRefresh />
 
         <OpsPageHero
           compact
@@ -372,17 +374,17 @@ export default async function TicketDetailPage({
                 )}
               >
                 {ticket.status === 'resolved'
-                  ? 'ממתינה לאישור חנות'
+                  ? p('ממתינה לאישור חנות')
                   : openFor.text}
               </span>
             </>
           }
         />
 
-        {verb === 'לאשר' ? (
+        {verb === p('לאשר') ? (
           <div className="hidden items-center justify-end px-1 md:flex">
             <Button asChild variant="primary" size="sm">
-              <Link href="#ticket-actions">לאשר</Link>
+              <Link href="#ticket-actions">{p('לאשר')}</Link>
             </Button>
           </div>
         ) : null}
@@ -395,32 +397,32 @@ export default async function TicketDetailPage({
             <KeyValue phoneTile label={tx('ticket.urgency')}>
               {tx(`priority.${priority}`)}
             </KeyValue>
-            <KeyValue phoneTile label="השלב">
+            <KeyValue phoneTile label={p('השלב')}>
               {stepLabel}
             </KeyValue>
             <KeyValue phoneTile label={tx('ticket.category')}>
               {categoryLabel}
             </KeyValue>
-            <KeyValue phoneTile label="ביקורים">
+            <KeyValue phoneTile label={p('ביקורים')}>
               {call.visits}
             </KeyValue>
-            <KeyValue phoneTile label="בעל מקצוע">
-              {call.professional ?? 'אחרי השיחה'}
+            <KeyValue phoneTile label={p('בעל מקצוע')}>
+              {call.professional ?? p('אחרי השיחה')}
             </KeyValue>
-            <KeyValue phoneTile label="טלפון">
+            <KeyValue phoneTile label={p('טלפון')}>
               {call.phone ?? '—'}
             </KeyValue>
-            <KeyValue phoneTile label="מחיר שאושר">
+            <KeyValue phoneTile label={p('מחיר שאושר')}>
               {call.approvedPrice != null ? formatIls(call.approvedPrice) : '—'}
             </KeyValue>
-            <KeyValue phoneTile label="אופן סגירה">
+            <KeyValue phoneTile label={p('אופן סגירה')}>
               {call.closeMethod}
             </KeyValue>
-            <KeyValue phoneTile label="אישור חנות">
-              {call.storeApproved ? 'אושר' : 'ממתין'}
+            <KeyValue phoneTile label={p('אישור חנות')}>
+              {call.storeApproved ? p('אושר') : p('ממתין')}
             </KeyValue>
             {call.decisions.length > 0 ? (
-              <KeyValue phoneTile label="החלטות">
+              <KeyValue phoneTile label={p('החלטות')}>
                 {call.decisions.join(' · ')}
               </KeyValue>
             ) : null}

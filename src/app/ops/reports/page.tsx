@@ -43,6 +43,8 @@ import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 import { annualMaintenanceCost, approvedByFaultType, compareStorePeriods } from '@/modules/engagements/cost'
 import { closedEngagementCosts } from '@/modules/engagements/service'
 import { formatIls } from '@/modules/spend/true-cost'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +99,9 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>
 }) {
+  const locale = await getLocale()
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const sp = await searchParams
   const from = sp.from
   const to = sp.to
@@ -163,22 +168,26 @@ export default async function ReportsPage({
     from && to
       ? `${from} – ${to}`
       : from
-        ? `מ-${from}`
+        ? p('מ-{from}', { from })
         : to
-          ? `עד-${to}`
-          : 'כל התקופה'
+          ? p('עד-{to}', { to })
+          : p('כל התקופה')
   const statusLabel =
-    status === 'open' ? ' · פתוחות' : status === 'resolved' ? ' · נפתרו' : ''
+    status === 'open'
+      ? ` · ${p('פתוחות')}`
+      : status === 'resolved'
+        ? p(' · נפתרו')
+        : ''
 
   const metrics = [
     {
-      label: 'תקלות בטווח',
+      label: p('תקלות בטווח'),
       value: String(all.length),
       href: undefined as string | undefined,
       tone: 'neutral' as const,
     },
     {
-      label: 'פתוחות',
+      label: p('פתוחות'),
       value: String(kpis.open),
       href: queueHref({ view: 'open', sort: 'urgency' }),
       tone:
@@ -189,26 +198,26 @@ export default async function ReportsPage({
             : ('warning' as const),
     },
     {
-      label: 'חריגות SLA',
+      label: p('חריגות SLA'),
       value: String(kpis.breached),
       href: queueHref({ view: 'attention', sort: 'urgency' }),
       tone: kpis.breached > 0 ? ('critical' as const) : ('neutral' as const),
     },
     {
-      label: 'נפתרו',
+      label: p('נפתרו'),
       value: String(kpis.resolvedCount),
       href: queueHref({ view: 'resolved', sort: 'newest' }),
       tone: 'ok' as const,
     },
     {
-      label: 'ממוצע פתרון',
+      label: p('ממוצע פתרון'),
       value:
         kpis.avgResolveHours != null ? `${kpis.avgResolveHours} שע׳` : '—',
       href: undefined as string | undefined,
       tone: 'neutral' as const,
     },
     {
-      label: 'בתוך SLA',
+      label: p('בתוך SLA'),
       value: sla.pctWithinSla != null ? `${sla.pctWithinSla}%` : '—',
       href: undefined as string | undefined,
       tone: 'neutral' as const,
@@ -225,11 +234,11 @@ export default async function ReportsPage({
     <OpsAppShell>
       <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger">
         <OpsPageHero
-          title="דוחות"
+          title={p('דוחות')}
           status={`${rangeLabel}${statusLabel}${
             'backend' in allResult && allResult.backend === 'supabase'
               ? ''
-              : ' · דמו'
+              : p(' · דמו')
           }`}
           actions={
             <ReportsExportActions query={exportQuery} count={all.length} />
@@ -292,11 +301,11 @@ export default async function ReportsPage({
         ) : null}
 
         <PhoneFoldStack>
-        <PhoneFold title="סינון" summary={rangeLabel}>
+        <PhoneFold title={p('סינון')} summary={rangeLabel}>
         <ReportsFilters from={from} to={to} status={status} />
         </PhoneFold>
 
-        <PhoneFold title="ייצוא" summary={`${all.length} תקלות`}>
+        <PhoneFold title={p('ייצוא')} summary={`${all.length} ${p('תקלות')}`}>
         <Panel elevated className="!p-4 md:!p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -425,10 +434,10 @@ export default async function ReportsPage({
               <div className="hidden md:block">
                 <Table>
                   <THead>
-                    <TH>סניף</TH>
-                    <TH>סה״כ</TH>
-                    <TH>פתוחות</TH>
-                    <TH>חריגות SLA</TH>
+                    <TH>{p('סניף')}</TH>
+                    <TH>{p('סה״כ')}</TH>
+                    <TH>{p('פתוחות')}</TH>
+                    <TH>{p('חריגות SLA')}</TH>
                   </THead>
                   <TBody>
                     {storeReport.map((s) => (
@@ -473,8 +482,11 @@ export default async function ReportsPage({
             title="היסטוריית תקלות"
             meta={
               all.length > HISTORY_LIMIT
-                ? `${HISTORY_LIMIT} מתוך ${all.length}`
-                : `${history.length} תקלות`
+                ? p('{shown} מתוך {total}', {
+                    shown: HISTORY_LIMIT,
+                    total: all.length,
+                  })
+                : `${history.length} ${p('תקלות')}`
             }
           />
           {history.length === 0 ? (
@@ -518,14 +530,14 @@ export default async function ReportsPage({
               <div className="hidden md:block">
                 <Table>
                   <THead>
-                    <TH>מספר</TH>
-                    <TH>תאריך</TH>
-                    <TH>סניף</TH>
-                    <TH>קטגוריה</TH>
-                    <TH>סטטוס</TH>
-                    <TH>עדיפות</TH>
-                    <TH>טכנאי</TH>
-                    <TH>תיאור</TH>
+                    <TH>{p('מספר')}</TH>
+                    <TH>{p('תאריך')}</TH>
+                    <TH>{p('סניף')}</TH>
+                    <TH>{p('קטגוריה')}</TH>
+                    <TH>{p('סטטוס')}</TH>
+                    <TH>{p('עדיפות')}</TH>
+                    <TH>{p('טכנאי')}</TH>
+                    <TH>{p('תיאור')}</TH>
                   </THead>
                   <TBody>
                     {history.map((t) => (
@@ -597,7 +609,7 @@ export default async function ReportsPage({
                         ...(status ? { status } : {}),
                       }).toString()}`}
                     >
-                      הורדת הרשימה המלאה (CSV)
+                      {p('הורדת הרשימה המלאה (CSV)')}
                     </a>
                   </Button>
                 </div>
@@ -618,7 +630,7 @@ export default async function ReportsPage({
           />
           {snapshots.length === 0 ? (
             <EmptyState
-              title="אין דוחות שמורים עדיין"
+              title={p('אין דוחות שמורים עדיין')}
               description="ב-1 לחודש נשמר כאן אוטומטית דוח של החודש שהסתיים."
             />
           ) : (

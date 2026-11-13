@@ -11,6 +11,8 @@ import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import type { RecommendationCardModel } from '@/modules/recommendations/present'
 import { RecommendationList } from '@/app/ops/dashboard/recommendation-list'
 import { StoreGroupFolder } from './store-group-folder'
+import type { Locale } from '@/lib/i18n/locale'
+import { phrase } from '@/lib/i18n/phrases'
 
 const CATEGORY_ORDER = new Map(
   TICKET_CATEGORIES.map((key, index) => [key, index]),
@@ -81,10 +83,12 @@ export function TicketStoreGroups({
   rows,
   cards = [],
   renderRow,
+  locale,
 }: {
   rows: QueueTicket[]
   cards?: RecommendationCardModel[]
   renderRow: (ticket: QueueTicket) => ReactNode
+  locale: Locale
 }) {
   const groups = new Map<string, QueueTicket[]>()
   for (const ticket of rows) {
@@ -109,7 +113,10 @@ export function TicketStoreGroups({
         const sample = tickets[0]
         const name = sample?.stores?.name || sample?.stores?.code || 'בלי סניף'
         const code = sample?.stores?.code
-        const countLabel = tickets.length === 1 ? 'פתוחה' : 'פתוחות'
+        const countLabel =
+          tickets.length === 1
+            ? phrase(locale, 'פתוחה')
+            : phrase(locale, 'פתוחות')
         const storeId = sample?.store_id || key
         const storeCards = cardsByStore.get(storeId) ?? []
 

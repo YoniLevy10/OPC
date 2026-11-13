@@ -28,6 +28,7 @@ import {
   parsePersonalRating,
 } from '@/modules/notes/personal-rating'
 import { cn } from '@/lib/utils'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export type VendorDispatchHint = {
   ticket_id: string
@@ -106,6 +107,7 @@ export function VendorsAdmin({
 }: {
   initialVendors?: VendorRow[]
 }) {
+  const p = usePhrase()
   const [vendors, setVendors] = useState<VendorRow[]>(initialVendors ?? [])
   const [loading, setLoading] = useState(!initialVendors)
   const [error, setError] = useState<string | null>(null)
@@ -353,7 +355,7 @@ export function VendorsAdmin({
             size="sm"
             onClick={() => setDispatchOpen((o) => !o)}
           >
-            שיגור לשותף
+            {p('שיגור לשותף')}
           </Button>
           <Button
             type="button"
@@ -363,7 +365,7 @@ export function VendorsAdmin({
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="h-4 w-4" aria-hidden />
-            ספק חדש
+            {p('ספק חדש')}
           </Button>
         </div>
       </div>
@@ -438,7 +440,7 @@ export function VendorsAdmin({
           setCreateOpen(next)
           if (!next) resetCreate()
         }}
-        title="ספק חדש"
+        title={p('ספק חדש')}
         description="פרטי ספק · יצירת קשר · הערות"
         className="w-[min(92vw,520px)]"
       >
@@ -597,7 +599,7 @@ export function VendorsAdmin({
                             ? v.coverage_regions.join(', ')
                             : 'בלי כיסוי'}
                           {' · '}
-                          {v.open_tickets} פתוחות
+                          {v.open_tickets} {p('פתוחות')}
                         </p>
                         <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => editVendor(v)}><Pencil className="h-4 w-4" aria-hidden /> עריכה</Button>
                         <VendorExpand v={v} onSave={saveVendorDetails} busy={busy} />
@@ -614,7 +616,7 @@ export function VendorsAdmin({
                   <TH>שם</TH>
                   <TH>תחום</TH>
                   <TH>יצירת קשר</TH>
-                  <TH>פתוחות</TH>
+                  <TH>{p('פתוחות')}</TH>
                   <TH className="w-[120px]">פעולות</TH>
                 </THead>
                 <TBody>

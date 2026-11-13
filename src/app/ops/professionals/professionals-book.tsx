@@ -39,6 +39,7 @@ function StarRow({
   onChange?: (value: number) => void
   label: string
 }) {
+  const tx = usePhrase()
   const size = interactive ? 'h-7 w-7' : 'h-4 w-4'
   return (
     <span
@@ -67,7 +68,7 @@ function StarRow({
             type="button"
             role="radio"
             aria-checked={rating === value}
-            aria-label={`${value} כוכבים`}
+            aria-label={tx('{value} כוכבים', { value })}
             onClick={() => onChange?.(rating === value ? 0 : value)}
             className="rounded-md p-1 hover:bg-surface-sunken/60"
           >

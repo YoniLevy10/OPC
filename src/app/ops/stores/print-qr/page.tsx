@@ -12,6 +12,8 @@ import { storeWhatsAppDeepLink } from '@/modules/stores/whatsapp-link'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
 import { PhoneDesktopOnly } from '@/components/layout/phone-desktop-only'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,29 +29,35 @@ export default async function PrintQrBatchPage() {
   ])
   const active = stores.filter((s) => s.is_active !== false)
   const phoneReady = Boolean(businessPhone)
+  const locale = await getLocale()
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
 
   return (
     <OpsAppShell>
-      <PhoneDesktopOnly title="הדפסת QR">
+      <PhoneDesktopOnly title={p('הדפסת QR')}>
       <div className="flex w-full max-w-full flex-col gap-5 overflow-x-clip stagger print:gap-0 print:p-0">
-        <PageToolbar backHref="/ops/stores" backLabel="חזרה" />
+        <PageToolbar backHref="/ops/stores" backLabel={p('חזרה')} />
         <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
           <OpsPageHero
             className="min-w-0 flex-1"
-            title="הדפסת QR"
-            status={`${active.length} סניפים פעילים`}
+            title={p('הדפסת QR')}
+            status={`${active.length} ${p('סניפים פעילים')}`}
             actions={phoneReady ? <PrintQrClient /> : undefined}
           />
         </div>
 
         {!phoneReady ? (
           <Notice tone="warning">
-            <span className="t-body-strong block">חסר מספר WhatsApp עסקי</span>
-            בלי מספר לא נוצרים קישורי QR תקינים. הגדירו ב־Ops → הגדרות → WhatsApp
-            ואז רעננו את העמוד.
+            <span className="t-body-strong block">
+              {p('חסר מספר WhatsApp עסקי')}
+            </span>
+            {p(
+              'בלי מספר לא נוצרים קישורי QR תקינים. הגדירו ב־Ops → הגדרות → WhatsApp ואז רעננו את העמוד.',
+            )}
             <div className="mt-3">
               <Button asChild variant="secondary" size="sm">
-                <Link href="/ops/settings">מעבר להגדרות</Link>
+                <Link href="/ops/settings">{p('מעבר להגדרות')}</Link>
               </Button>
             </div>
           </Notice>
@@ -57,17 +65,20 @@ export default async function PrintQrBatchPage() {
 
         <Panel elevated className="print:border-0 print:p-0 print:shadow-none">
           <p className="t-body mb-4 text-ink-2 print:hidden">
-            כל כרטיס כולל QR ל־WhatsApp עם טקסט STORE_CODE. לחיצה על ה־QR פותחת
-            את אותו קישור לכתיבת תג NFC. השתמשו בהדפסה מהדפדפן (PDF). מומלץ PNG
-            לסריקה אמינה מהמסך.
+            {p(
+              'כל כרטיס כולל QR ל־WhatsApp עם טקסט STORE_CODE. לחיצה על ה־QR פותחת את אותו קישור לכתיבת תג NFC. השתמשו בהדפסה מהדפדפן (PDF). מומלץ PNG לסריקה אמינה מהמסך.',
+            )}
           </p>
           {!phoneReady ? (
             <EmptyState
-              title="QR לא זמין"
-              description="הגדירו מספר WhatsApp עסקי לפני הדפסה."
+              title={p('QR לא זמין')}
+              description={p('הגדירו מספר WhatsApp עסקי לפני הדפסה.')}
             />
           ) : active.length === 0 ? (
-            <EmptyState title="אין חנויות פעילות" description="הוסיפו חנות לפני הדפסת QR." />
+            <EmptyState
+              title={p('אין חנויות פעילות')}
+              description={p('הוסיפו חנות לפני הדפסת QR.')}
+            />
           ) : (
             <ul
               role="list"
@@ -82,8 +93,8 @@ export default async function PrintQrBatchPage() {
                         href={deepLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="פתיחת קישור NFC / WhatsApp"
-                        aria-label={`קישור NFC לסניף ${s.code}`}
+                        title={p('פתיחת קישור NFC / WhatsApp')}
+                        aria-label={p('קישור NFC לסניף {code}', { code: s.code })}
                         className="mx-auto inline-block rounded-[var(--radius-md)] outline-none ring-[var(--tenant)] transition-opacity hover:opacity-90 focus-visible:ring-2 print:pointer-events-none"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}

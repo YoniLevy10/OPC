@@ -6,6 +6,7 @@ import { CheckCircle2, AlertTriangle, CircleAlert } from 'lucide-react'
 import { Panel, PanelHeader } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type Level = 'ok' | 'partial' | 'issue' | 'unknown'
 
@@ -46,37 +47,8 @@ function levelFrom(data: HealthPayload | null, pilot: PilotPayload | null): Leve
   return 'ok'
 }
 
-const COPY: Record<
-  Level,
-  { title: string; detail: string; icon: typeof CheckCircle2; text: string }
-> = {
-  ok: {
-    title: 'הכול עובד',
-    detail: 'המערכת תקינה.',
-    icon: CheckCircle2,
-    text: 'text-[var(--signal-resolved)]',
-  },
-  partial: {
-    title: 'מצב חלקי',
-    detail: 'חלק מהשירותים דורשים תשומת לב.',
-    icon: AlertTriangle,
-    text: 'text-[var(--signal-warning)]',
-  },
-  issue: {
-    title: 'תקלה',
-    detail: 'זוהתה תקלה שעלולה להשפיע על העבודה.',
-    icon: CircleAlert,
-    text: 'text-[var(--signal-critical)]',
-  },
-  unknown: {
-    title: 'בודקים…',
-    detail: 'ממתינים לתשובת המערכת.',
-    icon: AlertTriangle,
-    text: 'text-ink-2',
-  },
-}
-
 export function StatusHealthPanel() {
+  const p = usePhrase()
   const [level, setLevel] = useState<Level>('unknown')
   const [backend, setBackend] = useState<string | null>(null)
   const [pilot, setPilot] = useState<PilotPayload | null>(null)
@@ -107,7 +79,36 @@ export function StatusHealthPanel() {
     void refresh()
   }, [])
 
-  const copy = COPY[level]
+  const copyByLevel: Record<
+    Level,
+    { title: string; detail: string; icon: typeof CheckCircle2; text: string }
+  > = {
+    ok: {
+      title: p('הכול עובד'),
+      detail: p('המערכת תקינה.'),
+      icon: CheckCircle2,
+      text: 'text-[var(--signal-resolved)]',
+    },
+    partial: {
+      title: p('מצב חלקי'),
+      detail: p('חלק מהשירותים דורשים תשומת לב.'),
+      icon: AlertTriangle,
+      text: 'text-[var(--signal-warning)]',
+    },
+    issue: {
+      title: p('תקלה'),
+      detail: p('זוהתה תקלה שעלולה להשפיע על העבודה.'),
+      icon: CircleAlert,
+      text: 'text-[var(--signal-critical)]',
+    },
+    unknown: {
+      title: p('בודקים…'),
+      detail: p('ממתינים לתשובת המערכת.'),
+      icon: AlertTriangle,
+      text: 'text-ink-2',
+    },
+  }
+  const copy = copyByLevel[level]
   const Icon = copy.icon
   const openSteps = pilot?.nextSteps ?? []
 
@@ -121,7 +122,7 @@ export function StatusHealthPanel() {
           disabled={checking}
           onClick={() => void refresh()}
         >
-          {checking ? 'בודק…' : 'בדיקה מחדש'}
+          {checking ? p('בודק…') : p('בדיקה מחדש')}
         </Button>
       </div>
 
@@ -138,7 +139,7 @@ export function StatusHealthPanel() {
           <p className="t-body mt-1 text-ink-2">{copy.detail}</p>
           {backend ? (
             <p className="t-caption mt-2 text-ink-3">
-              {backend === 'supabase' ? 'מחובר' : 'דמו מקומי'}
+              {backend === 'supabase' ? p('מחובר') : p('דמו מקומי')}
             </p>
           ) : null}
         </div>
@@ -146,15 +147,15 @@ export function StatusHealthPanel() {
 
       {openSteps.length > 0 ? (
         <Panel flush elevated>
-          <PanelHeader title="חסר לפיילוט חנויות" />
+          <PanelHeader title={p('חסר לפיילוט חנויות')} />
           <ul className="divide-y divide-border px-4 py-2">
             {openSteps.map((s) => (
               <li key={s.id} className="py-2">
                 <p className="t-caption text-ink-3">
                   {s.owner === 'meta'
-                    ? 'Meta / מספר'
+                    ? p('Meta / מספר')
                     : s.owner === 'build'
-                      ? 'בנייה / DB'
+                      ? p('בנייה / DB')
                       : 'Ops'}
                 </p>
                 <p className="t-body text-ink">{s.message}</p>
@@ -165,13 +166,13 @@ export function StatusHealthPanel() {
       ) : null}
 
       <Panel flush elevated>
-        <PanelHeader title="מצבים" />
+        <PanelHeader title={p('מצבים')} />
         <ul className="divide-y divide-border px-4 py-2">
           {(
             [
-              ['ok', 'תקין'],
-              ['partial', 'חלקי'],
-              ['issue', 'תקלה'],
+              ['ok', p('תקין')],
+              ['partial', p('חלקי')],
+              ['issue', p('תקלה')],
             ] as const
           ).map(([key, label]) => (
             <li
@@ -187,7 +188,7 @@ export function StatusHealthPanel() {
                     : 'text-ink-3',
                 )}
               >
-                {level === key ? 'נוכחי' : '—'}
+                {level === key ? p('נוכחי') : '—'}
               </span>
             </li>
           ))}
@@ -195,19 +196,19 @@ export function StatusHealthPanel() {
       </Panel>
 
       <p className="t-body text-ink-2">
-        להגדרות WhatsApp ומספר עסקי:{' '}
+        {p('להגדרות WhatsApp ומספר עסקי:')}{' '}
         <Link
           href="/ops/settings"
           className="text-[var(--signal-progress)] hover:underline"
         >
-          הגדרות
+          {p('הגדרות')}
         </Link>
         {' · '}
         <Link
           href="/api/health/pilot"
           className="text-[var(--signal-progress)] hover:underline"
         >
-          דוח מוכנות JSON
+          {p('דוח מוכנות JSON')}
         </Link>
       </p>
     </div>

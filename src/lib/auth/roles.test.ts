@@ -4,6 +4,7 @@ import {
   isProductRole,
   PRODUCT_ROLE_HELP_HE,
   PRODUCT_ROLES,
+  roleLabel,
   roleLabelHe,
 } from '@/lib/auth/roles'
 import {
@@ -25,6 +26,8 @@ describe('product roles', () => {
     expect(roleLabelHe('global_admin')).toMatch(/מנהל/)
     expect(roleLabelHe('country_manager')).toMatch(/תפעול/)
     expect(roleLabelHe('store_manager')).toMatch(/חנות/)
+    expect(roleLabel('global_admin', 'en')).toBe('System admin')
+    expect(roleLabel('store_employee', 'fr')).toBe('Magasin')
   })
 
   it('frames HQ as Ari-only with full access and field roles as store/tech', () => {

@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { EvidenceGrid } from '@/components/ui/evidence'
 import { Button } from '@/components/ui/button'
@@ -7,6 +9,7 @@ import { EngagementPanel, type CompanionChoice } from '@/app/ops/tickets/[id]/en
 import type { Engagement } from '@/modules/engagements/service'
 import type { MidragPro } from '@/modules/vendors/midrag/live-results'
 import type { Professional } from '@/modules/professionals/types'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export function ApprovalCard({
   ticketId,
@@ -43,6 +46,7 @@ export function ApprovalCard({
   fallback: boolean
   companions: CompanionChoice[]
 }) {
+  const p = usePhrase()
   const shown = open ? photos : photos.slice(0, 1)
   return (
     <article
@@ -61,7 +65,9 @@ export function ApprovalCard({
           </div>
           {photos.length > 0 ? (
             <p className="t-meta shrink-0 text-ink-3">
-              {photos.length === 1 ? 'תמונה אחת' : `${photos.length} תמונות`}
+              {photos.length === 1
+                ? p('תמונה אחת')
+                : p('{count} תמונות', { count: photos.length })}
             </p>
           ) : null}
         </div>
@@ -70,8 +76,10 @@ export function ApprovalCard({
         {companionCount > 0 ? (
           <p className="t-meta text-ink-2">
             {companionCount === 1
-              ? 'תקלה לא דחופה אחת לאותו ביקור'
-              : `${companionCount} תקלות לא דחופות לאותו ביקור`}
+              ? p('תקלה לא דחופה אחת לאותו ביקור')
+              : p('{count} תקלות לא דחופות לאותו ביקור', {
+                  count: companionCount,
+                })}
           </p>
         ) : null}
         {shown.length > 0 ? (
@@ -95,7 +103,7 @@ export function ApprovalCard({
           />
         ) : (
           <Button asChild variant="primary" size="sm" className="max-md:w-full">
-            <Link href={`/ops/approvals?open=${ticketId}`}>לאשר</Link>
+            <Link href={`/ops/approvals?open=${ticketId}`}>{p('לאשר')}</Link>
           </Button>
         )}
       </div>

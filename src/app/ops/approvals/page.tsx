@@ -33,6 +33,7 @@ import { ApprovalCard } from './approval-card'
 import { approveFromBrief } from './brief-actions'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 import { translate, type MessageKey } from '@/lib/i18n/messages'
+import { phrase } from '@/lib/i18n/phrases'
 import { getLocale } from '@/lib/i18n/server'
 import {
   actualSpendAction,
@@ -129,6 +130,8 @@ export default async function ApprovalsPage({
   const locale = await getLocale()
   const tx = (key: MessageKey, vars?: Record<string, string | number>) =>
     translate(locale, key, vars)
+  const p = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const spendStatus = (status: string) => {
     if (status === 'pending') return tx('spend.pending')
     if (status === 'approved') return tx('spend.approved')
@@ -141,21 +144,21 @@ export default async function ApprovalsPage({
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 overflow-x-clip lg:max-w-4xl">
         <OpsPageHero
-          title="מחכות לאישור"
+          title={p('מחכות לאישור')}
           status={
             awaiting.length === 0
-              ? 'אין תקלות שמחכות לאישור'
-              : `${awaiting.length} מחכות לאישור`
+              ? p('אין תקלות שמחכות לאישור')
+              : p('{count} מחכות לאישור', { count: awaiting.length })
           }
         />
         <PhoneFoldStack>
         {awaiting.length === 0 ? (
-          <p className="t-body text-ink-2">אין תקלות דחופות שמחכות לארי.</p>
+          <p className="t-body text-ink-2">{p('אין תקלות דחופות שמחכות לארי.')}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {awaiting.map((ticket) => {
-              const fault = faultById.get(ticket.id) || 'תקלה'
-              const store = ticket.stores?.name || ticket.stores?.code || 'סניף'
+              const fault = faultById.get(ticket.id) || p('תקלה')
+              const store = ticket.stores?.name || ticket.stores?.code || p('סניף')
               const category =
                 TICKET_CATEGORY_LABELS_HE[ticket.category] || ticket.category
               const estimate = estimateFaultCost(
@@ -164,11 +167,11 @@ export default async function ApprovalsPage({
                   samples.get(normalizeTicketCategory(ticket.category)) ?? [],
                 ),
               )
-              const range = formatCostBand(estimate.band)
+              const range = formatCostBand(estimate.band, locale)
               const rangeLine =
                 estimate.basis === 'recorded'
-                  ? `טווח משוער ${range} · לפי מחיר שאושר`
-                  : `טווח משוער ${range}`
+                  ? p('טווח משוער {range} · לפי מחיר שאושר', { range })
+                  : p('טווח משוער {range}', { range })
               const companions = companionsByLead.get(ticket.id) ?? []
               const open = ticket.id === openId
               return (
@@ -206,19 +209,21 @@ export default async function ApprovalsPage({
               const actions = (
                 <>
                   <div>
-                    <p className="t-caption text-ink-3">מה</p>
+                    <p className="t-caption text-ink-3">{p('מה')}</p>
                     <p className="t-body text-ink">{brief.what}</p>
                     <p className="t-title t-num mt-2 text-ink">{spend.requestedAmount}</p>
                   </div>
-                  {spend.urgent ? <p className="t-meta text-ink-2">דחוף</p> : null}
+                  {spend.urgent ? <p className="t-meta text-ink-2">{p('דחוף')}</p> : null}
                   {spend.status === 'needs_info' ? (
-                    <p className="t-meta text-ink-2">חסר מידע לפני אישור.</p>
+                    <p className="t-meta text-ink-2">{p('חסר מידע לפני אישור.')}</p>
                   ) : null}
                   <div className="flex flex-wrap gap-2">
                     <form action={approveFromBrief}>
                       <input type="hidden" name="id" value={spend.id} />
                       <input type="hidden" name="kind" value={bundle ? 'bundle' : 'spend'} />
-                      <Button type="submit" size="sm">{bundle ? 'אשר ביקור' : 'אשר'}</Button>
+                      <Button type="submit" size="sm">
+                        {bundle ? p('אשר ביקור') : p('אשר')}
+                      </Button>
                     </form>
                     <form action={decideSpendAction}>
                       <input type="hidden" name="id" value={spend.id} />
@@ -254,7 +259,7 @@ export default async function ApprovalsPage({
                   className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-[var(--shadow-1)]"
                 >
                   {actions}
-                  <PhoneFold title="פירוט" summary={`${brief.who} · ${brief.whom}`}>
+                  <PhoneFold title={p('פירוט')} summary={`${brief.who} · ${brief.whom}`}>
                     <p className="t-body text-ink">{brief.who}</p>
                     <p className="t-meta text-ink-2">{brief.whom}</p>
                   </PhoneFold>
@@ -263,15 +268,15 @@ export default async function ApprovalsPage({
             })}
           </div>
         ) : null}
-          <PhoneFold title={tx('approvals.title')} summary="לא לשימוש יומיומי">
+          <PhoneFold title={tx('approvals.title')} summary={p('לא לשימוש יומיומי')}>
           <p className="t-meta mb-2 text-ink-2">{tx('approvals.onBehalf')}</p>
           <form action={submitSpend} className="grid gap-2">
-            <Input name="storeCode" placeholder="קוד סניף" required />
-            <Input name="storeName" placeholder="שם סניף" required />
-            <Input name="reason" placeholder="סיבה" required />
-            <Input name="vendor" placeholder="ספק" />
-            <Input name="amount" type="number" placeholder="סכום מבוקש" required />
-            <Input name="scope" placeholder="היקף" />
+            <Input name="storeCode" placeholder={p('קוד סניף')} required />
+            <Input name="storeName" placeholder={p('שם סניף')} required />
+            <Input name="reason" placeholder={p('סיבה')} required />
+            <Input name="vendor" placeholder={p('ספק')} />
+            <Input name="amount" type="number" placeholder={p('סכום מבוקש')} required />
+            <Input name="scope" placeholder={p('היקף')} />
             <label className="t-meta flex items-center gap-2">
               <input type="checkbox" name="urgent" /> {tx('approvals.urgent')}
             </label>
@@ -279,7 +284,7 @@ export default async function ApprovalsPage({
           </form>
           </PhoneFold>
           {settled.length > 0 ? (
-          <PhoneFold title="הוצאות שנרשמו" summary={String(settled.length)}>
+          <PhoneFold title={p('הוצאות שנרשמו')} summary={String(settled.length)}>
           <div className="flex flex-col gap-3">
         {settled.map((spend) => (
           <Panel key={spend.id} elevated>

@@ -6,12 +6,15 @@ import { Skeleton } from '@/components/ui/primitives'
 import { InboxClient } from './inbox-client'
 import { getServerActor } from '@/lib/auth/server-actor'
 import { shouldAllowDemoEntry } from '@/lib/auth/home-path'
+import { getLocale } from '@/lib/i18n/server'
+import { phrase } from '@/lib/i18n/phrases'
 
 export const dynamic = 'force-dynamic'
 
 export default async function InboxPage() {
   const actor = await getServerActor()
   if (!actor && !shouldAllowDemoEntry()) redirect('/login')
+  const locale = await getLocale()
 
   return (
     <OpsAppShell>
@@ -21,7 +24,7 @@ export default async function InboxPage() {
           className="hidden shrink-0 md:block"
           compact
           title="WhatsApp"
-          status="תיבת דואר נכנסת · השתלטות אנושית"
+          status={phrase(locale, 'תיבת דואר נכנסת · השתלטות אנושית')}
         />
         <Suspense
           fallback={

@@ -30,7 +30,9 @@ export default async function OpsAlertsPage() {
     <OpsAppShell>
       <div className="mx-auto flex w-full max-w-[880px] flex-col gap-5">
         <OpsPageHero title={p('מה דורש פעולה')} status={statusLine} />
-        <p className="t-meta text-ink-2">פעולות שמחכות להחלטה עכשיו.</p>
+        <p className="t-meta text-ink-2">
+          {p('פעולות שמחכות להחלטה עכשיו.')}
+        </p>
         <AlertsClient
           open={center.open}
           history={center.history}

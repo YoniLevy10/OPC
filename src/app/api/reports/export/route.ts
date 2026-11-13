@@ -24,6 +24,7 @@ import {
 } from '@/modules/reports/export-formats'
 import { captureError } from '@/lib/monitoring'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { getLocale } from '@/lib/i18n/server'
 
 function monthRange(month: string): { from: string; to: string } | null {
   const m = month.match(/^(\d{4})-(\d{2})$/)
@@ -40,6 +41,7 @@ function monthRange(month: string): { from: string; to: string } | null {
 export async function GET(request: Request) {
   try {
     const actor = await requireActor(request)
+    const locale = await getLocale()
     const limited = checkRateLimit(`reports-export:${actor.id}`, 10, 60_000)
     if (!limited.allowed) {
       return NextResponse.json({ error: 'יותר מדי בקשות' }, { status: 429 })
@@ -112,6 +114,7 @@ export async function GET(request: Request) {
       to,
       techNames,
       recorded,
+      locale,
       annualCosts: {
         year: annual.year,
         network: annual.network,

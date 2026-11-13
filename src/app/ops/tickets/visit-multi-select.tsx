@@ -18,6 +18,7 @@ import {
   useVisitSelection,
   type VisitSelectableTicket,
 } from './visit-selection-context'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type VendorOption = {
   id: string
@@ -46,6 +47,7 @@ function VisitBarInner({
 }) {
   const router = useRouter()
   const toast = useToast()
+  const p = usePhrase()
   const selection = useVisitSelection()
   const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
@@ -116,8 +118,8 @@ function VisitBarInner({
     return (
       <p className="t-caption hidden text-ink-3 md:block">
         {storeFilter
-          ? 'סמנו תקלות לשיגור ביקור משולב לחנות זו'
-          : 'סננו לפי חנות ואז סמנו תקלות לשיגור ביקור משולב'}
+          ? p('סמנו תקלות לשיגור ביקור משולב לחנות זו')
+          : p('סננו לפי חנות ואז סמנו תקלות לשיגור ביקור משולב')}
       </p>
     )
   }

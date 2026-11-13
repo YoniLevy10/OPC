@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { ListFinder } from '@/components/ops/list-finder'
 import { Button } from '@/components/ui/button'
@@ -11,14 +13,21 @@ import {
 } from '@/modules/tasks/status'
 import { setTaskStatusAction } from '../work-actions'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
+import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
+import type { Locale } from '@/lib/i18n/locale'
 
 export function TaskBoard({ tasks, now = new Date() }: { tasks: OpsTask[]; now?: Date }) {
+  const p = usePhrase()
   const ranked = [...tasks].sort((a, b) => rank(a, now) - rank(b, now) || dueTime(a) - dueTime(b))
   const open = ranked.filter((task) => readTaskStatus(task) !== 'done')
   const done = ranked.filter((task) => readTaskStatus(task) === 'done')
 
   return (
-    <ListFinder placeholder="חיפוש משימה או סניף" one="משימה אחת" many="משימות">
+    <ListFinder
+      placeholder={p('חיפוש משימה או סניף')}
+      one={p('משימה אחת')}
+      many={p('משימות')}
+    >
       <PhoneFoldStack>
       <div className="store-stack">
         {open.map((task) => (
@@ -34,17 +43,20 @@ export function TaskBoard({ tasks, now = new Date() }: { tasks: OpsTask[]; now?:
 }
 
 function TaskCard({ task, tasks, now }: { task: OpsTask; tasks: OpsTask[]; now: Date }) {
+  const p = usePhrase()
+  const { locale } = useLocale()
   const status = readTaskStatus(task)
   const store = ISRAEL_STORES.find((row) => row.code === task.storeCode)
   const overdue = status !== 'done' && task.dueAt != null && new Date(task.dueAt).getTime() < now.getTime()
   const moves = taskStatusMoves(status)
   const repeatDays = task.repeatDays && task.repeatDays > 0 ? task.repeatDays : null
   const next = findNextInstance(task, tasks)
+  const storeLabel = store?.name || p('בלי סניף')
 
   return (
     <article
       data-find-group
-      data-find={`${task.title} ${store?.name || ''} ${task.storeCode || ''} ${task.assignee || ''} ${TASK_STATUS_LABEL[status]}`}
+      data-find={`${task.title} ${store?.name || ''} ${task.storeCode || ''} ${task.assignee || ''} ${p(TASK_STATUS_LABEL[status])}`}
       id={`task-${task.id}`}
       className={
         overdue
@@ -54,13 +66,13 @@ function TaskCard({ task, tasks, now }: { task: OpsTask; tasks: OpsTask[]; now: 
     >
       <PhoneFold
         title={task.title}
-        summary={`${store?.name || 'בלי סניף'} · ${formatDue(task.dueAt)}`}
+        summary={`${storeLabel} · ${formatDue(task.dueAt, locale, p)}`}
       >
       <div className="flex flex-col gap-2 px-4 py-3 max-md:px-0 max-md:py-0">
         <p className="t-meta hidden text-ink-2 md:block">
-          {store?.name || 'בלי סניף'}
+          {storeLabel}
           {task.storeCode ? ` · ${task.storeCode}` : ''}
-          {task.assignee ? ` · ${task.assignee}` : ' · בלי אחראי'}
+          {task.assignee ? ` · ${task.assignee}` : ` · ${p('בלי אחראי')}`}
         </p>
         <h2 className={`hidden md:block ${status === 'done' ? 't-body text-ink-3 line-through' : 't-body text-ink'}`}>
           {task.title}
@@ -72,31 +84,31 @@ function TaskCard({ task, tasks, now }: { task: OpsTask; tasks: OpsTask[]; now: 
             <>
               {' · '}
               <span className="inline-flex rounded-full border border-border px-2 py-0.5 text-ink">
-                חוזר כל {repeatDays} ימים
+                {p('חוזר כל {days} ימים', { days: repeatDays })}
               </span>
             </>
           ) : null}
           <span className="hidden md:inline">
             {' · '}
-            {formatDue(task.dueAt)}
-            {overdue ? ' · באיחור' : ''}
+            {formatDue(task.dueAt, locale, p)}
+            {overdue ? ` · ${p('באיחור')}` : ''}
           </span>
         </p>
         {status === 'done' && task.nextOpened && next ? (
           <p className="t-meta text-ink">
-            נפתח הבא ל־{formatDueDate(next.dueAt)}
+            {p('נפתח הבא ל־{date}', { date: formatDueDate(next.dueAt, locale, p) })}
             {' · '}
             <Link href={`#task-${next.id}`} className="underline">
-              למשימה הבאה
+              {p('למשימה הבאה')}
             </Link>
           </p>
         ) : status === 'done' && task.nextOpened ? (
-          <p className="t-meta text-ink">נפתח המופע הבא במחזור</p>
+          <p className="t-meta text-ink">{p('נפתח המופע הבא במחזור')}</p>
         ) : null}
         {task.clarification ? <p className="t-meta text-ink">{task.clarification}</p> : null}
         {task.spendId ? (
           <Link href="/ops/approvals" className="t-meta text-ink underline">
-            לבקשת הכסף
+            {p('לבקשת הכסף')}
           </Link>
         ) : null}
         <div className="mt-1 flex flex-wrap gap-2">
@@ -104,8 +116,8 @@ function TaskCard({ task, tasks, now }: { task: OpsTask; tasks: OpsTask[]; now: 
             <form key={move.status} action={setTaskStatusAction}>
               <input type="hidden" name="id" value={task.id} />
               <input type="hidden" name="status" value={move.status} />
-              <Button type="submit" size="sm" variant={move.tone} aria-label={`${move.label} · ${task.title}`}>
-                {move.label}
+              <Button type="submit" size="sm" variant={move.tone} aria-label={`${p(move.label)} · ${task.title}`}>
+                {p(move.label)}
               </Button>
             </form>
           ))}
@@ -133,6 +145,7 @@ function findNextInstance(task: OpsTask, tasks: OpsTask[]): OpsTask | null {
 }
 
 function StatusChip({ status, overdue }: { status: TaskStatus; overdue: boolean }) {
+  const p = usePhrase()
   const hot = overdue || status === 'waiting'
   return (
     <span
@@ -142,7 +155,7 @@ function StatusChip({ status, overdue }: { status: TaskStatus; overdue: boolean 
           : 'inline-flex rounded-full border border-border px-2 py-0.5 text-ink'
       }
     >
-      {TASK_STATUS_LABEL[status]}
+      {p(TASK_STATUS_LABEL[status])}
     </span>
   )
 }
@@ -162,11 +175,19 @@ function dueTime(task: OpsTask): number {
   return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
 }
 
-function formatDue(iso: string | null): string {
-  if (!iso) return 'בלי מועד'
+type PhraseFn = (hebrew: string, vars?: Record<string, string | number>) => string
+
+function localeTag(locale: Locale): string {
+  if (locale === 'he') return 'he-IL'
+  if (locale === 'fr') return 'fr-FR'
+  return 'en-GB'
+}
+
+function formatDue(iso: string | null, locale: Locale, p: PhraseFn): string {
+  if (!iso) return p('בלי מועד')
   const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return 'בלי מועד'
-  return date.toLocaleString('he-IL', {
+  if (Number.isNaN(date.getTime())) return p('בלי מועד')
+  return date.toLocaleString(localeTag(locale), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -174,11 +195,11 @@ function formatDue(iso: string | null): string {
   })
 }
 
-function formatDueDate(iso: string | null): string {
-  if (!iso) return 'בלי מועד'
+function formatDueDate(iso: string | null, locale: Locale, p: PhraseFn): string {
+  if (!iso) return p('בלי מועד')
   const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return 'בלי מועד'
-  return date.toLocaleDateString('he-IL', {
+  if (Number.isNaN(date.getTime())) return p('בלי מועד')
+  return date.toLocaleDateString(localeTag(locale), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { SearchField } from '@/components/ui/input'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 function hrefFor(q: string, region: string) {
   const params = new URLSearchParams()
@@ -19,6 +20,7 @@ export function StoreSearch({
   initialQ: string
   region?: string
 }) {
+  const p = usePhrase()
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [q, setQ] = useState(initialQ)
@@ -42,7 +44,7 @@ export function StoreSearch({
     <SearchField
       value={q}
       onValueChange={setQ}
-      placeholder="חיפוש חנות..."
+      placeholder={p('חיפוש חנות...')}
       autoFocusKey="/"
       className="w-full"
     />

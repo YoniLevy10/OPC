@@ -11,8 +11,10 @@ import {
   GroupedSection,
 } from '@/components/ui/grouped-list'
 import type { WhatsAppTemplateRow } from '@/modules/whatsapp/templates-admin'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export function WhatsAppTemplatesClient() {
+  const p = usePhrase()
   const [templates, setTemplates] = useState<WhatsAppTemplateRow[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,15 +25,15 @@ export function WhatsAppTemplatesClient() {
     setError(null)
     const res = await fetch('/api/settings/whatsapp-templates')
     const json = await res.json()
-    if (!res.ok) throw new Error(json.error || 'טעינה נכשלה')
+    if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
     setTemplates(json.templates ?? [])
-  }, [])
+  }, [p])
 
   useEffect(() => {
     void load().catch((err) =>
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה'),
+      setError(err instanceof Error ? err.message : p('טעינה נכשלה')),
     )
-  }, [load])
+  }, [load, p])
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -52,12 +54,12 @@ export function WhatsAppTemplatesClient() {
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'שמירה נכשלה')
-      setNotice('התבנית עודכנה')
+      if (!res.ok) throw new Error(json.error || p('שמירה נכשלה'))
+      setNotice(p('התבנית עודכנה'))
       setEditing(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שמירה נכשלה')
+      setError(err instanceof Error ? err.message : p('שמירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -67,19 +69,20 @@ export function WhatsAppTemplatesClient() {
     <div className="flex w-full max-w-full flex-col gap-4 overflow-x-clip">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="t-meta">
-          תבניות Meta Utility לשליחה מחוץ לחלון 24 השעות. שם Meta חייב להתאים
-          לתבנית המאושרת ב־Business Manager.
+          {p(
+            'תבניות Meta Utility לשליחה מחוץ לחלון 24 השעות. שם Meta חייב להתאים לתבנית המאושרת ב־Business Manager.',
+          )}
         </p>
         <Button asChild variant="secondary">
-          <Link href="/ops/settings">← חזרה להגדרות</Link>
+          <Link href="/ops/settings">{p('← חזרה להגדרות')}</Link>
         </Button>
       </div>
 
-      {error ? <ErrorState title="שגיאה" description={error} /> : null}
+      {error ? <ErrorState title={p('שגיאה')} description={error} /> : null}
       {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
 
       <GroupedList>
-        <GroupedSection title="קטלוג תבניות">
+        <GroupedSection title={p('קטלוג תבניות')}>
           {templates.map((t) => (
             <GroupedRow key={t.id} className="flex-col items-stretch gap-1">
               <button
@@ -90,7 +93,7 @@ export function WhatsAppTemplatesClient() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="t-body-strong">{t.key}</span>
                   <span className="t-caption">
-                    {t.is_active ? 'פעיל' : 'כבוי'} · {t.category}
+                    {t.is_active ? p('פעיל') : p('כבוי')} · {t.category}
                   </span>
                 </div>
                 <span className="t-meta" dir="ltr">
@@ -105,8 +108,8 @@ export function WhatsAppTemplatesClient() {
 
       {editing ? (
         <form onSubmit={save} className="panel space-y-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-          <h2 className="t-section">עריכת {editing.key}</h2>
-          <Field label="שם Meta (meta_name)" htmlFor="meta">
+          <h2 className="t-section">{p('עריכת {key}', { key: editing.key })}</h2>
+          <Field label={p('שם Meta (meta_name)')} htmlFor="meta">
             <Input
               id="meta"
               dir="ltr"
@@ -120,7 +123,7 @@ export function WhatsAppTemplatesClient() {
               placeholder="maintainos_followup"
             />
           </Field>
-          <Field label="קטגוריה" htmlFor="cat">
+          <Field label={p('קטגוריה')} htmlFor="cat">
             <Input
               id="cat"
               value={editing.category}
@@ -130,7 +133,7 @@ export function WhatsAppTemplatesClient() {
             />
           </Field>
           <label className="flex flex-col gap-1.5">
-            <span className="t-caption">גוף ההודעה</span>
+            <span className="t-caption">{p('גוף ההודעה')}</span>
             <textarea
               className="min-h-[120px] w-full rounded-[var(--radius-md)] border border-border bg-surface p-3 t-body"
               value={editing.body}
@@ -147,18 +150,18 @@ export function WhatsAppTemplatesClient() {
                 setEditing({ ...editing, is_active: e.target.checked })
               }
             />
-            תבנית פעילה
+            {p('תבנית פעילה')}
           </label>
           <div className="flex gap-2">
             <Button type="submit" variant="primary" disabled={busy}>
-              {busy ? 'שומר…' : 'שמירה'}
+              {busy ? p('שומר…') : p('שמירה')}
             </Button>
             <Button
               type="button"
               variant="secondary"
               onClick={() => setEditing(null)}
             >
-              ביטול
+              {p('ביטול')}
             </Button>
           </div>
         </form>

@@ -16,18 +16,30 @@ import {
 import { renewDocumentAction, setDocumentExpiryAction, setDocumentRemindersAction, setDocumentTitleAction } from '../work-actions'
 import { PhoneFold } from '@/components/layout/phone-fold'
 import { Pencil } from 'lucide-react'
+import { phrase } from '@/lib/i18n/phrases'
+import type { Locale } from '@/lib/i18n/locale'
+type PhraseFn = (text: string, vars?: Record<string, string | number>) => string
 
-const FILE_STATUS = {
-  ingested: 'נקלט',
-  needs_review: 'דורש בדיקה',
-  failed: 'נכשל',
-} as const
+function fileStatus(p: PhraseFn, status: StoreDocument['intakeStatus']): string {
+  const map = {
+    ingested: 'נקלט',
+    needs_review: 'דורש בדיקה',
+    failed: 'נכשל',
+  } as const
+  return p(map[status])
+}
 
-const CLOCK = {
-  extracted: 'תוקף מהמסמך',
-  computed: 'מועד מחושב',
-  missing: 'אין תאריך',
-} as const
+function clockLabel(
+  p: PhraseFn,
+  clock: ReturnType<typeof documentClock>,
+): string {
+  const map = {
+    extracted: 'תוקף מהמסמך',
+    computed: 'מועד מחושב',
+    missing: 'אין תאריך',
+  } as const
+  return p(map[clock])
+}
 
 type Folder = {
   key: string
@@ -39,19 +51,22 @@ type Folder = {
 export function DocumentCabinet({
   documents,
   files,
+  locale = 'he',
 }: {
   documents: StoreDocument[]
   files: IngestedFile[]
+  locale?: Locale
 }) {
+  const p: PhraseFn = (text, vars) => phrase(locale, text, vars)
   const byId = new Map(files.map((file) => [file.id, file]))
   const filesOnDisk = certificateIds()
   const folders = groupByStore(preferStoredFiles(documents))
 
   return (
     <ListFinder
-      placeholder="חיפוש סניף או מסמך"
-      one="תיקייה אחת"
-      many="תיקיות"
+      placeholder={p('חיפוש סניף או מסמך')}
+      one={p('תיקייה אחת')}
+      many={p('תיקיות')}
       className="doc-cabinet"
     >
       {folders.map((folder) => {
@@ -68,7 +83,7 @@ export function DocumentCabinet({
             data-find={`סניף ${folder.name} ${folder.code} ${folder.docs.map((doc) => paperTitle(doc, fileFor(doc, byId))).join(' ')}`}
           >
             <summary>
-              <span className="doc-folder-tab">סניף {folder.name}</span>
+              <span className="doc-folder-tab">{p('סניף {name}', { name: folder.name })}</span>
               <span className="doc-peek" aria-hidden>
                 {folder.docs.slice(0, 3).map((doc) => (
                   <span key={doc.id} className="doc-peek-sheet">
@@ -78,8 +93,10 @@ export function DocumentCabinet({
               </span>
               <span className="doc-folder-face">
                 <span className="doc-folder-meta">
-                  {folder.code ? `#${folder.code}` : 'בלי קוד'}
-                  {next ? ` · הקרוב ${formatDay(next)}` : ''}
+                  {folder.code ? `#${folder.code}` : p('בלי קוד')}
+                  {next
+                    ? ` · ${p('הקרוב {day}', { day: formatDay(next) })}`
+                    : ''}
                 </span>
               </span>
             </summary>
@@ -90,6 +107,7 @@ export function DocumentCabinet({
                   doc={doc}
                   file={fileFor(doc, byId)}
                   fileHref={documentFileHref(doc, filesOnDisk)}
+                  p={p}
                 />
               ))}
             </ol>
@@ -104,10 +122,12 @@ function Paper({
   doc,
   file,
   fileHref,
+  p,
 }: {
   doc: StoreDocument
   file: IngestedFile | null
   fileHref: string | null
+  p: PhraseFn
 }) {
   const title = paperTitle(doc, file)
   const typeLabel = documentTypeLabel(doc.docType)
@@ -147,18 +167,27 @@ function Paper({
         {fileHref ? (
           <Button asChild size="sm">
             <a href={fileHref} target="_blank" rel="noreferrer">
-              פתח את המסמך
+              {p('פתח את המסמך')}
               <span className="sr-only">, נפתח בלשונית חדשה</span>
             </a>
           </Button>
         ) : null}
       </div>
       <p className="doc-page-kicker">
-        {expiry ? `תוקף ${formatDay(expiry)}` : CLOCK[documentClock(doc)]}
+        {expiry
+          ? p('תוקף {date}', { date: formatDay(expiry) })
+          : clockLabel(p, documentClock(doc))}
         {typeLabel !== title ? ` · ${typeLabel}` : ''}
       </p>
-      <PhoneFold title="פרטים" summary={expiry ? formatDay(expiry) : 'תוקף ותזכורת'}>
-      {expiry ? <p className="doc-page-stamp">תוקף {formatDay(expiry)}</p> : null}
+      <PhoneFold
+        title={p('פרטים')}
+        summary={expiry ? formatDay(expiry) : p('תוקף ותזכורת')}
+      >
+      {expiry ? (
+        <p className="doc-page-stamp">
+          {p('תוקף {date}', { date: formatDay(expiry) })}
+        </p>
+      ) : null}
       <div className="doc-page-body">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -182,7 +211,7 @@ function Paper({
         <form action={setDocumentExpiryAction} className={expiry ? 'doc-expiry-quick' : 'doc-expiry-quick is-open'}>
           <input type="hidden" name="documentId" value={doc.id} />
           <label className={expiry ? 'sr-only' : 'doc-expiry-label'} htmlFor={expiryId}>
-            {expiry ? `תוקף ${title}` : 'תוקף'}
+            {expiry ? p('תוקף {date}', { date: title }) : p('תוקף')}
           </label>
           <input
             id={expiryId}
@@ -193,21 +222,22 @@ function Paper({
             defaultValue={expiry ? expiry.slice(0, 10) : undefined}
           />
           <Button type="submit" size="sm" aria-label={`שמור תוקף ${title}`} className="max-md:w-full">
-            שמור
+            {p('שמור')}
           </Button>
         </form>
       ) : null}
-      <ReminderMenu doc={doc} title={title} />
+      <ReminderMenu doc={doc} title={title} p={p} />
       <p className="doc-page-foot">
-        {FILE_STATUS[doc.intakeStatus]}
-        {doc.intakeReason ? ` · ${doc.intakeReason}` : ''} · {CLOCK[documentClock(doc)]}
-        {overdue && expiry ? ' · באיחור' : ''}
-        {dueSoon ? ' · תזכורת חודש מראש' : ''}
-        {doc.renewed ? ' · הוחלף' : ''}
+        {fileStatus(p, doc.intakeStatus)}
+        {doc.intakeReason ? ` · ${doc.intakeReason}` : ''} ·{' '}
+        {clockLabel(p, documentClock(doc))}
+        {overdue && expiry ? p(' · באיחור') : ''}
+        {dueSoon ? p(' · תזכורת חודש מראש') : ''}
+        {doc.renewed ? p(' · הוחלף') : ''}
       </p>
       {!doc.renewed ? (
         <details className="doc-renew">
-          <summary>חידוש</summary>
+          <summary>{p('חידוש')}</summary>
           <form action={renewDocumentAction} className="mt-2 grid gap-2">
             <input type="hidden" name="documentId" value={doc.id} />
             <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
@@ -259,7 +289,15 @@ function documentFileHref(doc: StoreDocument, filesOnDisk: Set<string>): string 
   return null
 }
 
-function ReminderMenu({ doc, title }: { doc: StoreDocument; title: string }) {
+function ReminderMenu({
+  doc,
+  title,
+  p,
+}: {
+  doc: StoreDocument
+  title: string
+  p: PhraseFn
+}) {
   const reminders = remindersFor(doc)
   const six = reminders.find((row) => row.months === 6)?.at
   const two = reminders.find((row) => row.months === 2)?.at
@@ -277,7 +315,7 @@ function ReminderMenu({ doc, title }: { doc: StoreDocument; title: string }) {
           <p className="doc-reminder-empty">שדה ריק חוזר לחישוב לפי תאריך התוקף.</p>
         ) : null}
         <Button type="submit" size="sm" aria-label={`שמור תזכורות ${title}`} className="max-md:w-full">
-          שמור
+          {p('שמור')}
         </Button>
       </form>
     </details>

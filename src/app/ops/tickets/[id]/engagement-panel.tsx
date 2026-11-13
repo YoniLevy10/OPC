@@ -158,7 +158,7 @@ export function EngagementPanel({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    קישור אישי
+                    {p('קישור אישי')}
                   </a>
                 </>
               ) : null}
@@ -217,7 +217,7 @@ export function EngagementPanel({
                 {p('מאגר אנשי מקצוע')}
               </legend>
               <p className="t-meta text-ink-3">
-                בחרו מאנשי מקצוע שכבר עבדו עם ארי — מידרג רק אם חסר במאגר.
+                {p('בחרו מאנשי מקצוע שכבר עבדו עם ארי — מידרג רק אם חסר במאגר.')}
               </p>
               <ul className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
                 {book.map((pro) => (
@@ -240,7 +240,7 @@ export function EngagementPanel({
                           {pro.trade ? ` · ${pro.trade}` : ''}
                         </span>
                         <span className="t-meta block truncate text-ink-3" dir="ltr">
-                          {pro.phone || 'בלי טלפון'}
+                          {pro.phone || p('בלי טלפון')}
                           {pro.use_count > 0 ? ` · ${pro.use_count}×` : ''}
                         </span>
                       </span>
@@ -457,7 +457,7 @@ export function EngagementPanel({
             </label>
           </div>
           <Button type="submit" variant="primary" className="hidden w-full md:inline-flex">
-            אשר · WA למנהל + SMS לאיש מקצוע
+            {p('אשר · WA למנהל + SMS לאיש מקצוע')}
           </Button>
         </form>
       ) : null}
@@ -467,7 +467,7 @@ export function EngagementPanel({
         {status !== 'engaged' ? (
           <>
             <Button type="submit" form={lockFormId} variant="primary" className="w-full">
-              אשר · WA למנהל + SMS לאיש מקצוע
+              {p('אשר · WA למנהל + SMS לאיש מקצוע')}
             </Button>
             <div className="flex gap-2">
               <Button type="submit" form={urgentFormId} variant="secondary" className="flex-1">

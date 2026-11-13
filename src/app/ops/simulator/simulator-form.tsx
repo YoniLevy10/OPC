@@ -7,6 +7,7 @@ import { Field, Input, Select, Textarea } from '@/components/ui/input'
 import { Panel, PanelHeader, EmptyState } from '@/components/ui/primitives'
 import { LiveRegion } from '@/components/ui/a11y'
 import { cn } from '@/lib/utils'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type SimResult = {
   ok: boolean
@@ -21,10 +22,11 @@ type SimResult = {
 const SOURCES = [
   { value: 'qr_whatsapp', label: 'QR → WhatsApp' },
   { value: 'nfc_whatsapp', label: 'NFC → WhatsApp' },
-  { value: 'whatsapp', label: 'ידני (WhatsApp)' },
+  { value: 'whatsapp', labelKey: 'ידני (WhatsApp)' },
 ] as const
 
 export function SimulatorForm() {
+  const p = usePhrase()
   const [waId, setWaId] = useState('972501234567')
   const [storeCode, setStoreCode] = useState('172')
   const [text, setText] = useState('')
@@ -56,7 +58,7 @@ export function SimulatorForm() {
           {
             ok: false,
             reply: null,
-            error: e instanceof Error ? e.message : 'שגיאת רשת',
+            error: e instanceof Error ? e.message : p('שגיאת רשת'),
           },
           ...prev,
         ])
@@ -79,7 +81,7 @@ export function SimulatorForm() {
             })
           }}
         >
-          <Field label="מספר שולח (wa_id)" htmlFor="sim-wa">
+          <Field label={p('מספר שולח (wa_id)')} htmlFor="sim-wa">
             <Input
               id="sim-wa"
               dir="ltr"
@@ -91,9 +93,9 @@ export function SimulatorForm() {
           </Field>
 
           <Field
-            label="קוד חנות"
+            label={p('קוד חנות')}
             htmlFor="sim-store"
-            hint="אם ממולא — נשלח כ־STORE_קוד, כמו סריקת QR או NFC"
+            hint={p('אם ממולא — נשלח כ־STORE_קוד, כמו סריקת QR או NFC')}
           >
             <Input
               id="sim-store"
@@ -107,17 +109,17 @@ export function SimulatorForm() {
             />
           </Field>
 
-          <Field label="טקסט ההודעה" htmlFor="sim-text">
+          <Field label={p('טקסט ההודעה')} htmlFor="sim-text">
             <Textarea
               id="sim-text"
               rows={3}
-              placeholder="למשל: המזגן לא מקרר באזור הקופות"
+              placeholder={p('למשל: המזגן לא מקרר באזור הקופות')}
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
           </Field>
 
-          <Field label="מקור" htmlFor="sim-source">
+          <Field label={p('מקור')} htmlFor="sim-source">
             <Select
               id="sim-source"
               value={source}
@@ -125,7 +127,7 @@ export function SimulatorForm() {
             >
               {SOURCES.map((s) => (
                 <option key={s.value} value={s.value}>
-                  {s.label}
+                  {'labelKey' in s ? p(s.labelKey) : s.label}
                 </option>
               ))}
             </Select>
@@ -133,7 +135,7 @@ export function SimulatorForm() {
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" variant="primary" disabled={pending}>
-              {pending ? 'שולח…' : 'שליחת הודעה'}
+              {pending ? p('שולח…') : p('שליחת הודעה')}
             </Button>
             <Button
               type="button"
@@ -148,7 +150,7 @@ export function SimulatorForm() {
                 })
               }
             >
-              זיהוי חנות בלבד
+              {p('זיהוי חנות בלבד')}
             </Button>
             <Button
               type="button"
@@ -164,18 +166,21 @@ export function SimulatorForm() {
                 })
               }}
             >
-              בלי קוד חנות
+              {p('בלי קוד חנות')}
             </Button>
           </div>
         </form>
       </Panel>
 
       <Panel flush className="overflow-hidden">
-        <PanelHeader title="תשובות הבוט" meta={log.length ? `${log.length}` : undefined} />
+        <PanelHeader
+          title={p('תשובות הבוט')}
+          meta={log.length ? `${log.length}` : undefined}
+        />
         {log.length === 0 ? (
           <EmptyState
-            title="עדיין אין הודעות"
-            description="שלחו דיווח לדוגמה כדי לראות את תגובת ה־intake."
+            title={p('עדיין אין הודעות')}
+            description={p('שלחו דיווח לדוגמה כדי לראות את תגובת ה־intake.')}
           />
         ) : (
           <LiveRegion>
@@ -203,7 +208,7 @@ export function SimulatorForm() {
                           : 'bg-[var(--signal-critical)]',
                       )}
                     />
-                    {item.ok ? 'הצלחה' : 'שגיאה'}
+                    {item.ok ? p('הצלחה') : p('שגיאה')}
                   </span>
                   {item.state ? <span>· {item.state}</span> : null}
                   {item.display_number ? (
@@ -214,10 +219,10 @@ export function SimulatorForm() {
                       href={`/ops/tickets/${item.ticket_id}`}
                       className="text-[var(--tenant)] hover:underline"
                     >
-                      · צפייה בתקלה
+                      · {p('צפייה בתקלה')}
                     </Link>
                   ) : null}
-                  {item.duplicate ? <span>· כפילות</span> : null}
+                  {item.duplicate ? <span>· {p('כפילות')}</span> : null}
                 </div>
                 <p className="t-body mt-1 whitespace-pre-wrap text-ink">
                   {item.reply || item.error || '—'}

@@ -1,5 +1,6 @@
 import { listSpends } from '@/lib/data/ops-ledger'
 import type { BundleCard } from '@/modules/whatsapp/agent/bundle'
+import { isNoPriceYet } from '@/modules/recommendations/estimate'
 import type { BundleRequest } from './commit'
 import { findPendingBundle, parseBundleScope } from './commit'
 
@@ -17,7 +18,7 @@ export type RecommendationCardModel = {
 }
 
 function averageFrom(line: string | null): number | null {
-  if (!line || line === 'אין עדיין מחיר' || line.includes('–') || line.includes('טווח')) return null
+  if (!line || isNoPriceYet(line) || line.includes('–') || line.includes('טווח')) return null
   const match = line.match(/₪\s*(\d+)/)
   if (!match?.[1]) return null
   const amount = Number(match[1])

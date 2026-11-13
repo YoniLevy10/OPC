@@ -13,6 +13,7 @@ import {
   regionCodeFromId,
   type IlRegionCode,
 } from '@/modules/stores/regions'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 type TriggerSize = 'sm' | 'md' | 'touch' | 'block'
 type TriggerVariant = 'primary' | 'secondary' | 'ghost' | 'critical' | 'resolve'
@@ -60,7 +61,7 @@ function fieldsFromStore(store: StoreFormSeed) {
 }
 
 export function StoreCreateForm({
-  triggerLabel = 'הוספת סניף',
+  triggerLabel,
   triggerVariant = 'primary',
   triggerSize = 'touch',
   store = null,
@@ -71,7 +72,9 @@ export function StoreCreateForm({
   /** When set, the modal edits this store (PATCH) instead of creating. */
   store?: StoreFormSeed | null
 } = {}) {
+  const p = usePhrase()
   const router = useRouter()
+  const resolvedTriggerLabel = triggerLabel ?? p('הוספת סניף')
   const editing = Boolean(store?.id)
   const [open, setOpen] = useState(false)
   const [fields, setFields] = useState(() =>
@@ -176,7 +179,7 @@ export function StoreCreateForm({
         ) : (
           <Plus className="h-4 w-4" aria-hidden />
         )}
-        {triggerLabel}
+        {resolvedTriggerLabel}
       </Button>
 
       <Modal

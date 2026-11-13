@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { Panel } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 function isoDate(d: Date) {
   const y = d.getFullYear()
@@ -14,7 +15,10 @@ function isoDate(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-function buildPresets(now = new Date()) {
+function buildPresets(
+  p: (text: string) => string,
+  now = new Date(),
+) {
   const today = isoDate(now)
   const d7 = new Date(now)
   d7.setDate(d7.getDate() - 6)
@@ -24,16 +28,16 @@ function buildPresets(now = new Date()) {
   const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
   return [
-    { key: '7d', label: '7 ימים', from: isoDate(d7), to: today },
-    { key: '30d', label: '30 ימים', from: isoDate(d30), to: today },
-    { key: 'month', label: 'החודש', from: thisMonthStart, to: today },
+    { key: '7d', label: p('7 ימים'), from: isoDate(d7), to: today },
+    { key: '30d', label: p('30 ימים'), from: isoDate(d30), to: today },
+    { key: 'month', label: p('החודש'), from: thisMonthStart, to: today },
     {
       key: 'last',
-      label: 'חודש קודם',
+      label: p('חודש קודם'),
       from: isoDate(lastMonthDate),
       to: isoDate(lastMonthEnd),
     },
-    { key: 'all', label: 'הכל', from: '', to: '' },
+    { key: 'all', label: p('הכל'), from: '', to: '' },
   ] as const
 }
 
@@ -60,7 +64,8 @@ export function ReportsFilters({
   status?: string
 }) {
   const router = useRouter()
-  const presets = buildPresets()
+  const p = usePhrase()
+  const presets = buildPresets(p)
   const activePreset = presets.find((p) => p.from === (from ?? '') && p.to === (to ?? ''))
 
   function apply(form: HTMLFormElement) {
@@ -108,7 +113,7 @@ export function ReportsFilters({
           apply(e.currentTarget)
         }}
       >
-        <Field label="מתאריך" htmlFor="reports-from">
+        <Field label={p('מתאריך')} htmlFor="reports-from">
           <Input
             id="reports-from"
             name="from"
@@ -117,7 +122,7 @@ export function ReportsFilters({
             defaultValue={from ?? ''}
           />
         </Field>
-        <Field label="עד תאריך" htmlFor="reports-to">
+        <Field label={p('עד תאריך')} htmlFor="reports-to">
           <Input
             id="reports-to"
             name="to"
@@ -126,7 +131,7 @@ export function ReportsFilters({
             defaultValue={to ?? ''}
           />
         </Field>
-        <Field label="סטטוס" htmlFor="reports-status">
+        <Field label={p('סטטוס')} htmlFor="reports-status">
           <select
             id="reports-status"
             name="status"
@@ -136,21 +141,21 @@ export function ReportsFilters({
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--tenant)]',
             )}
           >
-            <option value="">הכל</option>
-            <option value="open">פתוחות</option>
-            <option value="resolved">נפתרו / נסגרו</option>
+            <option value="">{p('הכל')}</option>
+            <option value="open">{p('פתוחות')}</option>
+            <option value="resolved">{p('נפתרו / נסגרו')}</option>
           </select>
         </Field>
         <Button type="submit" variant="secondary" size="sm" className="max-md:w-full">
-          החלת טווח
+          {p('החלת טווח')}
         </Button>
         {(from || to || status) && (
           <Button asChild variant="ghost" size="sm">
-            <Link href="/ops/reports">ניקוי</Link>
+            <Link href="/ops/reports">{p('ניקוי')}</Link>
           </Button>
         )}
         <Button asChild variant="ghost" size="sm" className="ms-auto">
-          <Link href="/ops/reports/history">היסטוריית דוחות</Link>
+          <Link href="/ops/reports/history">{p('היסטוריית דוחות')}</Link>
         </Button>
       </form>
     </Panel>

@@ -13,14 +13,18 @@ import {
   type TicketStatus,
 } from '@/modules/tickets/constants'
 import type { AuditEventRow } from '@/modules/audit/service'
+import { phrase } from '@/lib/i18n/phrases'
+import type { Locale } from '@/lib/i18n/locale'
+import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
 
 export type AuditEvent = AuditEventRow
 
 const NOISE_TYPES = new Set(['sla_breached'])
 
-function statusHe(raw: unknown): string {
+function statusHe(raw: unknown, locale: Locale): string {
   const key = String(raw ?? '')
-  return PLAIN_STATUS_HE[key as TicketStatus] ?? (key || '—')
+  const he = PLAIN_STATUS_HE[key as TicketStatus] ?? (key || '—')
+  return phrase(locale, he)
 }
 
 function sourceHe(source: string): string {
@@ -42,7 +46,9 @@ function urgencyHe(raw: unknown): string {
 }
 
 /** Human phrasing for the system journal — who / what / on which ticket. */
-export function phraseEvent(e: AuditEvent): string {
+export function phraseEvent(e: AuditEvent, locale: Locale = 'he'): string {
+  const t = (text: string, vars?: Record<string, string | number>) =>
+    phrase(locale, text, vars)
   const p =
     e.payload && typeof e.payload === 'object'
       ? (e.payload as Record<string, unknown>)
@@ -52,14 +58,15 @@ export function phraseEvent(e: AuditEvent): string {
     case 'status_changed': {
       const from = p.from ?? p.from_status
       const to = p.to ?? p.to_status
-      if (from && to) return `${statusHe(from)} → ${statusHe(to)}`
-      return `סטטוס · ${statusHe(to)}`
+      if (from && to)
+        return `${statusHe(from, locale)} → ${statusHe(to, locale)}`
+      return `${t('סטטוס')} · ${statusHe(to, locale)}`
     }
     case 'assigned':
-      return 'שויכה לטכנאי פנימי'
+      return t('שויכה לטכנאי פנימי')
     case 'created': {
       const source = p.source ? sourceHe(String(p.source)) : null
-      return source ? `נפתחה · ${source}` : 'תקלה נפתחה'
+      return source ? `${t('נפתחה')} · ${source}` : t('תקלה נפתחה')
     }
     case 'sla_breached': {
       const kind =
@@ -139,7 +146,7 @@ export function phraseEvent(e: AuditEvent): string {
     case 'unassigned_timeout_notified':
       return 'תזכורת · תקלה בלי שיוך'
     default:
-      return TICKET_EVENT_LABELS_HE[e.event_type] ?? e.event_type
+      return t(TICKET_EVENT_LABELS_HE[e.event_type] ?? e.event_type)
   }
 }
 
@@ -205,6 +212,8 @@ export function ActivityLog({
   events: AuditEvent[]
   slaCount: number
 }) {
+  const { locale } = useLocale()
+  const p = usePhrase()
   const [mode, setMode] = useState<FeedMode>('actions')
   const [query, setQuery] = useState('')
 
@@ -214,12 +223,12 @@ export function ActivityLog({
       if (query.trim()) {
         const q = query.trim().toLowerCase()
         const hay =
-          `${e.ticket_display ?? ''} ${e.ticket_id} ${e.store_code ?? ''} ${e.store_name ?? ''} ${phraseEvent(e)} ${actorLabel(e)}`.toLowerCase()
+          `${e.ticket_display ?? ''} ${e.ticket_id} ${e.store_code ?? ''} ${e.store_name ?? ''} ${phraseEvent(e, locale)} ${actorLabel(e)}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
     })
-  }, [events, mode, query])
+  }, [events, mode, query, locale])
 
   const groups = useMemo(() => {
     const map = new Map<string, AuditEvent[]>()
@@ -258,7 +267,7 @@ export function ActivityLog({
                 : 'text-ink-2 hover:text-ink',
             )}
           >
-            פעולות
+            {p('פעולות')}
             <span className="t-num ms-1.5 opacity-70">{actionTotal}</span>
           </button>
           <button
@@ -273,7 +282,7 @@ export function ActivityLog({
                 : 'text-ink-2 hover:text-ink',
             )}
           >
-            הכל
+            {p('הכל')}
             {slaCount > 0 ? (
               <span className="t-num ms-1.5 opacity-70">+{slaCount} יעד</span>
             ) : null}
@@ -281,21 +290,21 @@ export function ActivityLog({
         </div>
         <p className="t-caption text-ink-3">
           {filtered.length === 0
-            ? 'אין תוצאות'
-            : `${filtered.length} ביומן`}
+            ? p('אין תוצאות')
+            : `${filtered.length} ${p('ביומן')}`}
         </p>
       </div>
 
       <SearchField
         value={query}
         onValueChange={setQuery}
-        placeholder="חיפוש תקלה, סניף או פעולה…"
+        placeholder={p('חיפוש תקלה, סניף או פעולה…')}
         className="max-w-xl"
       />
 
       {filtered.length === 0 ? (
         <EmptyState
-          title={mode === 'actions' ? 'אין פעולות עדיין' : 'אין אירועים'}
+          title={mode === 'actions' ? p('אין פעולות עדיין') : p('אין אירועים')}
           description={
             query
               ? 'נסו חיפוש אחר.'
@@ -352,7 +361,7 @@ export function ActivityLog({
                               warn && 'text-[var(--warning,#b45309)]',
                             )}
                           >
-                            {phraseEvent(event)}
+                            {phraseEvent(event, locale)}
                           </p>
                           <p className="t-caption mt-0.5 text-ink-3">
                             {actorLabel(event)}
