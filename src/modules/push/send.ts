@@ -1,5 +1,5 @@
 /**
- * Web Push send (VAPID) for MaintainOS technicians.
+ * Web Push send (VAPID) for MaintainOS technicians and Ops desk.
  * Adapted from Bino lib/push-notifications.ts — profile-scoped subscriptions.
  */
 
@@ -11,6 +11,9 @@ import {
   memListPushSubscriptions,
   supabaseReady,
 } from '@/lib/data/memory-store'
+import { memListMemberships } from '@/lib/auth/memory-memberships'
+import { hqProductRoles } from '@/lib/auth/roles'
+import type { MemberRole } from '@/lib/auth/types'
 import { logEvent } from '@/lib/logging'
 
 export function isWebPushConfigured(): boolean {
@@ -142,6 +145,113 @@ export async function notifyTechnicianAssignedPush(input: {
   logEvent('push:send', 'info', 'tech_assigned', {
     profileId: input.profileId,
     ticketId: input.ticketId,
+    ...result,
+  })
+  return { sent: result.sent }
+}
+
+async function listHqDeskPushRows(): Promise<
+  { id: string; endpoint: string; p256dh: string; auth: string }[]
+> {
+  const hqRoles = new Set<string>(hqProductRoles())
+
+  if (await supabaseReady()) {
+    const supabase = createSystemClient('push_ops_list')
+    const { data: memberships, error: memErr } = await supabase
+      .from('memberships')
+      .select('profile_id, role')
+      .in('role', [...hqRoles])
+
+    if (memErr) {
+      if (!isSupabaseSchemaError(memErr)) {
+        logEvent('push:send', 'error', 'hq_memberships_failed', {
+          error: memErr.message,
+        })
+      }
+      return listHqDeskPushRowsMemory(hqRoles)
+    }
+
+    const hqIds = [
+      ...new Set(
+        (memberships ?? [])
+          .map((m) => m.profile_id as string)
+          .filter(Boolean),
+      ),
+    ]
+    if (hqIds.length === 0) return []
+
+    const { data: subs, error: subErr } = await supabase
+      .from('push_subscriptions')
+      .select('id, endpoint, p256dh, auth')
+      .in('profile_id', hqIds)
+
+    if (subErr) {
+      if (!isSupabaseSchemaError(subErr)) {
+        logEvent('push:send', 'error', 'hq_subs_failed', {
+          error: subErr.message,
+        })
+      }
+      return listHqDeskPushRowsMemory(hqRoles)
+    }
+    return subs ?? []
+  }
+
+  return listHqDeskPushRowsMemory(hqRoles)
+}
+
+function listHqDeskPushRowsMemory(
+  hqRoles: Set<string>,
+): { id: string; endpoint: string; p256dh: string; auth: string }[] {
+  return memListPushSubscriptions()
+    .filter((s) =>
+      memListMemberships(s.profile_id).some((m) =>
+        hqRoles.has(m.role as MemberRole | string),
+      ),
+    )
+    .map((s) => ({
+      id: s.id,
+      endpoint: s.endpoint,
+      p256dh: s.p256dh,
+      auth: s.auth,
+    }))
+}
+
+/**
+ * Fan-out desk alerts to HQ Ops profiles that enabled Web Push.
+ * Used alongside WhatsApp notifyAri — never replaces it.
+ */
+export async function notifyOpsDeskPush(input: {
+  title?: string
+  body: string
+  url?: string
+  tag?: string
+}): Promise<{ sent: number; skipped?: string }> {
+  const body = input.body.trim()
+  if (!body) return { sent: 0, skipped: 'empty_body' }
+
+  if (!initWebPush()) {
+    return { sent: 0, skipped: 'vapid_not_configured' }
+  }
+
+  const title = (input.title?.trim() || 'MaintainOS · דסק').slice(0, 80)
+  const url = input.url?.trim() || '/ops'
+  const tag = input.tag?.trim() || 'ops-desk'
+  const payload = JSON.stringify({
+    title,
+    body: body.slice(0, 180),
+    url,
+    tag,
+  })
+
+  const rows = await listHqDeskPushRows()
+  if (rows.length === 0) {
+    return { sent: 0, skipped: 'no_subscriptions' }
+  }
+
+  const result = await sendToRows(rows, payload)
+  logEvent('push:send', 'info', 'ops_desk', {
+    tag,
+    url,
     ...result,
   })
   return { sent: result.sent }

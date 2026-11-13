@@ -13,6 +13,7 @@ import {
   deskAlertParameter,
   META_WA_TEMPLATES,
 } from '@/modules/whatsapp/templates'
+import { notifyOpsDeskPush } from '@/modules/push/send'
 
 function failedSend(err: unknown): SendWhatsAppResult {
   logEvent('notify:phone', 'warn', 'whatsapp_failed', {
@@ -80,7 +81,29 @@ export async function notifyPhone(
 /** Tell desk notify phones. Decisions stay in /ops/approvals. */
 export async function notifyAri(message: string, meta?: Record<string, unknown>) {
   const forceDryRun = meta?.dryRun === true
+  const text = message.trim()
   await Promise.all(
     deskNotifyPhones().map((phone) => notifyPhone(phone, message, meta, forceDryRun)),
   )
+  // Web Push to HQ Ops who enabled notifications — never blocks WhatsApp.
+  if (!forceDryRun && text) {
+    const url =
+      typeof meta?.url === 'string' && meta.url.trim()
+        ? meta.url.trim()
+        : '/ops'
+    const tag =
+      typeof meta?.tag === 'string' && meta.tag.trim()
+        ? meta.tag.trim()
+        : 'ops-desk'
+    void notifyOpsDeskPush({
+      title: 'MaintainOS · דסק',
+      body: text,
+      url,
+      tag,
+    }).catch((err: unknown) => {
+      logEvent('notify:push', 'warn', 'ops_desk_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
+  }
 }

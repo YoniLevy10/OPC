@@ -2,7 +2,7 @@
    Static icons, brand art, and the offline page only.
    Document navigations and API responses are never written to Cache Storage,
    so one person's signed-in shell cannot be replayed for another session. */
-const CACHE = 'maintainos-static-v10'
+const CACHE = 'maintainos-static-v11'
 
 const PRECACHE = [
   '/offline.html',
@@ -58,6 +58,95 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting()
   }
+})
+
+/** Web Push → OS notification (Ops desk + technician assign). */
+self.addEventListener('push', (event) => {
+  event.waitUntil(
+    (async () => {
+      let data = {
+        title: 'MaintainOS',
+        body: 'יש עדכון חדש',
+        url: '/ops',
+        tag: 'maintainos',
+      }
+      try {
+        if (event.data) {
+          const parsed = event.data.json()
+          if (parsed && typeof parsed === 'object') {
+            data = {
+              title:
+                typeof parsed.title === 'string' && parsed.title.trim()
+                  ? parsed.title.trim()
+                  : data.title,
+              body:
+                typeof parsed.body === 'string' && parsed.body.trim()
+                  ? parsed.body.trim()
+                  : data.body,
+              url:
+                typeof parsed.url === 'string' && parsed.url.trim()
+                  ? parsed.url.trim()
+                  : data.url,
+              tag:
+                typeof parsed.tag === 'string' && parsed.tag.trim()
+                  ? parsed.tag.trim()
+                  : data.tag,
+            }
+          }
+        }
+      } catch {
+        try {
+          const text = event.data && event.data.text ? event.data.text() : ''
+          if (text) data.body = text
+        } catch {
+          /* keep defaults */
+        }
+      }
+      await self.registration.showNotification(data.title, {
+        body: data.body,
+        tag: data.tag,
+        data: { url: data.url },
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-32.png',
+      })
+    })(),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const raw =
+    event.notification.data && typeof event.notification.data.url === 'string'
+      ? event.notification.data.url
+      : '/ops'
+  const targetUrl = new URL(raw, self.location.origin).href
+  event.waitUntil(
+    (async () => {
+      const clientsList = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })
+      for (const client of clientsList) {
+        if ('focus' in client) {
+          try {
+            const clientUrl = new URL(client.url)
+            if (clientUrl.origin === self.location.origin) {
+              await client.focus()
+              if ('navigate' in client && typeof client.navigate === 'function') {
+                await client.navigate(targetUrl)
+              }
+              return
+            }
+          } catch {
+            /* try next client */
+          }
+        }
+      }
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl)
+      }
+    })(),
+  )
 })
 
 function isStaticAsset(pathname) {

@@ -7,19 +7,19 @@ import { Field, Input } from '@/components/ui/input'
 import { ErrorState, Notice, SuccessNotice } from '@/components/ui/primitives'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
-import { ComingSoonBadge } from '@/components/ui/coming-soon-badge'
 import { SegmentedButtons } from '@/components/ui/segmented'
 import {
   GroupedList,
   GroupedRow,
   GroupedSection,
 } from '@/components/ui/grouped-list'
+import { PushSubscribeControl } from '@/components/push/push-subscribe-control'
 import type { MemSettings } from '@/lib/data/memory-store'
 import { CountryWhatsAppForm } from './country-whatsapp-form'
 
 type SectionId = 'profile' | 'notifications' | 'permissions' | 'whatsapp' | 'system'
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+const SECTION_DEFS: { id: SectionId; label: string }[] = [
   { id: 'profile', label: 'פרופיל' },
   { id: 'notifications', label: 'התראות' },
   { id: 'permissions', label: 'הרשאות' },
@@ -29,6 +29,10 @@ const SECTIONS: { id: SectionId; label: string }[] = [
 
 export function SettingsForm({ initial }: { initial: MemSettings }) {
   const p = usePhrase()
+  const sections = SECTION_DEFS.map((row) => ({
+    ...row,
+    label: row.label === 'WhatsApp' ? row.label : p(row.label),
+  }))
   const [form, setForm] = useState(initial)
   const [section, setSection] = useState<SectionId>('profile')
   const [busy, setBusy] = useState(false)
@@ -72,7 +76,7 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
           setNotice(null)
           setError(null)
         }}
-        segments={SECTIONS.map((s) => ({ key: s.id, label: s.label }))}
+        segments={sections.map((s) => ({ key: s.id, label: s.label }))}
       />
 
       <form onSubmit={saveSection} className="space-y-4">
@@ -120,27 +124,35 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
                   />
                 </Field>
               </GroupedRow>
+              <GroupedRow className="flex-col items-stretch gap-2">
+                <p className="t-body-strong text-ink">{p('התראות דפדפן / אפליקציה')}</p>
+                <PushSubscribeControl variant="ops" />
+              </GroupedRow>
               <GroupedRow className="flex-col items-stretch">
                 <Notice tone="neutral">
-                  התראות טכנאים בפיילוט נשלחות ב־WhatsApp/SMS עם לינק לתקלה.
+                  {p(
+                    'התראות טכנאים בפיילוט נשלחות ב־WhatsApp/SMS עם לינק לתקלה.',
+                  )}
                 </Notice>
               </GroupedRow>
             </GroupedSection>
           ) : null}
 
           {section === 'permissions' ? (
-            <GroupedSection title="הרשאות ותפקידים">
+            <GroupedSection title={p('הרשאות ותפקידים')}>
               <GroupedRow className="flex-col items-stretch gap-2">
                 <p className="t-body text-ink-2">
-                  ניהול הרשאות מתבצע במסך המשתמשים — בשפה עסקית לפי תפקיד (מנהל
-                  סניף, טכנאי, מנהל מערכת).
+                  {p(
+                    'ניהול הרשאות מתבצע במסך המשתמשים — בשפה עסקית לפי תפקיד (מנהל מערכת, תפעול, חנות, טכנאי).',
+                  )}
                 </p>
                 <Notice tone="progress">
-                  לטכנאים יש להגדיר <strong>מספר טלפון נייד</strong> במסך
-                  המשתמשים — אליו נשלחת הודעת השיוך כשמשייכים תקלה.
+                  {p(
+                    'לטכנאים יש להגדיר מספר טלפון נייד במסך המשתמשים — אליו נשלחת הודעת השיוך כשמשייכים תקלה.',
+                  )}
                 </Notice>
                 <Button asChild variant="secondary">
-                  <Link href="/ops/users">מעבר למשתמשים והרשאות</Link>
+                  <Link href="/ops/users">{p('מעבר למשתמשים והרשאות')}</Link>
                 </Button>
               </GroupedRow>
             </GroupedSection>
@@ -226,17 +238,6 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
                   <p className="t-body text-ink-2">
                     {p('עברית, English ו-Français זמינות בתפריט הצד, ליד ערכת הנושא.')}
                   </p>
-                </GroupedRow>
-              </GroupedSection>
-              <GroupedSection title="תכונות עתידיות">
-                <GroupedRow className="flex-col items-stretch gap-2">
-                  <p className="t-section flex flex-wrap items-center gap-2 text-ink">
-                    בקרוב
-                    <ComingSoonBadge />
-                  </p>
-                  <ul className="t-caption space-y-1 text-ink-3">
-                    <li>Web Push — פעיל ב־/tech כש־VAPID מוגדר</li>
-                  </ul>
                 </GroupedRow>
               </GroupedSection>
             </>
