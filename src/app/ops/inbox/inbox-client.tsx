@@ -14,11 +14,14 @@ import {
   ArrowRight,
   CheckCheck,
   ExternalLink,
+  MessageCirclePlus,
+  Search,
   SendHorizontal,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'
+import { Modal } from '@/components/ui/overlay'
 import {
   EmptyState,
   ErrorState,
@@ -232,6 +235,9 @@ export function InboxClient() {
   >([])
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editStoreId, setEditStoreId] = useState('')
+  const [startOpen, setStartOpen] = useState(false)
+  const [startQuery, setStartQuery] = useState('')
+  const [startBusy, setStartBusy] = useState(false)
 
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
   /** When true, keep the thread pinned to the latest message. */
@@ -348,6 +354,53 @@ export function InboxClient() {
     setNotice(null)
   }
 
+  const storesForStart = useMemo(() => {
+    const q = startQuery.trim().toLowerCase()
+    const withPhone = stores.filter((s) => Boolean(s.manager_phone?.trim()))
+    if (!q) return withPhone
+    return withPhone.filter((s) => {
+      const hay = `${s.code} ${s.name} ${s.manager_name ?? ''}`.toLowerCase()
+      return hay.includes(q)
+    })
+  }, [stores, startQuery])
+
+  async function startChatWithStore(storeId: string) {
+    setStartBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/inbox/sessions/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || p('פתיחת השיחה נכשלה'))
+      const waId = json.session?.wa_id as string | undefined
+      if (!waId) throw new Error(p('פתיחת השיחה נכשלה'))
+      setStartOpen(false)
+      setStartQuery('')
+      await loadSessions()
+      openConversation(waId)
+      const parts: string[] = []
+      if (json.created) parts.push(p('נוצרה שיחה חדשה עם מנהל הסניף'))
+      else parts.push(p('נפתחה שיחה קיימת עם מנהל הסניף'))
+      if (json.dryRunOnly) {
+        parts.push(p('מצב הדגמה — אין שליחה לטלפון אמיתי'))
+      }
+      if (json.templateRequired) {
+        parts.push(
+          p('חלון 24 השעות סגור — לשליחה חיה תידרש תבנית מאושרת'),
+        )
+      }
+      setNotice(parts.join(' · '))
+    } catch (err) {
+      setError(safeClientError(err, 'פתיחת השיחה נכשלה', p))
+    } finally {
+      setStartBusy(false)
+    }
+  }
+
   function backToList() {
     setMobileShowThread(false)
     setNotice(null)
@@ -410,20 +463,24 @@ export function InboxClient() {
       if (json.send && json.send.ok === false) {
         throw new Error(p('שליחת ההודעה נכשלה. נסו שוב בעוד רגע.'))
       }
-      if (json.send?.dryRun) {
+      if (json.send?.dryRun && !json.safeDryRun) {
         throw new Error(p('ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'))
       }
       setReply('')
       stickToBottomRef.current = true
       setNotice(
-        json.autoTemplate
+        json.safeDryRun || json.send?.dryRun
           ? p(
-              'חלון 24 השעות היה סגור — נשלחה הודעת מעקב. ההודעה שלך תישלח כשיילחץ «אשמח לעדכון».',
+              'נשמר בתיבה במצב הדגמה — לא נשלח לטלפון אמיתי (שליחה חיה לשיחה יזומה כבויה).',
             )
-          : p(
-              'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.',
-              { minutes: HUMAN_PAUSE_WINDOW_MINUTES },
-            ),
+          : json.heldNotice || json.autoTemplate
+            ? p(
+                'חלון 24 השעות היה סגור — נשלחה הודעת מעקב. ההודעה שלך תישלח כשיילחץ «אשמח לעדכון».',
+              )
+            : p(
+                'הודעה נשלחה · נפתח חלון שיחה פרטית ל־{minutes} דקות בשיחה זו בלבד (בוט ממשיך בשאר השיחות). לחצו «החזר לבוט» כשתסיימו.',
+                { minutes: HUMAN_PAUSE_WINDOW_MINUTES },
+              ),
       )
       await Promise.all([loadThread(selected), loadSessions()])
       composerRef.current?.focus()
@@ -530,12 +587,15 @@ export function InboxClient() {
   )
 
   const listPanel = (
-    <Panel flush elevated className="flex h-full min-h-0 flex-col overflow-hidden">
+    <Panel flush elevated className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <PanelHeader title={p('שיחות')} meta={`${sessions.length}`} />
       {sessions.length === 0 ? (
-        <EmptyState title={p('אין שיחות פעילות')} />
+        <EmptyState
+          title={p('אין שיחות פעילות')}
+          description={p('לחצו + כדי להתחיל שיחה עם מנהל סניף')}
+        />
       ) : (
-        <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto overscroll-contain">
+        <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto overscroll-contain pb-20">
           {sessions.map((s) => {
             const selectedRow = selected === s.wa_id
             const title = sessionTitle(s)
@@ -594,6 +654,14 @@ export function InboxClient() {
           })}
         </ul>
       )}
+      <button
+        type="button"
+        onClick={() => setStartOpen(true)}
+        aria-label={p('התחל שיחה עם סניף')}
+        className="wa-start-chat-fab absolute bottom-4 end-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--wa-send,#128C7E)] text-white shadow-[var(--shadow-2)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
+      >
+        <MessageCirclePlus className="h-6 w-6" aria-hidden />
+      </button>
     </Panel>
   )
 
@@ -934,6 +1002,60 @@ export function InboxClient() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden md:gap-3">
+      <Modal
+        open={startOpen}
+        onOpenChange={(open) => {
+          setStartOpen(open)
+          if (!open) setStartQuery('')
+        }}
+        title="התחל שיחה עם סניף"
+        description="בחרו סניף — תיפתח שיחה עם מנהל החנות. במצב הדגמה לא נשלח לטלפון אמיתי."
+      >
+        <div className="space-y-3">
+          <label className="relative block">
+            <span className="sr-only">{p('חיפוש סניף')}</span>
+            <Search
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
+              aria-hidden
+            />
+            <Input
+              value={startQuery}
+              onChange={(e) => setStartQuery(e.target.value)}
+              placeholder={p('חיפוש לפי קוד, שם סניף או מנהל…')}
+              className="ps-9"
+              disabled={startBusy}
+              autoFocus
+            />
+          </label>
+          {storesForStart.length === 0 ? (
+            <EmptyState
+              title={p('אין סניפים עם טלפון מנהל')}
+              description={p('עדכנו טלפון מנהל בכרטיס הסניף')}
+            />
+          ) : (
+            <ul className="max-h-[min(50dvh,360px)] divide-y divide-border overflow-y-auto rounded-[var(--radius-md)] border border-border">
+              {storesForStart.map((store) => (
+                <li key={store.id}>
+                  <button
+                    type="button"
+                    disabled={startBusy}
+                    onClick={() => void startChatWithStore(store.id)}
+                    className="flex w-full flex-col gap-0.5 px-3 py-3 text-start transition-colors hover:bg-surface-sunken/50 disabled:opacity-50"
+                  >
+                    <span className="t-body-strong text-ink">
+                      #{store.code} · {store.name}
+                    </span>
+                    <span className="t-caption text-ink-2">
+                      {store.manager_name?.trim() || p('מנהל חנות')}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Modal>
+
       {error ? (
         <div className="shrink-0 px-4 md:px-0">
           <ErrorState title={p('שגיאה')} description={error} />
