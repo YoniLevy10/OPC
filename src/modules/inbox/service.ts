@@ -1,7 +1,12 @@
 import { createSystemClient } from '@/lib/supabase/system'
 import type { Actor } from '@/lib/auth/types'
-import { AuthError, testAuthAllowed } from '@/lib/auth/types'
+import {
+  AuthError,
+  actorHasHqAccess,
+  testAuthAllowed,
+} from '@/lib/auth/types'
 import { canAccessInboxSession } from './authorization'
+import { listStores } from '@/modules/stores/service'
 import { canonicalStoreCode } from '@/modules/stores/israel-stores'
 import {
   isMissingColumnError,
@@ -19,6 +24,7 @@ import {
   memListTickets,
   memListStores,
   MEM_COUNTRY_ID,
+  MEM_ORG_ID,
   supabaseReady,
   type MemSession,
 } from '@/lib/data/memory-store'
@@ -290,6 +296,22 @@ export function isCareWindowOpen(
   const lastMs = Date.parse(lastInboundAt)
   if (!Number.isFinite(lastMs)) return false
   return Date.now() - lastMs <= CUSTOMER_CARE_WINDOW_MS
+}
+
+/**
+ * Live Meta send for HQ-initiated chats (no prior inbound) stays off until
+ * explicit ops approval — see MAINTAINOS_WA_OPS_START_LIVE.
+ */
+export function opsStartLiveEnabled(): boolean {
+  return process.env.MAINTAINOS_WA_OPS_START_LIVE === '1'
+}
+
+/** Business-initiated = no customer inbound timestamp → template + live gate. */
+export function shouldForceDryRunForOpsStart(
+  lastInboundAt: string | null | undefined,
+): boolean {
+  if (opsStartLiveEnabled()) return false
+  return !lastInboundAt
 }
 
 export type InboxMessage = {
@@ -620,6 +642,284 @@ async function assertSessionAccess(waId: string, actor: Actor): Promise<void> {
   if (error || !data) throw new AuthError('השיחה לא נמצאה', 404)
   const store = Array.isArray(data.stores) ? data.stores[0] : data.stores
   if (!canAccessInboxSession(actor, { ...data, region_id: store?.region_id, organization_id: store?.organization_id })) throw new AuthError('אין הרשאה לשיחה זו', 403)
+}
+
+export type StartOpsChatResult = {
+  session: InboxSessionView
+  created: boolean
+  backend: 'memory' | 'supabase'
+  /** True when outbound to this thread must not hit Meta (default). */
+  dryRunOnly: boolean
+  /** True when Meta free-text is blocked (no open 24h window). */
+  templateRequired: boolean
+  care_window_open: boolean
+  liveOutboundEnabled: boolean
+}
+
+/**
+ * HQ opens or creates an inbox thread with a store manager.
+ * Never calls Meta Graph — open/create only. Live outbound for
+ * business-initiated threads requires MAINTAINOS_WA_OPS_START_LIVE=1.
+ */
+export async function startOpsChatWithStore(input: {
+  actor: Actor
+  storeId: string
+}): Promise<StartOpsChatResult> {
+  if (!actorHasHqAccess(input.actor)) {
+    throw new AuthError('אין הרשאה לפתיחת שיחה יזומה', 403)
+  }
+
+  const storeId = String(input.storeId || '').trim()
+  // Memory demo ids are `il-store-172`; Supabase uses UUIDs.
+  if (!storeId || storeId.length > 80) {
+    throw new Error('סניף לא תקין')
+  }
+
+  const { stores, backend: storesBackend } = await listStores({
+    includeInactive: false,
+  })
+  const store = stores.find((s) => s.id === storeId)
+  if (!store) throw new Error('הסניף לא נמצא')
+
+  const waId = normalizePhoneDigits(store.manager_phone)
+  if (!waId) {
+    throw new Error(
+      'לסניף אין טלפון מנהל — עדכנו בכרטיס הסניף לפני פתיחת שיחה',
+    )
+  }
+
+  if (!canAccessInboxSession(input.actor, {
+    store_id: store.id,
+    country_id: store.country_id ?? MEM_COUNTRY_ID,
+    region_id: store.region_id ?? null,
+    organization_id: store.organization_id ?? null,
+  })) {
+    throw new AuthError('אין הרשאה לסניף זה', 403)
+  }
+
+  const liveOutboundEnabled = opsStartLiveEnabled()
+  const dryRunOnly = !liveOutboundEnabled
+  const managerName = store.manager_name?.trim() || null
+  const pauseUntil = humanPauseUntilIso()
+
+  const useMemory = !(await supabaseReady())
+
+  if (useMemory) {
+    if (!testAuthAllowed() && process.env.MAINTAINOS_FORCE_MEMORY !== '1') {
+      throw new AuthError('Inbox backend unavailable', 503)
+    }
+    const existing = memListSessions().find((s) => phonesMatch(s.wa_id, waId))
+    let created = false
+    if (!existing) {
+      memUpsertSession({
+        wa_id: waId,
+        country_id: store.country_id || MEM_COUNTRY_ID,
+        store_id: store.id,
+        store_code: store.code,
+        customer_name: managerName,
+        state: 'done',
+        pending_description: null,
+        human_takeover: true,
+        human_takeover_until: pauseUntil,
+        last_inbound: null,
+      })
+      memAddInboxMessage({
+        wa_id: waId,
+        direction: 'outbound',
+        body: dryRunOnly
+          ? 'שיחה נפתחה מ־Ops (הדגמה — ללא שליחה ל־WhatsApp)'
+          : 'שיחה נפתחה מ־Ops',
+      })
+      created = true
+    } else {
+      memUpsertSession({
+        ...existing,
+        store_id: store.id,
+        store_code: store.code,
+        customer_name: managerName ?? existing.customer_name ?? null,
+        human_takeover: true,
+        human_takeover_until: pauseUntil,
+        pending_description: existing.pending_description,
+      })
+    }
+    const views = enrichMemorySessions(memListSessions()).filter((s) =>
+      phonesMatch(s.wa_id, waId),
+    )
+    const session = views[0]
+    if (!session) throw new Error('פתיחת השיחה נכשלה')
+    return {
+      session,
+      created,
+      backend: 'memory',
+      dryRunOnly,
+      templateRequired: !session.care_window_open,
+      care_window_open: Boolean(session.care_window_open),
+      liveOutboundEnabled,
+    }
+  }
+
+  const supabase = createSystemClient('inbox_start_ops_chat')
+  const { data: il } = await supabase
+    .from('countries')
+    .select('id, organization_id')
+    .eq('code', 'IL')
+    .maybeSingle()
+  const countryId = il?.id || store.country_id || MEM_COUNTRY_ID
+  const organizationId =
+    il?.organization_id || store.organization_id || MEM_ORG_ID
+
+  const { data: existingRow } = await supabase
+    .from('intake_sessions')
+    .select(SESSION_SELECT_FULL)
+    .eq('wa_id', waId)
+    .maybeSingle()
+
+  let created = false
+  let row: Record<string, unknown>
+
+  if (existingRow) {
+    const patch: Record<string, unknown> = {
+      store_id: store.id,
+      store_code: store.code,
+      customer_name: managerName,
+      human_takeover: true,
+      human_takeover_until: pauseUntil,
+      updated_at: new Date().toISOString(),
+    }
+    let { data: updated, error } = await supabase
+      .from('intake_sessions')
+      .update(patch)
+      .eq('wa_id', waId)
+      .select(SESSION_SELECT_FULL)
+      .single()
+    if (
+      error &&
+      (isMissingColumnError(error, 'customer_name') ||
+        isMissingColumnError(error, 'human_takeover_until'))
+    ) {
+      delete patch.customer_name
+      delete patch.human_takeover_until
+      ;({ data: updated, error } = await supabase
+        .from('intake_sessions')
+        .update(patch)
+        .eq('wa_id', waId)
+        .select(SESSION_SELECT_LEGACY)
+        .single())
+    }
+    if (error || !updated) {
+      throw new Error(error?.message || 'עדכון השיחה נכשל')
+    }
+    row = updated as Record<string, unknown>
+  } else {
+    const insertRow: Record<string, unknown> = {
+      organization_id: organizationId,
+      country_id: countryId,
+      wa_id: waId,
+      store_id: store.id,
+      store_code: store.code,
+      customer_name: managerName,
+      state: 'done',
+      human_takeover: true,
+      human_takeover_until: pauseUntil,
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    }
+    let { data: inserted, error } = await supabase
+      .from('intake_sessions')
+      .insert(insertRow)
+      .select(SESSION_SELECT_FULL)
+      .single()
+    if (
+      error &&
+      (isMissingColumnError(error, 'customer_name') ||
+        isMissingColumnError(error, 'human_takeover_until') ||
+        isMissingColumnError(error, 'human_takeover'))
+    ) {
+      delete insertRow.customer_name
+      delete insertRow.human_takeover_until
+      delete insertRow.human_takeover
+      ;({ data: inserted, error } = await supabase
+        .from('intake_sessions')
+        .insert(insertRow)
+        .select(SESSION_SELECT_LEGACY)
+        .single())
+    }
+    if (error || !inserted) {
+      // Schema missing → memory fallback (demo path).
+      if (isSupabaseSchemaError(error)) {
+        memUpsertSession({
+          wa_id: waId,
+          country_id: countryId,
+          store_id: store.id,
+          store_code: store.code,
+          customer_name: managerName,
+          state: 'done',
+          pending_description: null,
+          human_takeover: true,
+          human_takeover_until: pauseUntil,
+          last_inbound: null,
+        })
+        memAddInboxMessage({
+          wa_id: waId,
+          direction: 'outbound',
+          body: 'שיחה נפתחה מ־Ops (הדגמה — ללא שליחה ל־WhatsApp)',
+        })
+        const views = enrichMemorySessions(memListSessions()).filter((s) =>
+          phonesMatch(s.wa_id, waId),
+        )
+        const session = views[0]
+        if (!session) throw new Error('פתיחת השיחה נכשלה')
+        return {
+          session,
+          created: true,
+          backend: 'memory',
+          dryRunOnly: true,
+          templateRequired: true,
+          care_window_open: false,
+          liveOutboundEnabled: false,
+        }
+      }
+      throw new Error(error?.message || 'יצירת השיחה נכשלה')
+    }
+    row = inserted as Record<string, unknown>
+    created = true
+  }
+
+  void storesBackend
+  const session = enrichSession(mapSessionRow(row), {
+    storeName: store.name,
+    lastMessage: null,
+    lastDirection: null,
+    openPriorities: [],
+    customerName: managerName,
+    lastInboundAt: (row.last_inbound as string | null | undefined) ?? null,
+  })
+
+  // last_inbound column may hold message body text — care window uses real inbound rows.
+  const { data: lastIn } = await supabase
+    .from('inbox_messages')
+    .select('created_at')
+    .eq('wa_id', waId)
+    .eq('direction', 'inbound')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const lastInboundAt = (lastIn?.created_at as string | undefined) ?? null
+  const careOpen = isCareWindowOpen(lastInboundAt)
+
+  return {
+    session: {
+      ...session,
+      care_window_open: careOpen,
+      display_name:
+        managerName || store.name || session.display_name || waId,
+    },
+    created,
+    backend: 'supabase',
+    dryRunOnly,
+    templateRequired: !careOpen,
+    care_window_open: careOpen,
+    liveOutboundEnabled,
+  }
 }
 
 export async function setSessionTakeover(
@@ -1121,6 +1421,8 @@ export async function replyToSession(input: {
     | Awaited<ReturnType<typeof sendWhatsAppTemplate>>
   /** True when free text was blocked and the approved follow-up template was sent instead. */
   autoTemplate?: boolean
+  /** Intentional dry-run (memory / ops-start gate) — UI should not treat as settings error. */
+  safeDryRun?: boolean
 }> {
   const text = input.text.trim()
   await assertSessionAccess(input.waId, input.actor)
@@ -1156,7 +1458,7 @@ export async function replyToSession(input: {
         human_takeover_until: humanPauseUntilIso(),
       })
     }
-    return { message, send }
+    return { message, send, safeDryRun: true }
   }
 
   const supabase = createSystemClient('inbox_reply')
@@ -1203,6 +1505,7 @@ export async function replyToSession(input: {
 
   // Prefer valid Meta ID from IL country; otherwise env (never demo placeholders).
   const phoneNumberId = resolveWhatsAppPhoneNumberId(phoneNumberIdCandidate)
+  const forceDryRun = shouldForceDryRunForOpsStart(lastInboundAt)
 
   // Outside 24h (or no inbound): Meta blocks free text — send follow-up template instead.
   if (!isCareWindowOpen(lastInboundAt)) {
@@ -1210,8 +1513,9 @@ export async function replyToSession(input: {
       actor: input.actor,
       waId,
       ticketId: ticketIdInput,
+      forceDryRun,
     })
-    return { ...result, autoTemplate: true }
+    return { ...result, autoTemplate: true, safeDryRun: forceDryRun || result.send.dryRun }
   }
 
   // Send first — never mute the bot if Graph delivery failed.
@@ -1222,6 +1526,7 @@ export async function replyToSession(input: {
     ticketId: ticketIdInput,
     supabase,
     purpose: 'ops_reply',
+    forceDryRun: forceDryRun || undefined,
   })
 
   // Race / clock skew: Meta still rejects free text → fall back to template.
@@ -1233,15 +1538,17 @@ export async function replyToSession(input: {
       actor: input.actor,
       waId,
       ticketId: ticketIdInput,
+      forceDryRun,
     })
-    return { ...result, autoTemplate: true }
+    return { ...result, autoTemplate: true, safeDryRun: forceDryRun || result.send.dryRun }
   }
 
-  if (!send.ok || send.dryRun) {
+  if (!send.ok) {
+    throw new Error('שליחת ההודעה נכשלה. נסו שוב בעוד רגע.')
+  }
+  if (send.dryRun && !forceDryRun) {
     throw new Error(
-      send.dryRun
-        ? 'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'
-        : 'שליחת ההודעה נכשלה. נסו שוב בעוד רגע.',
+      'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.',
     )
   }
 
@@ -1330,6 +1637,7 @@ export async function replyToSession(input: {
       ticket_id: data.ticket_id,
     },
     send,
+    safeDryRun: forceDryRun || send.dryRun,
   }
 }
 
@@ -1376,9 +1684,12 @@ export async function sendSessionTemplate(input: {
   templateName?: string
   ticketId?: string | null
   bodyParameters?: string[]
+  /** When true, never hit Meta (ops-start safety / memory). */
+  forceDryRun?: boolean
 }): Promise<{
   message: InboxMessage
   send: Awaited<ReturnType<typeof sendWhatsAppTemplate>>
+  safeDryRun?: boolean
 }> {
   const waId = input.waId.replace(/\D/g, '') || input.waId
   if (!waId) throw new Error('מזהה WhatsApp חסר')
@@ -1408,11 +1719,26 @@ export async function sendSessionTemplate(input: {
       body: label,
       ticket_id: ticketId,
     })
-    return { message, send }
+    return { message, send, safeDryRun: true }
   }
 
   const supabase = createSystemClient('inbox_template')
   const phoneNumberId = resolveWhatsAppPhoneNumberId(null)
+  // Re-check inbound for ops-start gate when caller did not pass forceDryRun.
+  let forceDryRun = Boolean(input.forceDryRun)
+  if (!forceDryRun) {
+    const { data: lastIn } = await supabase
+      .from('inbox_messages')
+      .select('created_at')
+      .eq('wa_id', waId)
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    forceDryRun = shouldForceDryRunForOpsStart(
+      (lastIn?.created_at as string | undefined) ?? null,
+    )
+  }
   const send = await sendWhatsAppTemplate({
     toWaId: waId,
     templateName,
@@ -1421,13 +1747,15 @@ export async function sendSessionTemplate(input: {
     ticketId,
     supabase,
     purpose: 'ops_reply',
+    forceDryRun: forceDryRun || undefined,
   })
 
-  if (!send.ok || send.dryRun) {
+  if (!send.ok) {
+    throw new Error('שליחת הודעת מעקב נכשלה')
+  }
+  if (send.dryRun && !forceDryRun) {
     throw new Error(
-      send.dryRun
-        ? 'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.'
-        : 'שליחת הודעת מעקב נכשלה',
+      'ההודעה לא נשלחה ללקוח כרגע. בדקו את חיבור WhatsApp בהגדרות.',
     )
   }
 
@@ -1469,5 +1797,6 @@ export async function sendSessionTemplate(input: {
       ticket_id: data.ticket_id,
     },
     send,
+    safeDryRun: forceDryRun || send.dryRun,
   }
 }
