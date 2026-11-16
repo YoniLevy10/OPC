@@ -2,12 +2,77 @@
 
 import { usePhrase } from '@/components/i18n/locale-provider'
 import { MessageSquare, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AgentHistoryButton, AgentHistoryList } from '@/components/ops/agent-history'
 import { AgentTurns } from '@/components/ops/agent-turn'
 import { useAgentThreads } from '@/components/ops/use-agent-threads'
 import type { AgentLink } from '@/modules/ops/agent-threads'
+
+const FAB_SIZE = 56
+const FAB_MARGIN = 16
+const DRAG_THRESHOLD = 8
+const STORAGE_KEY = 'mos_agent_fab_pos'
+
+type FabPos = { left: number; top: number }
+
+function readCssPx(name: string): number {
+  if (typeof window === 'undefined') return 0
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  const n = Number.parseFloat(raw)
+  return Number.isFinite(n) ? n : 0
+}
+
+function defaultFabPos(): FabPos {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const isMd = vw >= 768
+  if (isMd) {
+    const navW = readCssPx('--nav-w') || 72
+    return {
+      left: Math.max(FAB_MARGIN, vw - navW - FAB_MARGIN - FAB_SIZE),
+      top: Math.max(FAB_MARGIN, vh - FAB_MARGIN - FAB_SIZE),
+    }
+  }
+  const bottomNav =
+    readCssPx('--bottomnav-h') +
+    readCssPx('--bottomnav-gap') +
+    readCssPx('--safe-b') +
+    12
+  return {
+    left: FAB_MARGIN,
+    top: Math.max(FAB_MARGIN, vh - bottomNav - FAB_SIZE),
+  }
+}
+
+function clampFabPos(pos: FabPos): FabPos {
+  const maxLeft = Math.max(FAB_MARGIN, window.innerWidth - FAB_SIZE - FAB_MARGIN)
+  const maxTop = Math.max(FAB_MARGIN, window.innerHeight - FAB_SIZE - FAB_MARGIN)
+  return {
+    left: Math.min(maxLeft, Math.max(FAB_MARGIN, pos.left)),
+    top: Math.min(maxTop, Math.max(FAB_MARGIN, pos.top)),
+  }
+}
+
+function loadFabPos(): FabPos | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<FabPos>
+    if (typeof parsed.left !== 'number' || typeof parsed.top !== 'number') return null
+    return clampFabPos({ left: parsed.left, top: parsed.top })
+  } catch {
+    return null
+  }
+}
+
+function saveFabPos(pos: FabPos) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 export function AgentBubble() {
   const p = usePhrase()
@@ -25,11 +90,32 @@ export function AgentBubble() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [pos, setPos] = useState<FabPos>({ left: FAB_MARGIN, top: FAB_MARGIN })
+  const [dragging, setDragging] = useState(false)
   const briefed = useRef(false)
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originLeft: number
+    originTop: number
+    moved: boolean
+  } | null>(null)
+  const suppressClickRef = useRef(false)
 
   useEffect(() => {
+    setPos(loadFabPos() ?? defaultFabPos())
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+    function onResize() {
+      setPos((current) => clampFabPos(current))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [mounted])
 
   useEffect(() => {
     if (!open || !ready || briefed.current) return
@@ -100,16 +186,73 @@ export function AgentBubble() {
       .finally(() => setPending(false))
   }
 
+  function onFabPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: pos.left,
+      originTop: pos.top,
+      moved: false,
+    }
+  }
+
+  function onFabPointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const dx = event.clientX - drag.startX
+    const dy = event.clientY - drag.startY
+    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+    drag.moved = true
+    suppressClickRef.current = true
+    setDragging(true)
+    setPos(
+      clampFabPos({
+        left: drag.originLeft + dx,
+        top: drag.originTop + dy,
+      }),
+    )
+  }
+
+  function endFabDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    if (drag.moved) {
+      setPos((current) => {
+        const next = clampFabPos(current)
+        saveFabPos(next)
+        return next
+      })
+    }
+    dragRef.current = null
+    setDragging(false)
+  }
+
   if (!mounted) return null
+
+  const nearRight = pos.left + FAB_SIZE / 2 > window.innerWidth / 2
+  const nearTop = pos.top < window.innerHeight * 0.45
 
   return createPortal(
     <div className="pointer-events-none fixed inset-0 z-[60]">
-      <div className="pointer-events-auto absolute left-4 bottom-[calc(var(--bottomnav-h)+var(--bottomnav-gap)+var(--safe-b)+12px)] md:bottom-6 md:left-auto md:right-[calc(var(--nav-w)+1rem)]">
+      <div
+        className="pointer-events-auto absolute"
+        style={{ left: pos.left, top: pos.top, width: FAB_SIZE, height: FAB_SIZE }}
+      >
         {open ? (
           <section
             role="dialog"
             aria-label={p('העוזר של ארי')}
-            className="absolute bottom-16 left-0 flex h-[min(32rem,70dvh)] w-[min(22rem,calc(100dvw-2rem))] max-w-[calc(100dvw-2rem)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface text-ink shadow-[var(--shadow-2)] md:left-auto md:right-0"
+            className={[
+              'absolute flex h-[min(32rem,70dvh)] w-[min(22rem,calc(100dvw-2rem))] max-w-[calc(100dvw-2rem)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface text-ink shadow-[var(--shadow-2)]',
+              nearTop ? 'top-16' : 'bottom-16',
+              nearRight ? 'right-0' : 'left-0',
+            ].join(' ')}
           >
             <header className="flex items-center justify-between border-b border-border px-4 py-3">
               <p className="text-sm font-medium">{p('העוזר של ארי')}</p>
@@ -190,8 +333,22 @@ export function AgentBubble() {
           type="button"
           aria-expanded={open}
           aria-label={open ? p('סגור את הסוכן') : p('פתח את הסוכן')}
-          onClick={() => setOpen((value) => !value)}
-          className="ops-agent-fab flex h-14 w-14 items-center justify-center rounded-full bg-ink text-[var(--canvas)]"
+          title={p('גרור להזזה')}
+          onClick={() => {
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false
+              return
+            }
+            setOpen((value) => !value)
+          }}
+          onPointerDown={onFabPointerDown}
+          onPointerMove={onFabPointerMove}
+          onPointerUp={endFabDrag}
+          onPointerCancel={endFabDrag}
+          className={[
+            'ops-agent-fab flex h-14 w-14 touch-none items-center justify-center rounded-full bg-ink text-[var(--canvas)]',
+            dragging ? 'ops-agent-fab--dragging cursor-grabbing' : 'cursor-grab',
+          ].join(' ')}
         >
           <MessageSquare className="h-6 w-6" aria-hidden />
         </button>

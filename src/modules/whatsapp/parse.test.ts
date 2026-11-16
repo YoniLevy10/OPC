@@ -60,6 +60,42 @@ describe('parseWhatsAppWebhook', () => {
     expect(messages[0]?.text).toBe('נזילה')
     expect(messages[0]?.mediaUrl).toBe('meta-media:img1')
   })
+
+  it('extracts template quick-reply button taps (type=button)', () => {
+    const messages = parseWhatsAppWebhook({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                metadata: { phone_number_id: 'pnid_il' },
+                messages: [
+                  {
+                    id: 'wamid.btn',
+                    from: '972548102688',
+                    timestamp: '1710000001',
+                    type: 'button',
+                    button: {
+                      payload: 'אשמח לעדכון',
+                      text: 'אשמח לעדכון',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    })
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({
+      messageId: 'wamid.btn',
+      waId: '972548102688',
+      text: 'אשמח לעדכון',
+      interactiveId: 'אשמח לעדכון',
+    })
+  })
 })
 
 describe('inferSourceFromText', () => {

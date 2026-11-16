@@ -60,6 +60,7 @@ import { isAriSender, phonesMatch, splitSpokenFaults } from './classify'
 import { isNonIssueAck } from './non-issue'
 import {
   FOLLOWUP_ALL_OK_ACK,
+  FOLLOWUP_WANT_UPDATE_ACK,
   isFollowupAllOkReply,
   isFollowupWantUpdateReply,
 } from './templates'
@@ -1241,8 +1242,17 @@ export async function processInboundMessage(
       )
       return { ok: true, reply: FOLLOWUP_ALL_OK_ACK, state: session.state }
     } else if (followupWantUpdate) {
-      // Window reopened; no held notice — stop so the button text does not open a ticket.
-      return { ok: true, reply: null, state: session.state }
+      // Window reopened; no held notice — ack only so the button does not open a ticket.
+      await sendReply(
+        supabase,
+        message,
+        country,
+        FOLLOWUP_WANT_UPDATE_ACK,
+        null,
+        options,
+        session,
+      )
+      return { ok: true, reply: FOLLOWUP_WANT_UPDATE_ACK, state: session.state }
     }
 
     const visitButton = parseVisitButton(message.interactiveId)

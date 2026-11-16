@@ -840,6 +840,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   שלח: { en: 'Send', fr: 'Envoyer' },
   'סגור את הסוכן': { en: 'Close the agent', fr: "Fermer l'agent" },
   'פתח את הסוכן': { en: 'Open the agent', fr: "Ouvrir l'agent" },
+  'גרור להזזה': { en: 'Drag to move', fr: 'Glisser pour déplacer' },
   'בקשה לא תקינה': { en: 'Invalid request', fr: 'Demande invalide' },
 
   // בעלי מקצוע
@@ -1207,6 +1208,10 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'חלון 24 השעות היה סגור — נשלחה הודעת מעקב אוטומטית. כשהמנהל יגיב אפשר להמשיך בטקסט חופשי.': {
     en: 'The 24-hour window was closed — a follow-up was sent automatically. Once the manager replies, free text works again.',
     fr: 'La fenêtre de 24 h était fermée — un suivi a été envoyé automatiquement. Dès que le responsable répond, le texte libre reprend.',
+  },
+  'חלון 24 השעות היה סגור — נשלחה הודעת מעקב. ההודעה שלך תישלח כשיילחץ «אשמח לעדכון».': {
+    en: 'The 24-hour window was closed — a follow-up was sent. Your message will send when they tap “I’d like an update”.',
+    fr: 'La fenêtre de 24 h était fermée — un suivi a été envoyé. Votre message partira quand ils appuieront sur « Je souhaite une mise à jour ».',
   },
   'השיחה הוסרה מהתיבה': {
     en: 'Chat removed from the inbox',

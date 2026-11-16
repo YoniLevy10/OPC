@@ -24,6 +24,8 @@ type MetaWebhookBody = {
           interactive?: {
             button_reply?: { id?: string; title?: string }
           }
+          /** Template quick-reply tap (not the same as interactive.button_reply). */
+          button?: { payload?: string; text?: string }
         }>
       }
     }>
@@ -85,6 +87,24 @@ export function parseWhatsAppWebhook(body: unknown): InboundMessage[] {
             fileName: null,
             timestamp: msg.timestamp ?? null,
             interactiveId: buttonId,
+          })
+          continue
+        } else if (type === 'button') {
+          // Template quick-reply: Meta sends type=button with button.text / button.payload
+          const buttonText = msg.button?.text?.trim() || null
+          const buttonPayload = msg.button?.payload?.trim() || null
+          text = buttonText || buttonPayload
+          if (!text) continue
+          out.push({
+            messageId: msg.id,
+            waId: msg.from,
+            phoneNumberId,
+            text,
+            mediaUrl: null,
+            mediaKind: null,
+            fileName: null,
+            timestamp: msg.timestamp ?? null,
+            interactiveId: buttonPayload,
           })
           continue
         } else if (type === 'video') {

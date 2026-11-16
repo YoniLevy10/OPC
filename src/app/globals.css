@@ -1516,6 +1516,13 @@ body:has([role='dialog']) .phone-action-dock {
   animation-play-state: paused;
   transform: translateY(-2px);
 }
+.ops-agent-fab--dragging {
+  animation: none;
+  transform: scale(1.06);
+  box-shadow:
+    0 14px 32px color-mix(in srgb, var(--ink) 28%, transparent),
+    0 4px 12px color-mix(in srgb, var(--ink) 16%, transparent);
+}
 
 .animate-fade {
   animation: mo-fade-in var(--dur-2) var(--ease);

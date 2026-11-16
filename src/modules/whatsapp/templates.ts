@@ -70,6 +70,10 @@ export function isFollowupAllOkReply(text: string | null | undefined): boolean {
 export const FOLLOWUP_ALL_OK_ACK =
   'תודה — תגובתך התקבלה.\nצוות האחזקה של Optical Center לשירותכם.'
 
+/** Reply when they want an update but Ops has no held pending_notice. */
+export const FOLLOWUP_WANT_UPDATE_ACK =
+  'קיבלנו — חלון השיחה נפתח מחדש.\nצוות האחזקה של Optical Center ימשיך לעדכן אתכם כאן.'
+
 /** Default session-reopen template name (env WHATSAPP_SESSION_TEMPLATE overrides). */
 export function defaultSessionTemplateName(): string {
   return (

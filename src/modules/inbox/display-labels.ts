@@ -15,6 +15,7 @@ const INTAKE_STATE_HE: Record<string, string> = {
 /** Meta template names → customer-facing labels (Meta id stays server-side). */
 const TEMPLATE_LABEL_HE: Record<string, string> = {
   maintainos_followup: 'הודעת מעקב',
+  maintainos_followup_v2: 'הודעת מעקב',
   maintainos_desk_alert: 'התראת דסק',
   maintainos_ticket_update: 'עדכון תקלה',
 }

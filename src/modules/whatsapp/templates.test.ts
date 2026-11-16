@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   META_WA_TEMPLATES,
   FOLLOWUP_ALL_OK_ACK,
+  FOLLOWUP_WANT_UPDATE_ACK,
   defaultDeskAlertTemplateName,
   defaultSessionTemplateName,
   defaultSessionTemplateLang,
@@ -29,6 +30,8 @@ describe('META_WA_TEMPLATES', () => {
     expect(isFollowupAllOkReply('אשמח לעדכון')).toBe(false)
     expect(FOLLOWUP_ALL_OK_ACK).toContain('תגובתך התקבלה')
     expect(FOLLOWUP_ALL_OK_ACK).toContain('Optical Center')
+    expect(FOLLOWUP_WANT_UPDATE_ACK).toContain('חלון השיחה נפתח')
+    expect(FOLLOWUP_WANT_UPDATE_ACK).toContain('Optical Center')
   })
 
   it('defaults session template from env or maintainos_followup', () => {

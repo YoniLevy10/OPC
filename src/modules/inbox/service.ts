@@ -1108,6 +1108,62 @@ async function assertTicketBelongsToSession(ticketId: string, waId: string, acto
   if (!canAccessInboxSession(actor, scoped) || !ticket || ticket.reporter_phone !== waId || ticket.store_id !== scoped.store_id || ticket.organization_id !== scoped.organization_id || ticket.country_id !== scoped.country_id || ticket.region_id !== scoped.region_id) throw new AuthError('אין הרשאה לקריאה זו', 403)
 }
 
+/** Persist Ops free-text until the store taps «אשמח לעדכון» on the follow-up template. */
+export function mergePendingNotice(
+  draft: Record<string, unknown> | null | undefined,
+  text: string,
+): Record<string, unknown> {
+  return { ...(draft ?? {}), pending_notice: text.trim() }
+}
+
+async function holdPendingNotice(
+  supabase: ReturnType<typeof createSystemClient>,
+  waId: string,
+  text: string,
+): Promise<void> {
+  const body = text.trim()
+  if (!body) return
+
+  const memHit = memListSessions().find((s) => phonesMatch(s.wa_id, waId))
+  if (memHit) {
+    const live = memGetSession(memHit.wa_id)
+    if (live) {
+      memUpsertSession({
+        ...live,
+        draft_payload: mergePendingNotice(live.draft_payload, body),
+        human_takeover: true,
+        human_takeover_until: humanPauseUntilIso(),
+      })
+    }
+  }
+
+  const { data: row } = await supabase
+    .from('intake_sessions')
+    .select('id, draft_payload')
+    .eq('wa_id', waId)
+    .maybeSingle()
+  if (!row?.id) return
+
+  const pauseUntil = humanPauseUntilIso()
+  const patch: Record<string, unknown> = {
+    draft_payload: mergePendingNotice(
+      (row.draft_payload as Record<string, unknown> | null) ?? null,
+      body,
+    ),
+    human_takeover: true,
+    human_takeover_until: pauseUntil,
+    updated_at: new Date().toISOString(),
+  }
+  const { error } = await supabase
+    .from('intake_sessions')
+    .update(patch)
+    .eq('id', row.id)
+  if (error && isMissingColumnError(error, 'human_takeover_until')) {
+    delete patch.human_takeover_until
+    await supabase.from('intake_sessions').update(patch).eq('id', row.id)
+  }
+}
+
 export async function replyToSession(input: {
   actor: Actor
   waId: string
@@ -1121,6 +1177,8 @@ export async function replyToSession(input: {
     | Awaited<ReturnType<typeof sendWhatsAppTemplate>>
   /** True when free text was blocked and the approved follow-up template was sent instead. */
   autoTemplate?: boolean
+  /** Ops free-text held for delivery after «אשמח לעדכון». */
+  heldNotice?: string
 }> {
   const text = input.text.trim()
   await assertSessionAccess(input.waId, input.actor)
@@ -1204,14 +1262,16 @@ export async function replyToSession(input: {
   // Prefer valid Meta ID from IL country; otherwise env (never demo placeholders).
   const phoneNumberId = resolveWhatsAppPhoneNumberId(phoneNumberIdCandidate)
 
-  // Outside 24h (or no inbound): Meta blocks free text — send follow-up template instead.
+  // Outside 24h (or no inbound): hold Ops text, send follow-up template.
+  // Store taps «אשמח לעדכון» → intake delivers pending_notice.
   if (!isCareWindowOpen(lastInboundAt)) {
+    await holdPendingNotice(supabase, waId, text)
     const result = await sendSessionTemplate({
       actor: input.actor,
       waId,
       ticketId: ticketIdInput,
     })
-    return { ...result, autoTemplate: true }
+    return { ...result, autoTemplate: true, heldNotice: text }
   }
 
   // Send first — never mute the bot if Graph delivery failed.
@@ -1224,17 +1284,18 @@ export async function replyToSession(input: {
     purpose: 'ops_reply',
   })
 
-  // Race / clock skew: Meta still rejects free text → fall back to template.
+  // Race / clock skew: Meta still rejects free text → hold + follow-up template.
   if (
     !send.ok &&
     isWhatsAppOutsideWindowError(send.error, send.errorCode, send.errorSubcode)
   ) {
+    await holdPendingNotice(supabase, waId, text)
     const result = await sendSessionTemplate({
       actor: input.actor,
       waId,
       ticketId: ticketIdInput,
     })
-    return { ...result, autoTemplate: true }
+    return { ...result, autoTemplate: true, heldNotice: text }
   }
 
   if (!send.ok || send.dryRun) {

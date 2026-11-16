@@ -5,6 +5,9 @@ import { memGetSession, memListTickets, memUpsertSession } from '@/lib/data/memo
 import { MEM_COUNTRY_ID } from '@/lib/data/memory-store'
 
 process.env.MAINTAINOS_FORCE_MEMORY = '1'
+// Keep matrix tests deterministic — do not call live intake LLM (gateway auto-on).
+process.env.WHATSAPP_AI_INTAKE_ENABLED = 'false'
+delete process.env.WHATSAPP_AI_ENABLED
 
 function msg(
   partial: Partial<InboundMessage> & { text?: string | null },
@@ -27,6 +30,8 @@ function msg(
 describe('WhatsApp intake matrix (memory)', () => {
   beforeEach(() => {
     process.env.MAINTAINOS_FORCE_MEMORY = '1'
+    process.env.WHATSAPP_AI_INTAKE_ENABLED = 'false'
+    delete process.env.WHATSAPP_AI_ENABLED
   })
 
   it('WA-01 a saved test phone still asks which store', async () => {
