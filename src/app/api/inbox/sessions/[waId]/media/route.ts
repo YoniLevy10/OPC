@@ -5,7 +5,11 @@ import {
   requireActor,
 } from '@/lib/auth/request-actor'
 import { AuthError } from '@/lib/auth/types'
-import { replyMediaToSession } from '@/modules/inbox/reply-media'
+import {
+  classifyInboxOutboundFile,
+  replyMediaToSession,
+  uploadInboxMediaFile,
+} from '@/modules/inbox/reply-media'
 import { captureError } from '@/lib/monitoring'
 
 const bodySchema = z.object({
@@ -23,6 +27,33 @@ export async function POST(
   try {
     const actor = await requireActor(request)
     const { waId } = await ctx.params
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData()
+      const file = form.get('file')
+      if (!(file instanceof File) || file.size === 0) {
+        return NextResponse.json({ error: 'חסר קובץ' }, { status: 400 })
+      }
+      const check = classifyInboxOutboundFile(file)
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 })
+      }
+      const captionRaw = String(form.get('caption') || '').trim()
+      const ticketRaw = String(form.get('ticketId') || '').trim()
+      const link = await uploadInboxMediaFile(waId, file, check.kind)
+      const result = await replyMediaToSession({
+        actor,
+        waId,
+        link,
+        kind: check.kind,
+        caption: captionRaw || undefined,
+        filename: file.name,
+        ticketId: ticketRaw || null,
+      })
+      return NextResponse.json(result)
+    }
+
     const parsed = bodySchema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })

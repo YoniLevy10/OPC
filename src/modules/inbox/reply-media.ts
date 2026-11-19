@@ -3,9 +3,11 @@ import {
   memAddInboxMessage,
   memGetSession,
   memListSessions,
+  memSetSessionTakeover,
   supabaseReady,
 } from '@/lib/data/memory-store'
 import { AuthError, testAuthAllowed } from '@/lib/auth/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccessInboxSession } from './authorization'
 import {
   sendWhatsAppMedia,
@@ -14,7 +16,89 @@ import {
 } from '@/modules/whatsapp/send'
 import { shouldForceDryRunForOpsStart } from './service'
 import { humanPauseUntilIso } from '@/modules/whatsapp/human-pause'
-import { memSetSessionTakeover } from '@/lib/data/memory-store'
+
+const INBOX_MEDIA_BUCKET = 'ticket-media'
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_VIDEO_BYTES = 15 * 1024 * 1024
+const MAX_DOCUMENT_BYTES = 15 * 1024 * 1024
+
+/** Classify a local file for WhatsApp outbound (image / video / PDF document). */
+export function classifyInboxOutboundFile(
+  file: File,
+): { ok: true; kind: OutboundMediaKind } | { ok: false; error: string } {
+  const mime = (file.type || '').toLowerCase()
+  const name = file.name.toLowerCase()
+  if (
+    mime.startsWith('image/') ||
+    /\.(jpe?g|png|webp|gif)$/i.test(name)
+  ) {
+    if (file.size > MAX_IMAGE_BYTES) {
+      return { ok: false, error: 'תמונה גדולה מ-5MB' }
+    }
+    return { ok: true, kind: 'image' }
+  }
+  if (mime.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(name)) {
+    if (file.size > MAX_VIDEO_BYTES) {
+      return { ok: false, error: 'סרטון גדול מ-15MB' }
+    }
+    return { ok: true, kind: 'video' }
+  }
+  if (mime === 'application/pdf' || name.endsWith('.pdf')) {
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      return { ok: false, error: 'מסמך גדול מ-15MB' }
+    }
+    return { ok: true, kind: 'document' }
+  }
+  return {
+    ok: false,
+    error: 'סוג קובץ לא נתמך — תמונה, וידאו או PDF',
+  }
+}
+
+/** Upload desk attachment; falls back to data URL in memory/demo. */
+export async function uploadInboxMediaFile(
+  waId: string,
+  file: File,
+  kind: OutboundMediaKind,
+): Promise<string> {
+  const bytes = Buffer.from(await file.arrayBuffer())
+  const mime =
+    file.type ||
+    (kind === 'image'
+      ? 'image/jpeg'
+      : kind === 'video'
+        ? 'video/mp4'
+        : 'application/pdf')
+
+  if (await supabaseReady()) {
+    try {
+      const supabase = createAdminClient()
+      const ext =
+        kind === 'document'
+          ? 'pdf'
+          : kind === 'video'
+            ? mime.includes('webm')
+              ? 'webm'
+              : 'mp4'
+            : mime.includes('png')
+              ? 'png'
+              : 'jpg'
+      const safeWa = waId.replace(/\D/g, '') || 'session'
+      const path = `inbox/${safeWa}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage
+        .from(INBOX_MEDIA_BUCKET)
+        .upload(path, bytes, { contentType: mime, upsert: true })
+      if (!error) {
+        const { data } = supabase.storage.from(INBOX_MEDIA_BUCKET).getPublicUrl(path)
+        if (data.publicUrl) return data.publicUrl
+      }
+    } catch {
+      /* fall through to data URL */
+    }
+  }
+
+  return `data:${mime};base64,${bytes.toString('base64')}`
+}
 
 export async function replyMediaToSession(input: {
   actor: Actor

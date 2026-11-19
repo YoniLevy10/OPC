@@ -19,7 +19,6 @@ import {
   Search,
   SendHorizontal,
   Trash2,
-  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'
@@ -247,8 +246,6 @@ export function InboxClient() {
   const [threadFilter, setThreadFilter] = useState<
     'all' | 'managers' | 'pros' | 'waiting'
   >('all')
-  const [mediaLink, setMediaLink] = useState('')
-  const [attachOpen, setAttachOpen] = useState(false)
   const [forwardBusy, setForwardBusy] = useState(false)
   const [forwardOpen, setForwardOpen] = useState(false)
   const [forwardTicketId, setForwardTicketId] = useState<string | null>(null)
@@ -264,7 +261,7 @@ export function InboxClient() {
   >([])
   const [proSuggestBusy, setProSuggestBusy] = useState(false)
   const [proSuggestError, setProSuggestError] = useState<string | null>(null)
-  const mediaLinkRef = useRef<HTMLInputElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
   /** When true, keep the thread pinned to the latest message. */
@@ -1146,123 +1143,57 @@ export function InboxClient() {
           </div>
 
           <div className="wa-composer-bar flex shrink-0 flex-col gap-1.5 px-2 py-2 sm:px-3">
-            {attachOpen ? (
-              <div className="wa-attach-sheet flex items-center gap-2 rounded-[18px] border border-border/60 bg-surface px-2.5 py-1.5 shadow-[var(--shadow-1)]">
-                <Paperclip
-                  className="h-4 w-4 shrink-0 text-[var(--wa-send,#00a884)]"
-                  aria-hidden
-                />
-                <Input
-                  ref={mediaLinkRef}
-                  value={mediaLink}
-                  onChange={(e) => setMediaLink(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setAttachOpen(false)
-                      setMediaLink('')
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,.pdf,application/pdf"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (!file || !selected) return
+                setBusy(true)
+                setError(null)
+                const form = new FormData()
+                form.append('file', file)
+                if (reply.trim()) form.append('caption', reply.trim())
+                void fetch(
+                  `/api/inbox/sessions/${encodeURIComponent(selected)}/media`,
+                  { method: 'POST', body: form },
+                )
+                  .then(async (res) => {
+                    const json = await res.json()
+                    if (!res.ok) {
+                      throw new Error(json.error || p('שליחת מדיה נכשלה'))
                     }
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      ;(
-                        e.currentTarget
-                          .closest('.wa-attach-sheet')
-                          ?.querySelector('[data-attach-send]') as HTMLButtonElement | null
-                      )?.click()
-                    }
-                  }}
-                  placeholder={p('הדביקו קישור לתמונה / וידאו…')}
-                  className="h-8 flex-1 border-0 bg-transparent px-1 text-[13px] shadow-none focus-visible:ring-0"
-                  disabled={busy}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  data-attach-send
-                  disabled={busy || !selected || !mediaLink.trim()}
-                  aria-label={p('שלח מדיה')}
-                  className={cn(
-                    'flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-medium transition-opacity',
-                    'bg-[var(--wa-send,#00a884)] text-white disabled:opacity-40',
-                  )}
-                  onClick={() => {
-                    if (!selected || !mediaLink.trim()) return
-                    setBusy(true)
-                    void fetch(
-                      `/api/inbox/sessions/${encodeURIComponent(selected)}/media`,
-                      {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          link: mediaLink.trim(),
-                          kind: 'image',
-                          caption: reply.trim() || undefined,
-                        }),
-                      },
+                    setReply('')
+                    setNotice(
+                      json.send?.dryRun || json.safeDryRun
+                        ? p('מדיה נשמרה בתיבה במצב הדגמה')
+                        : p('מדיה נשלחה'),
                     )
-                      .then(async (res) => {
-                        const json = await res.json()
-                        if (!res.ok) {
-                          throw new Error(json.error || p('שליחת מדיה נכשלה'))
-                        }
-                        setMediaLink('')
-                        setAttachOpen(false)
-                        setNotice(
-                          json.send?.dryRun || json.safeDryRun
-                            ? p('מדיה נשמרה בתיבה במצב הדגמה')
-                            : p('מדיה נשלחה'),
-                        )
-                        await Promise.all([
-                          loadThread(selected),
-                          loadSessions(),
-                        ])
-                      })
-                      .catch((err) =>
-                        setError(safeClientError(err, 'שליחת מדיה נכשלה', p)),
-                      )
-                      .finally(() => setBusy(false))
-                  }}
-                >
-                  {p('צרף')}
-                </button>
-                <button
-                  type="button"
-                  aria-label={p('סגור')}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-sunken hover:text-ink"
-                  onClick={() => {
-                    setAttachOpen(false)
-                    setMediaLink('')
-                  }}
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              </div>
-            ) : null}
+                    await Promise.all([loadThread(selected), loadSessions()])
+                  })
+                  .catch((err) =>
+                    setError(safeClientError(err, 'שליחת מדיה נכשלה', p)),
+                  )
+                  .finally(() => setBusy(false))
+              }}
+            />
 
             <div className="flex items-end gap-1.5">
               <button
                 type="button"
                 disabled={busy || !selected}
                 aria-label={p('צרף מדיה')}
-                aria-expanded={attachOpen}
-                aria-pressed={attachOpen}
                 className={cn(
                   'mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors',
-                  attachOpen
-                    ? 'bg-[var(--wa-send,#00a884)]/15 text-[var(--wa-send,#00a884)]'
-                    : 'text-ink-2 hover:bg-black/5 hover:text-ink',
+                  'text-ink-2 hover:bg-black/5 hover:text-ink',
                   'disabled:opacity-40',
                 )}
-                onClick={() => {
-                  setAttachOpen((open) => {
-                    const next = !open
-                    if (next) {
-                      queueMicrotask(() => mediaLinkRef.current?.focus())
-                    } else {
-                      setMediaLink('')
-                    }
-                    return next
-                  })
-                }}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-[22px] w-[22px]" aria-hidden />
               </button>

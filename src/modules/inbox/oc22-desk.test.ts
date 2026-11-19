@@ -13,7 +13,10 @@ import { processInboundMessage } from '@/modules/whatsapp/intake'
 import type { InboundMessage } from '@/modules/whatsapp/types'
 import { botShouldStaySilent } from '@/modules/inbox/thread-kinds'
 import { forwardTicketPackToProfessional } from '@/modules/inbox/forward-pro'
-import { replyMediaToSession } from '@/modules/inbox/reply-media'
+import {
+  classifyInboxOutboundFile,
+  replyMediaToSession,
+} from '@/modules/inbox/reply-media'
 import { sendWhatsAppMedia, outboundMediaLiveEnabled } from '@/modules/whatsapp/send'
 
 process.env.MAINTAINOS_FORCE_MEMORY = '1'
@@ -117,6 +120,29 @@ describe('OC-22 desk: bot silence, media dry-run, forward pack', () => {
     })
     expect(send.ok).toBe(true)
     expect(send.dryRun).toBe(true)
+  })
+
+  it('classifyInboxOutboundFile accepts image video pdf', () => {
+    expect(
+      classifyInboxOutboundFile(
+        new File([new Uint8Array([1])], 'a.jpg', { type: 'image/jpeg' }),
+      ),
+    ).toEqual({ ok: true, kind: 'image' })
+    expect(
+      classifyInboxOutboundFile(
+        new File([new Uint8Array([1])], 'a.mp4', { type: 'video/mp4' }),
+      ),
+    ).toEqual({ ok: true, kind: 'video' })
+    expect(
+      classifyInboxOutboundFile(
+        new File([new Uint8Array([1])], 'a.pdf', { type: 'application/pdf' }),
+      ),
+    ).toEqual({ ok: true, kind: 'document' })
+    expect(
+      classifyInboxOutboundFile(
+        new File([new Uint8Array([1])], 'a.txt', { type: 'text/plain' }),
+      ).ok,
+    ).toBe(false)
   })
 
   it('replyMediaToSession records inbox message in dry-run', async () => {
