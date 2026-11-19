@@ -63,7 +63,14 @@ describe('WhatsApp store conversation (Vercel AI Gateway)', () => {
     expect(a.reply).toMatch(/אבן גבירול|172/)
 
     const b = await processInboundMessage(
-      msg({ text: 'המזגן הראשי לא עובד ויש ממנו נזילה' }, waId),
+      msg(
+        {
+          text: 'המזגן הראשי לא עובד ויש ממנו נזילה',
+          mediaUrl: 'https://example.com/proof.jpg',
+          mediaKind: 'image',
+        },
+        waId,
+      ),
       { skipOutboundGraph: true },
     )
     expect(b.ok).toBe(true)
@@ -94,7 +101,7 @@ describe('WhatsApp store conversation (Vercel AI Gateway)', () => {
     expect(generateTextMock).not.toHaveBeenCalled()
   })
 
-  it('asks one English question for a thin report and does not open a ticket', async () => {
+  it('blocks thin text-only report until photo/video proof arrives', async () => {
     const waId = `97250${Math.floor(Math.random() * 1e7)
       .toString()
       .padStart(7, '0')}`
@@ -106,7 +113,7 @@ describe('WhatsApp store conversation (Vercel AI Gateway)', () => {
     })
     expect(r.ok).toBe(true)
     expect(r.ticketId).toBeFalsy()
-    expect(r.reply).toMatch(/What exactly is not working/i)
+    expect(r.reply).toMatch(/photo|video|תמונה|סרטון/i)
   })
 
   it('confirms an English fault in English', async () => {
@@ -120,6 +127,8 @@ describe('WhatsApp store conversation (Vercel AI Gateway)', () => {
       msg(
         {
           text: 'the main air conditioner is not cooling and there is a water leak from it',
+          mediaUrl: 'https://example.com/proof.jpg',
+          mediaKind: 'image',
         },
         waId,
       ),
@@ -143,6 +152,8 @@ describe('WhatsApp store conversation (Vercel AI Gateway)', () => {
       msg(
         {
           text: "il y a une fuite d'eau au plafond et la climatisation est en panne",
+          mediaUrl: 'https://example.com/proof.jpg',
+          mediaKind: 'image',
         },
         waId,
       ),

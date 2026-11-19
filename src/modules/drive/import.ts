@@ -2,6 +2,7 @@ import { addDocument, ingestFile } from '@/lib/data/ops-ledger'
 import {
   calibrationIntake,
   splitCalibrations,
+  resolveCalibrationCategory,
   unclassifiedCertificateLabel,
 } from '@/modules/documents/calibrations'
 import type { IngestedFile } from '@/modules/ingestion/pipeline'
@@ -105,19 +106,19 @@ export async function importDriveLink(link: string): Promise<{
     } else {
       const label = unclassifiedCertificateLabel(file.name, text)
       if (label) {
+        const category =
+          resolveCalibrationCategory(file.name, text) ?? 'hearing_c'
         addDocument({
           storeId: linkedStore ? israelStoreId(linkedStore.code) : '',
           storeCode: linkedStore?.code ?? '',
           storeName: linkedStore?.name ?? 'לא שויך',
-          docType: label,
+          docType: category,
           sourceUrl: ingested.sourceUrl,
           extractedExpiry: null,
           computedNextCheck: null,
           owner: linkedStore?.managerName ?? 'ארי',
-          intakeStatus: 'needs_review',
-          intakeReason: ingested.storeCode
-            ? 'סוג הכיול לא זוהה — ייתכן אישור שמכסה כמה כיולים'
-            : 'השיוך לסניף לא ודאי',
+          intakeStatus: ingested.storeCode ? 'ingested' : 'needs_review',
+          intakeReason: ingested.storeCode ? null : 'השיוך לסניף לא ודאי',
         })
       }
     }

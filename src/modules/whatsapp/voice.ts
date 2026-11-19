@@ -134,11 +134,15 @@ async function loadAudio(
     }
   }
   if (/^https:\/\//i.test(mediaUrl)) {
-    const res = await fetch(mediaUrl)
-    if (!res.ok) return null
-    return {
-      bytes: new Uint8Array(await res.arrayBuffer()),
-      mime: res.headers.get('content-type') || 'audio/ogg',
+    try {
+      const res = await fetch(mediaUrl)
+      if (!res.ok) return null
+      return {
+        bytes: new Uint8Array(await res.arrayBuffer()),
+        mime: res.headers.get('content-type') || 'audio/ogg',
+      }
+    } catch {
+      return null
     }
   }
   const mediaId = parseMetaMediaId(mediaUrl)

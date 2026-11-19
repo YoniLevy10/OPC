@@ -646,3 +646,128 @@ export async function sendWhatsAppAudio(params: {
     toWaId,
   }
 }
+
+export function outboundMediaLiveEnabled(): boolean {
+  return process.env.MAINTAINOS_WA_OUTBOUND_MEDIA_LIVE === '1'
+}
+
+export type OutboundMediaKind = 'image' | 'video' | 'document'
+
+/**
+ * Graph media send (image / video / document) via public HTTPS link.
+ * Default dry-run unless MAINTAINOS_WA_OUTBOUND_MEDIA_LIVE=1 and forceDryRun is false.
+ */
+export async function sendWhatsAppMedia(params: {
+  toWaId: string
+  kind: OutboundMediaKind
+  link: string
+  caption?: string | null
+  filename?: string | null
+  forceDryRun?: boolean
+  purpose?: OutboundPurpose
+}): Promise<SendWhatsAppResult> {
+  const purpose = params.purpose ?? 'ops_reply'
+  const toWaId = resolveOutboundWaId(params.toWaId)
+  const phoneNumberId = resolveWhatsAppPhoneNumberId(null)
+  const forceDry =
+    Boolean(params.forceDryRun) ||
+    !outboundMediaLiveEnabled() ||
+    !shouldSendWhatsApp(purpose)
+
+  if (forceDry) {
+    logEvent('whatsapp:send', 'info', 'media_dry_run', {
+      kind: params.kind,
+      to: toWaId,
+      purpose,
+      liveFlag: outboundMediaLiveEnabled(),
+    })
+    return {
+      ok: true,
+      dryRun: true,
+      skippedByPolicy: !shouldSendWhatsApp(purpose),
+      waMessageId: null,
+      error: undefined,
+      phoneNumberId,
+      toWaId,
+    }
+  }
+
+  const token = resolveAccessToken(false)
+  if (!token || !phoneNumberId) {
+    return {
+      ok: false,
+      dryRun: true,
+      waMessageId: null,
+      error: 'WhatsApp media send not configured',
+      phoneNumberId,
+      toWaId,
+    }
+  }
+
+  const mediaPayload: Record<string, unknown> = { link: params.link }
+  if (params.caption?.trim()) mediaPayload.caption = params.caption.trim().slice(0, 1024)
+  if (params.kind === 'document' && params.filename?.trim()) {
+    mediaPayload.filename = params.filename.trim()
+  }
+
+  const body = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: toWaId,
+    type: params.kind,
+    [params.kind]: mediaPayload,
+  }
+
+  const sent = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const sentJson = (await sent.json().catch(() => ({}))) as {
+    messages?: Array<{ id?: string }>
+    error?: { message?: string }
+  }
+  const waMessageId = sentJson.messages?.[0]?.id ?? null
+  return {
+    ok: sent.ok && Boolean(waMessageId),
+    dryRun: false,
+    waMessageId,
+    error: sent.ok ? undefined : sentJson.error?.message || 'media send failed',
+    phoneNumberId,
+    toWaId,
+  }
+}
+
+export async function sendWhatsAppImage(params: {
+  toWaId: string
+  link: string
+  caption?: string | null
+  forceDryRun?: boolean
+  purpose?: OutboundPurpose
+}) {
+  return sendWhatsAppMedia({ ...params, kind: 'image' })
+}
+
+export async function sendWhatsAppVideo(params: {
+  toWaId: string
+  link: string
+  caption?: string | null
+  forceDryRun?: boolean
+  purpose?: OutboundPurpose
+}) {
+  return sendWhatsAppMedia({ ...params, kind: 'video' })
+}
+
+export async function sendWhatsAppDocument(params: {
+  toWaId: string
+  link: string
+  caption?: string | null
+  filename?: string | null
+  forceDryRun?: boolean
+  purpose?: OutboundPurpose
+}) {
+  return sendWhatsAppMedia({ ...params, kind: 'document' })
+}

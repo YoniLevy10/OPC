@@ -122,6 +122,21 @@ export default async function ProPortalPage({
           )
         })}
       </ul>
+
+      <Panel>
+        <p className="t-section text-ink">תנאי תשלום</p>
+        <p className="t-body mt-1 text-ink-2">
+          לאחר אישור סיום העבודה — העברה בנקאית בתוך 10 ימים. שלחו קבלה ל־
+          <a
+            className="text-accent underline"
+            dir="ltr"
+            href="mailto:harry.bendriem@optical-center.com"
+          >
+            harry.bendriem@optical-center.com
+          </a>
+          .
+        </p>
+      </Panel>
     </div>
   )
 }

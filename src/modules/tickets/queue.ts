@@ -64,6 +64,8 @@ export type QueueTicket = {
   sla_resolve_by?: string | null
   first_response_at?: string | null
   resolved_at?: string | null
+  closed_at?: string | null
+  store_confirmed_at?: string | null
   store_id?: string
   organization_id?: string
   country_id?: string

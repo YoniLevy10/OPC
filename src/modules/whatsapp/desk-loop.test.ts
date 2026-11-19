@@ -62,7 +62,13 @@ describe('WhatsApp desk loop', () => {
     const before = memListTickets().length
     await processInboundMessage(msg({ text: 'STORE_6018', waId }), dry)
     const created = await processInboundMessage(
-      msg({ text: 'המזגן לא עובד', waId, messageId: 'fault-1' }),
+      msg({
+        text: 'המזגן לא עובד',
+        waId,
+        messageId: 'fault-1',
+        mediaUrl: 'https://example.com/proof.jpg',
+        mediaKind: 'image',
+      }),
       dry,
     )
     expect(created.ticketId).toBeTruthy()
@@ -102,7 +108,13 @@ describe('WhatsApp desk loop', () => {
     const waId = '972501234506'
     await processInboundMessage(msg({ text: 'STORE_6018', waId }), dry)
     const created = await processInboundMessage(
-      msg({ text: 'המזגן לא עובד', waId, messageId: 'fault-lock' }),
+      msg({
+        text: 'המזגן לא עובד',
+        waId,
+        messageId: 'fault-lock',
+        mediaUrl: 'https://example.com/proof.jpg',
+        mediaKind: 'image',
+      }),
       dry,
     )
     expect(created.ticketId).toBeTruthy()

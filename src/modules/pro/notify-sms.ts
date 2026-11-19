@@ -8,7 +8,14 @@ import {
 } from '@/modules/stores/manager-identity'
 import { getStoreByCode } from '@/modules/stores/service'
 import { proPortalPath, signProPortalToken } from '@/modules/pro/token'
-import { buildProAssignmentSms } from '@/modules/pro/sms-copy'
+import {
+  buildProAssignmentSms,
+  buildProPaymentSms,
+  PRO_RECEIPT_EMAIL,
+} from '@/modules/pro/sms-copy'
+import { lockedEngagementFor } from '@/modules/engagements/service'
+import { getById } from '@/modules/tickets/service'
+import { logEvent } from '@/lib/logging'
 
 export type ProSmsNotice = {
   ok: boolean
@@ -16,7 +23,7 @@ export type ProSmsNotice = {
   portalUrl?: string
 }
 
-export { buildProAssignmentSms }
+export { buildProAssignmentSms, buildProPaymentSms, PRO_RECEIPT_EMAIL }
 
 export async function notifyProfessionalSms(input: {
   professionalPhone: string
@@ -87,5 +94,80 @@ export async function notifyProfessionalSms(input: {
     ok: false,
     line: sent.detail || 'ה-SMS לאיש המקצוע לא יצא',
     portalUrl,
+  }
+}
+
+/**
+ * After store confirms and the ticket closes — payment terms + receipt request.
+ * No-op when there is no locked professional with a phone.
+ */
+export async function notifyProfessionalPaymentOnClose(
+  ticketId: string,
+): Promise<ProSmsNotice | null> {
+  try {
+    const [ticket, engagement] = await Promise.all([
+      getById(ticketId),
+      lockedEngagementFor(ticketId).catch(() => null),
+    ])
+    if (!ticket) return null
+
+    const phone =
+      engagement?.professionalPhone?.trim() ||
+      null
+    const name = engagement?.professionalName?.trim() || 'איש מקצוע'
+    if (!phone) {
+      logEvent('pro:payment-sms', 'info', 'skipped_no_phone', { ticketId })
+      return null
+    }
+
+    const storeCode = ticket.stores?.code?.trim() || '—'
+    const storeName = ticket.stores?.name?.trim() || storeCode
+    const faultLines = [
+      ticket.title?.trim() || ticket.description?.trim() || '',
+    ].filter(Boolean)
+
+    const message = buildProPaymentSms({
+      storeName,
+      storeCode,
+      faultLines,
+      receiptEmail: PRO_RECEIPT_EMAIL,
+    })
+
+    const sent = await send019Sms({
+      to: phone,
+      message,
+      meta: {
+        ticketId,
+        engagementId: engagement?.id ?? null,
+        purpose: 'pro_payment',
+      },
+    })
+
+    if (sent.ok || sent.dryRun) {
+      logEvent('pro:payment-sms', 'info', 'sent', {
+        ticketId,
+        dryRun: Boolean(sent.dryRun),
+      })
+      return {
+        ok: true,
+        line: sent.dryRun
+          ? `SMS תשלום (dry-run) אל ${name}`
+          : `נשלח SMS תשלום וקבלה אל ${name}`,
+      }
+    }
+    logEvent('pro:payment-sms', 'warn', 'failed', {
+      ticketId,
+      detail: sent.detail ?? sent.skipped ?? null,
+    })
+    return {
+      ok: false,
+      line: sent.detail || 'ה-SMS לתשלום לא יצא',
+    }
+  } catch (err) {
+    logEvent('pro:payment-sms', 'warn', 'error', {
+      ticketId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
   }
 }

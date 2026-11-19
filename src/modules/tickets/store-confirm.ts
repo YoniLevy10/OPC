@@ -103,6 +103,7 @@ export async function confirmStoreFix(input: {
   const closed = await updateStatus(input.ticketId, 'closed')
   const detail = await getById(closed.id)
   if (detail) await notifyReporter(detail, 'closed')
+  await notifyPaymentSmsSafe(closed.id)
 
   return {
     id: closed.id,
@@ -151,6 +152,7 @@ async function confirmStoreFixMemoryFallback(
   const closed = await updateStatus(ticket.id, 'closed')
   const detail = await getById(closed.id)
   if (detail) await notifyReporter(detail, 'closed')
+  await notifyPaymentSmsSafe(closed.id)
   return {
     id: closed.id,
     status: closed.status,
@@ -216,11 +218,23 @@ async function closeEngagedTickets(
   await markEngagementClosed(ticketId, now)
   const detail = await getById(ticketId)
   if (detail) await notifyReporter(detail, 'closed')
+  await notifyPaymentSmsSafe(ticketId)
   return {
     id: closedId,
     status,
     store_confirmed_at: now,
     pending_final_close: false as const,
+  }
+}
+
+async function notifyPaymentSmsSafe(ticketId: string): Promise<void> {
+  try {
+    const { notifyProfessionalPaymentOnClose } = await import(
+      '@/modules/pro/notify-sms'
+    )
+    await notifyProfessionalPaymentOnClose(ticketId)
+  } catch {
+    /* payment SMS must not block store confirm */
   }
 }
 

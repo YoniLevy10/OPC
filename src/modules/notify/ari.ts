@@ -96,7 +96,10 @@ export async function notifyAri(message: string, meta?: Record<string, unknown>)
         ? meta.tag.trim()
         : 'ops-desk'
     void notifyOpsDeskPush({
-      title: 'MaintainOS · דסק',
+      title:
+        typeof meta?.title === 'string' && meta.title.trim()
+          ? meta.title.trim().slice(0, 80)
+          : 'MaintainOS · דסק',
       body: text,
       url,
       tag,

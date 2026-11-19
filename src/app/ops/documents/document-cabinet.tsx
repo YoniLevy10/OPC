@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { IngestedFile } from '@/modules/ingestion/pipeline'
 import {
+  canonicalizeDocumentType,
   documentClock,
   documentReminderStage,
-  remindersFor,
   documentTypeLabel,
+  hearingCalibrationSlots,
   isDocumentDueSoon,
   isDocumentOverdue,
+  isHearingCalibrationType,
+  isRawCertificateTitle,
+  remindersFor,
   type StoreDocument,
 } from '@/modules/documents/rules'
 import { renewDocumentAction, setDocumentExpiryAction, setDocumentRemindersAction, setDocumentTitleAction } from '../work-actions'
@@ -70,7 +74,10 @@ export function DocumentCabinet({
       className="doc-cabinet"
     >
       {folders.map((folder) => {
-        const dated = folder.docs.filter((doc) => doc.extractedExpiry && !doc.renewed)
+        const split = splitStoreDocs(folder.docs)
+        const dated = split.activeBySlot
+          .flatMap((slot) => slot.docs)
+          .filter((doc) => doc.extractedExpiry)
         const next = dated
           .map((doc) => doc.extractedExpiry as string)
           .sort()[0]
@@ -100,17 +107,122 @@ export function DocumentCabinet({
                 </span>
               </span>
             </summary>
-            <ol className="doc-folder-pocket">
-              {folder.docs.map((doc) => (
-                <Paper
-                  key={doc.id}
-                  doc={doc}
-                  file={fileFor(doc, byId)}
-                  fileHref={documentFileHref(doc, filesOnDisk)}
-                  p={p}
-                />
-              ))}
-            </ol>
+            <div className="doc-store-body">
+              <div className="doc-slot-grid" role="list">
+                {split.activeBySlot.map((slot) => {
+                  const hot = slot.docs.some(
+                    (doc) => isDocumentOverdue(doc) || isDocumentDueSoon(doc),
+                  )
+                  return (
+                    <section
+                      key={slot.key}
+                      className={
+                        slot.docs.length === 0
+                          ? 'doc-slot is-empty'
+                          : hot
+                            ? 'doc-slot is-hot'
+                            : 'doc-slot'
+                      }
+                      data-find-item
+                      data-find={`${slot.label} ${folder.name}`}
+                      role="listitem"
+                    >
+                      <header className="doc-slot-head">
+                        <h3 className="doc-slot-title">{slot.label}</h3>
+                        <span
+                          className={
+                            slot.docs.length === 0
+                              ? 'doc-slot-count is-empty'
+                              : 'doc-slot-count'
+                          }
+                        >
+                          {slot.docs.length === 0
+                            ? p('ריק')
+                            : slot.docs.length === 1
+                              ? p('מסמך אחד')
+                              : p('{count} מסמכים', { count: slot.docs.length })}
+                        </span>
+                      </header>
+                      {slot.docs.length === 0 ? (
+                        <p className="doc-slot-empty">
+                          {p('אין מסמך פעיל')}
+                        </p>
+                      ) : (
+                        <ol className="doc-slot-papers">
+                          {slot.docs.map((doc) => (
+                            <Paper
+                              key={doc.id}
+                              doc={doc}
+                              file={fileFor(doc, byId)}
+                              fileHref={documentFileHref(doc, filesOnDisk)}
+                              p={p}
+                            />
+                          ))}
+                        </ol>
+                      )}
+                    </section>
+                  )
+                })}
+              </div>
+
+              {split.otherActive.length > 0 ? (
+                <section
+                  className="doc-slot doc-slot-other"
+                  data-find-item
+                  data-find={`אחר ${folder.name}`}
+                >
+                  <header className="doc-slot-head">
+                    <h3 className="doc-slot-title">{p('מסמכים אחרים')}</h3>
+                    <span className="doc-slot-count">
+                      {split.otherActive.length}
+                    </span>
+                  </header>
+                  <ol className="doc-slot-papers">
+                    {split.otherActive.map((doc) => (
+                      <Paper
+                        key={doc.id}
+                        doc={doc}
+                        file={fileFor(doc, byId)}
+                        fileHref={documentFileHref(doc, filesOnDisk)}
+                        p={p}
+                      />
+                    ))}
+                  </ol>
+                </section>
+              ) : null}
+
+              <details
+                className="doc-archive"
+                data-find-item
+                data-find="מסמכים ישנים ארכיון"
+              >
+                <summary className="doc-archive-summary">
+                  <span className="doc-archive-label">{p('מסמכים ישנים')}</span>
+                  <span className="doc-slot-count is-muted">
+                    {split.archived.length === 0
+                      ? p('ריק')
+                      : String(split.archived.length)}
+                  </span>
+                </summary>
+                {split.archived.length === 0 ? (
+                  <p className="doc-slot-empty">
+                    {p('מסמכים שפג תוקפם או שהוחלפו יופיעו כאן')}
+                  </p>
+                ) : (
+                  <ol className="doc-slot-papers doc-archive-list">
+                    {split.archived.map((doc) => (
+                      <Paper
+                        key={doc.id}
+                        doc={doc}
+                        file={fileFor(doc, byId)}
+                        fileHref={documentFileHref(doc, filesOnDisk)}
+                        p={p}
+                      />
+                    ))}
+                  </ol>
+                )}
+              </details>
+            </div>
           </details>
         )
       })}
@@ -299,20 +411,24 @@ function ReminderMenu({
   p: PhraseFn
 }) {
   const reminders = remindersFor(doc)
-  const six = reminders.find((row) => row.months === 6)?.at
-  const two = reminders.find((row) => row.months === 2)?.at
+  const month = reminders.find((row) => row.months === 1)?.at
   const stage = documentReminderStage(doc)
   return (
     <details className="doc-reminders">
       <summary>
-        {stage === 'two' ? 'תזכורת חודשיים' : stage === 'six' ? 'תזכורת חצי שנה' : 'תזכורות'}
+        {stage === 'month' ? 'תזכורת חודש מראש' : 'תזכורת'}
       </summary>
       <form action={setDocumentRemindersAction} className="doc-reminder-form">
         <input type="hidden" name="documentId" value={doc.id} />
-        <ReminderField id={doc.id} label="חצי שנה לפני" name="six" value={six} title={title} />
-        <ReminderField id={doc.id} label="חודשיים לפני" name="two" value={two} title={title} />
+        <ReminderField
+          id={doc.id}
+          label="חודש לפני"
+          name="month"
+          value={month}
+          title={title}
+        />
         {doc.extractedExpiry ? (
-          <p className="doc-reminder-empty">שדה ריק חוזר לחישוב לפי תאריך התוקף.</p>
+          <p className="doc-reminder-empty">שדה ריק חוזר לחישוב לפי תאריך התוקף (חודש לפני).</p>
         ) : null}
         <Button type="submit" size="sm" aria-label={`שמור תזכורות ${title}`} className="max-md:w-full">
           {p('שמור')}
@@ -376,20 +492,54 @@ function groupByStore(documents: StoreDocument[]): Folder[] {
     const code = doc.storeCode?.trim() ?? ''
     const name = doc.storeName?.trim() || 'בלי סניף'
     const key = code || `unassigned:${name}`
+    const normalized: StoreDocument = {
+      ...doc,
+      docType: canonicalizeDocumentType(doc.docType),
+    }
     const folder = map.get(key)
-    if (folder) folder.docs.push(doc)
-    else map.set(key, { key, code, name, docs: [doc] })
+    if (folder) folder.docs.push(normalized)
+    else map.set(key, { key, code, name, docs: [normalized] })
   }
   return [...map.values()]
     .map((folder) => ({
       ...folder,
-      docs: [...folder.docs].sort((a, b) => paperTitle(a, null).localeCompare(paperTitle(b, null), 'he')),
+      docs: [...folder.docs].sort((a, b) =>
+        paperTitle(a, null).localeCompare(paperTitle(b, null), 'he'),
+      ),
     }))
     .sort((a, b) => {
       if (!a.code) return 1
       if (!b.code) return -1
       return a.code.localeCompare(b.code, 'en', { numeric: true })
     })
+}
+
+/** Active calibrations by Ari's three slots + archive (renewed or overdue). */
+function splitStoreDocs(docs: StoreDocument[]): {
+  activeBySlot: { key: string; label: string; docs: StoreDocument[] }[]
+  otherActive: StoreDocument[]
+  archived: StoreDocument[]
+} {
+  const archived: StoreDocument[] = []
+  const active: StoreDocument[] = []
+  for (const doc of docs) {
+    if (doc.renewed || isDocumentOverdue(doc)) archived.push(doc)
+    else active.push(doc)
+  }
+
+  const slots = hearingCalibrationSlots().map((slot) => ({
+    key: slot.key,
+    label: slot.label,
+    docs: active.filter(
+      (doc) => canonicalizeDocumentType(doc.docType) === slot.key,
+    ),
+  }))
+  const slotKeys = new Set(slots.map((slot) => slot.key))
+  const otherActive = active.filter(
+    (doc) => !slotKeys.has(canonicalizeDocumentType(doc.docType)),
+  )
+
+  return { activeBySlot: slots, otherActive, archived }
 }
 
 function certificateIds(): Set<string> {
@@ -405,11 +555,18 @@ function hasPreview(id: string): boolean {
 }
 
 function paperTitle(doc: StoreDocument, file: IngestedFile | null | undefined): string {
+  const type = canonicalizeDocumentType(doc.docType)
+  // Hearing calibrations always show Ari's three category names in the list.
+  if (isHearingCalibrationType(type)) {
+    const hand = doc.title?.trim()
+    if (hand && !isRawCertificateTitle(hand)) return hand
+    return documentTypeLabel(type)
+  }
   const named = doc.title?.trim()
   if (named) return named
   const fromFile = file?.name?.replace(/\.pdf$/i, '').trim()
   if (fromFile) return fromFile
-  return documentTypeLabel(doc.docType)
+  return documentTypeLabel(type)
 }
 
 function excerptOf(text: string | null | undefined): string | null {

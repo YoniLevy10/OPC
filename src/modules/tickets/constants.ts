@@ -126,6 +126,7 @@ export const TICKET_EVENT_LABELS_HE: Record<string, string> = {
   pro_sms: 'נשלח SMS לאיש מקצוע',
   ari_manual_close: 'סגירה ידנית (ארי)',
   note_added: 'נוספה הערה',
+  description_updated: 'עודכן תיאור התקלה',
   photo_added: 'נוספה תמונה',
 }
 

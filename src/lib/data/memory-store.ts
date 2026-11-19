@@ -37,6 +37,10 @@ export type MemTicket = {
   resolution_note: string | null
   store_confirmed_at: string | null
   store_confirmed_by: string | null
+  /** OC-22: when ticket entered awaiting-store-confirm ladder. */
+  awaiting_store_confirm_since?: string | null
+  /** OC-22: confirm reminder level 0–4. */
+  confirm_reminder_level?: number
   /** WhatsApp AI intake summary (optional). */
   ai_summary: string | null
   /** Raw AI + rules audit payload (optional). */
@@ -241,6 +245,8 @@ export type MemInboxMessage = {
   direction: 'inbound' | 'outbound'
   body: string
   ticket_id: string | null
+  media_url?: string | null
+  media_kind?: 'image' | 'video' | 'document' | 'audio' | null
   created_at: string
 }
 
@@ -262,6 +268,12 @@ export type MemSession = {
   /** Bamakor-style stash: media received before ticket exists. */
   pending_media_url?: string | null
   pending_media_kind?: 'image' | 'video' | 'document' | 'audio' | null
+  /** OC-22: store_manager | pro_coord | ops_broadcast */
+  thread_kind?: 'store_manager' | 'pro_coord' | 'ops_broadcast'
+  /** OC-22: auto | paused | never — pro_coord uses never */
+  bot_mode?: 'auto' | 'paused' | 'never'
+  linked_professional_id?: string | null
+  linked_ticket_id?: string | null
   expires_at: string
   updated_at: string
   /** Private ops window for this wa_id only (bot stays on elsewhere). */
@@ -1208,6 +1220,8 @@ export function memCreate(input: {
     closed_at: null,
     resolution_note: null,
     store_confirmed_at: null,
+    awaiting_store_confirm_since: null,
+    confirm_reminder_level: 0,
     store_confirmed_by: null,
     ai_summary: input.ai_summary ?? null,
     ai_raw: input.ai_raw ?? null,
@@ -1533,6 +1547,22 @@ export function memUpsertSession(
       session.pending_media_kind !== undefined
         ? session.pending_media_kind
         : (existing?.pending_media_kind ?? null),
+    thread_kind:
+      session.thread_kind !== undefined
+        ? session.thread_kind
+        : (existing?.thread_kind ?? 'store_manager'),
+    bot_mode:
+      session.bot_mode !== undefined
+        ? session.bot_mode
+        : (existing?.bot_mode ?? 'auto'),
+    linked_professional_id:
+      session.linked_professional_id !== undefined
+        ? session.linked_professional_id
+        : (existing?.linked_professional_id ?? null),
+    linked_ticket_id:
+      session.linked_ticket_id !== undefined
+        ? session.linked_ticket_id
+        : (existing?.linked_ticket_id ?? null),
     expires_at:
       session.expires_at ??
       new Date(Date.now() + 30 * 60 * 1000).toISOString(),
@@ -1621,6 +1651,8 @@ export function memAddInboxMessage(input: {
   direction: 'inbound' | 'outbound'
   body: string
   ticket_id?: string | null
+  media_url?: string | null
+  media_kind?: 'image' | 'video' | 'document' | 'audio' | null
 }): MemInboxMessage {
   const mem = store()
   if (!mem.inboxMessages) mem.inboxMessages = new Map()
@@ -1630,6 +1662,8 @@ export function memAddInboxMessage(input: {
     direction: input.direction,
     body: input.body,
     ticket_id: input.ticket_id ?? null,
+    media_url: input.media_url ?? null,
+    media_kind: input.media_kind ?? null,
     created_at: new Date().toISOString(),
   }
   const list = mem.inboxMessages.get(input.wa_id) ?? []

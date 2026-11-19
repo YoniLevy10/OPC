@@ -3,7 +3,6 @@ import { listDocuments } from '@/lib/data/ops-ledger'
 import { hydrateOpsLedger } from '@/lib/data/ops-db'
 import { notifyAri } from '@/modules/notify/ari'
 import {
-  documentReminderStage,
   documentTypeLabel,
   isDocumentDueSoon,
   isDocumentOverdue,
@@ -31,10 +30,9 @@ export async function GET(request: Request) {
   await hydrateOpsLedger()
   const docs = listDocuments()
   const overdue = docs.filter((doc) => isDocumentOverdue(doc))
+  // Ari meeting: only ~1 month before expiry (no 6m / 2m fan-out).
   const dueSoon = docs.filter((doc) => isDocumentDueSoon(doc))
-  const sixMonths = docs.filter((doc) => documentReminderStage(doc) === 'six')
-  const twoMonths = docs.filter((doc) => documentReminderStage(doc) === 'two')
-  if (overdue.length || dueSoon.length || sixMonths.length || twoMonths.length) {
+  if (overdue.length || dueSoon.length) {
     const overdueLines = overdue
       .slice(0, 6)
       .map((doc) => `${doc.storeCode || '—'} ${documentTypeLabel(doc.docType)}`)
@@ -48,15 +46,11 @@ export async function GET(request: Request) {
     if (dueSoon.length) {
       parts.push(`תזכורת חודש מראש (${dueSoon.length}): ${soonLines}`)
     }
-    if (sixMonths.length) parts.push(`חצי שנה לפני (${sixMonths.length})`)
-    if (twoMonths.length) parts.push(`חודשיים לפני (${twoMonths.length})`)
     await notifyAri(`מסמכים / כיולים — ${parts.join(' · ')}`)
   }
   logEvent('cron:documents', 'info', 'reminders', {
     overdue: overdue.length,
     dueSoon: dueSoon.length,
-    sixMonths: sixMonths.length,
-    twoMonths: twoMonths.length,
   })
   return NextResponse.json({
     ok: true,
@@ -72,7 +66,5 @@ export async function GET(request: Request) {
       docType: doc.docType,
       owner: doc.owner,
     })),
-    sixMonths: sixMonths.length,
-    twoMonths: twoMonths.length,
   })
 }

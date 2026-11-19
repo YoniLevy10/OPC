@@ -664,7 +664,12 @@ export async function createTicket(input: CreateTicketInput): Promise<TicketReco
       }),
     )
     await Promise.all(postInsert)
-    return { ...(data as TicketRecord), display_number }
+    const created = { ...(data as TicketRecord), display_number }
+    void notifyNewTicketCreated(created, {
+      storeCode: store.code ?? input.storeCode ?? null,
+      storeName: store.name ?? null,
+    })
+    return created
   }
 
   if (!input.storeCode && !input.storeId) {
@@ -673,7 +678,7 @@ export async function createTicket(input: CreateTicketInput): Promise<TicketReco
 
   const store = resolveMemoryStore(input)
   assertStoreHierarchy(store)
-  return memToRecord(
+  const created = memToRecord(
     memCreate({
       store,
       description,
@@ -691,6 +696,31 @@ export async function createTicket(input: CreateTicketInput): Promise<TicketReco
       ...sla,
     }),
   )
+  void notifyNewTicketCreated(created, {
+    storeCode: store.code ?? input.storeCode ?? null,
+    storeName: store.name ?? null,
+  })
+  return created
+}
+
+function notifyNewTicketCreated(
+  ticket: TicketRecord,
+  store: { storeCode: string | null; storeName: string | null },
+): void {
+  void import('@/modules/notify/new-ticket')
+    .then(({ notifyAriNewTicket }) =>
+      notifyAriNewTicket({
+        ticketId: ticket.id,
+        displayNumber: ticket.display_number,
+        storeName: store.storeName,
+        storeCode: store.storeCode,
+        description: ticket.description,
+        priority: ticket.priority,
+      }),
+    )
+    .catch(() => {
+      /* notify must never block create */
+    })
 }
 
 /** Service-layer hierarchy checks (DB triggers mirror these in Supabase). */
@@ -1276,6 +1306,57 @@ export async function setRepairEta(
   return memToRecord(memSetRepairEta(id, iso, actorId ?? null))
 }
 
+/**
+ * Update ticket description without reopening workflows.
+ * Keeps original text in ticket_events for audit; AI reclassify is not re-run.
+ */
+export async function updateDescription(
+  id: string,
+  description: string,
+  actorId: string | null = null,
+): Promise<TicketRecord> {
+  const next = description.trim()
+  if (!next) throw new Error('תיאור התקלה נדרש')
+  if (next.length > 4000) throw new Error('תיאור ארוך מדי')
+
+  if (await supabaseReady()) {
+    const current = await getTicketForMutation(id)
+    if (!current) throw new Error('תקלה לא נמצאה')
+    const previous = current.description
+    if (previous === next) return current as TicketRecord
+
+    const supabase = createSystemClient('tickets_service')
+    const { data, error } = await supabase
+      .from('tickets')
+      .update({ description: next, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single()
+    if (error || !data) throw new Error(error?.message || 'עדכון תיאור נכשל')
+
+    await appendEvent(id, 'description_updated', actorId, {
+      from: previous,
+      to: next,
+    })
+    return data as TicketRecord
+  }
+
+  const mem = memGet(id)
+  if (!mem) throw new Error('תקלה לא נמצאה')
+  const previous = mem.description
+  if (previous === next) return memToRecord(mem)
+  mem.description = next
+  mem.updated_at = new Date().toISOString()
+  const { memAddEvent } = await import('@/lib/data/memory-store')
+  memAddEvent(
+    id,
+    'description_updated',
+    { from: previous, to: next },
+    actorId,
+  )
+  return memToRecord(mem)
+}
+
 export async function appendEvent(
   ticketId: string,
   eventType: string,
@@ -1361,6 +1442,8 @@ type StoreResolved = {
   organization_id: string
   country_id: string
   region_id: string
+  code?: string | null
+  name?: string | null
 }
 
 async function resolveStore(
@@ -1370,7 +1453,7 @@ async function resolveStore(
   if (input.storeId) {
     const { data, error } = await supabase
       .from('stores')
-      .select('id, organization_id, country_id, region_id')
+      .select('id, organization_id, country_id, region_id, code, name')
       .eq('id', input.storeId)
       .maybeSingle()
     if (error) throw new Error(error.message)
@@ -1385,7 +1468,9 @@ async function resolveStore(
   const lookup = canonicalStoreCode(input.storeCode)
   let query = supabase
     .from('stores')
-    .select('id, organization_id, country_id, region_id, countries!inner(code)')
+    .select(
+      'id, organization_id, country_id, region_id, code, name, countries!inner(code)',
+    )
     .in('code', lookup === input.storeCode ? [input.storeCode] : [lookup, input.storeCode])
     .eq('is_active', true)
 
@@ -1403,6 +1488,8 @@ async function resolveStore(
     organization_id: data.organization_id,
     country_id: data.country_id,
     region_id: data.region_id,
+    code: (data as { code?: string }).code ?? input.storeCode,
+    name: (data as { name?: string | null }).name ?? null,
   }
 }
 

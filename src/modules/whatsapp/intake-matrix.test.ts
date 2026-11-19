@@ -27,6 +27,20 @@ function msg(
   }
 }
 
+function withProof(
+  partial: Partial<InboundMessage> & { text?: string | null },
+  waId?: string,
+): InboundMessage {
+  return msg(
+    {
+      ...partial,
+      mediaUrl: partial.mediaUrl ?? 'https://example.com/proof.jpg',
+      mediaKind: partial.mediaKind ?? 'image',
+    },
+    waId,
+  )
+}
+
 describe('WhatsApp intake matrix (memory)', () => {
   beforeEach(() => {
     process.env.MAINTAINOS_FORCE_MEMORY = '1'
@@ -56,7 +70,7 @@ describe('WhatsApp intake matrix (memory)', () => {
   it('WA-01b the store manager phone opens on that store', async () => {
     const before = memListTickets().length
     const r = await processInboundMessage(
-      msg({
+      withProof({
         text: 'המזגן לא עובד',
         waId: '972543034415',
         phoneNumberId: 'wa_phone_il_demo',
@@ -120,7 +134,7 @@ describe('WhatsApp intake matrix (memory)', () => {
       .toString()
       .padStart(7, '0')}`
     const r = await processInboundMessage(
-      msg({ text: 'STORE_172 המזגן לא עובד', waId }),
+      withProof({ text: 'STORE_172 המזגן לא עובד', waId }),
       { skipOutboundGraph: true },
     )
     expect(r.ok).toBe(true)
@@ -206,7 +220,7 @@ describe('WhatsApp intake matrix (memory)', () => {
     })
     const before = memListTickets().length
     const a = await processInboundMessage(
-      msg({
+      withProof({
         waId,
         messageId,
         text: 'המזגן לא עובד בדיקת כפילות',
@@ -264,7 +278,7 @@ describe('WhatsApp intake matrix (memory)', () => {
       skipOutboundGraph: true,
     })
     const first = await processInboundMessage(
-      msg({ waId, text: 'תקלה ראשונה מזגן' }),
+      withProof({ waId, text: 'תקלה ראשונה מזגן' }),
       { skipOutboundGraph: true },
     )
     expect(first.ticketId).toBeTruthy()
@@ -274,7 +288,7 @@ describe('WhatsApp intake matrix (memory)', () => {
     )
     expect(secondStore.state).toBe('awaiting_description')
     const second = await processInboundMessage(
-      msg({ waId, text: 'תקלה שנייה נורה' }),
+      withProof({ waId, text: 'תקלה שנייה נורה' }),
       { skipOutboundGraph: true },
     )
     expect(second.ticketId).toBeTruthy()
@@ -289,7 +303,7 @@ describe('WhatsApp intake matrix (memory)', () => {
       skipOutboundGraph: true,
     })
     const created = await processInboundMessage(
-      msg({ waId, text: 'סתימה בשירותים נשים אין ניקוז' }),
+      withProof({ waId, text: 'סתימה בשירותים נשים אין ניקוז' }),
       { skipOutboundGraph: true },
     )
     expect(created.ticketId).toBeTruthy()
@@ -353,7 +367,7 @@ describe('WhatsApp intake matrix (memory)', () => {
       skipOutboundGraph: true,
     })
     const created = await processInboundMessage(
-      msg({ waId, text: 'נזילה מהתקרה בחנות' }),
+      withProof({ waId, text: 'נזילה מהתקרה בחנות' }),
       { skipOutboundGraph: true },
     )
     expect(created.ticketId).toBeTruthy()
@@ -385,7 +399,7 @@ describe('WhatsApp intake matrix (memory)', () => {
       .toString()
       .padStart(7, '0')}`
     const r = await processInboundMessage(
-      msg({
+      withProof({
         text: 'STORE_172 clim en panne',
         waId,
         phoneNumberId: MEM_WA_PHONE_FR,
@@ -502,7 +516,7 @@ describe('WhatsApp intake matrix (memory)', () => {
       skipOutboundGraph: true,
     })
     const r = await processInboundMessage(
-      msg({
+      withProof({
         waId,
         text: 'המזגן הראשי לא עובד ויש ממנו נזילה',
       }),
@@ -515,4 +529,63 @@ describe('WhatsApp intake matrix (memory)', () => {
     expect(ticket?.priority).toBe('high')
     expect(r.reply || '').toMatch(/פתחתי תקלה|OC-/)
   })
+
+  it('PROOF text-only does not open a ticket', async () => {
+    const waId = `97250${Math.floor(Math.random() * 1e7)
+      .toString()
+      .padStart(7, '0')}`
+    await processInboundMessage(msg({ text: 'STORE_172', waId }), {
+      skipOutboundGraph: true,
+    })
+    const before = memListTickets().length
+    const r = await processInboundMessage(
+      msg({ waId, text: 'המזגן לא עובד בלי תמונה' }),
+      { skipOutboundGraph: true },
+    )
+    expect(r.ok).toBe(true)
+    expect(r.ticketId).toBeFalsy()
+    expect(memListTickets().length).toBe(before)
+    expect(r.reply || '').toMatch(/תמונה|סרטון|photo|video/i)
+  })
+
+  it('PROOF voice-only does not open a ticket', async () => {
+    const waId = `97250${Math.floor(Math.random() * 1e7)
+      .toString()
+      .padStart(7, '0')}`
+    await processInboundMessage(msg({ text: 'STORE_172', waId }), {
+      skipOutboundGraph: true,
+    })
+    const before = memListTickets().length
+    const r = await processInboundMessage(
+      msg({
+        waId,
+        text: 'תיאור קולי',
+        mediaUrl: 'https://example.com/voice.ogg',
+        mediaKind: 'audio',
+      }),
+      { skipOutboundGraph: true },
+    )
+    expect(r.ok).toBe(true)
+    expect(r.ticketId).toBeFalsy()
+    expect(memListTickets().length).toBe(before)
+    expect(r.reply || '').toMatch(/תמונה|סרטון/i)
+  })
+
+  it('PROOF image + description opens a ticket', async () => {
+    const waId = `97250${Math.floor(Math.random() * 1e7)
+      .toString()
+      .padStart(7, '0')}`
+    await processInboundMessage(msg({ text: 'STORE_172', waId }), {
+      skipOutboundGraph: true,
+    })
+    const before = memListTickets().length
+    const r = await processInboundMessage(
+      withProof({ waId, text: 'המזגן לא מקרר באולם' }),
+      { skipOutboundGraph: true },
+    )
+    expect(r.ok).toBe(true)
+    expect(r.ticketId).toBeTruthy()
+    expect(memListTickets().length).toBe(before + 1)
+  })
+
 })

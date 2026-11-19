@@ -223,13 +223,18 @@ type SessionRow = {
   /** Bamakor-style: media held until ticket create. */
   pending_media_url: string | null
   pending_media_kind: InboundMessage['mediaKind']
+  /** OC-22 desk thread separation. */
+  thread_kind: 'store_manager' | 'pro_coord' | 'ops_broadcast'
+  bot_mode: 'auto' | 'paused' | 'never'
+  linked_professional_id: string | null
+  linked_ticket_id: string | null
   human_takeover: boolean
   human_takeover_until: string | null
   expires_at: string
 }
 
 const SESSION_SELECT =
-  'id, organization_id, country_id, wa_id, store_id, store_code, customer_name, state, pending_description, clarification_count, draft_payload, active_ticket_id, pending_media_url, pending_media_kind, human_takeover, human_takeover_until, expires_at'
+  'id, organization_id, country_id, wa_id, store_id, store_code, customer_name, state, pending_description, clarification_count, draft_payload, active_ticket_id, pending_media_url, pending_media_kind, thread_kind, bot_mode, linked_professional_id, linked_ticket_id, human_takeover, human_takeover_until, expires_at'
 
 const SESSION_SELECT_LEGACY =
   'id, organization_id, country_id, wa_id, store_id, store_code, state, pending_description, human_takeover, expires_at'
@@ -257,6 +262,10 @@ async function selectSession(
       isMissingColumnError(error, 'human_takeover_until') ||
       isMissingColumnError(error, 'pending_media_url') ||
       isMissingColumnError(error, 'pending_media_kind') ||
+      isMissingColumnError(error, 'thread_kind') ||
+      isMissingColumnError(error, 'bot_mode') ||
+      isMissingColumnError(error, 'linked_professional_id') ||
+      isMissingColumnError(error, 'linked_ticket_id') ||
       isMissingColumnError(error, 'customer_name'))
   ) {
     ;({ data, error } = await supabase
@@ -322,6 +331,23 @@ function resolveEffectiveMedia(
   }
 }
 
+/** HARD proof gate: ticket opens only with photo or video (not voice/document alone). */
+export function isProofMediaKind(
+  kind: InboundMessage['mediaKind'] | undefined | null,
+): boolean {
+  return kind === 'image' || kind === 'video'
+}
+
+export function hasProofMedia(
+  message: InboundMessage,
+  session: Pick<SessionRow, 'pending_media_url' | 'pending_media_kind'>,
+): boolean {
+  if (message.mediaUrl && isProofMediaKind(message.mediaKind)) return true
+  return Boolean(
+    session.pending_media_url && isProofMediaKind(session.pending_media_kind),
+  )
+}
+
 async function stashInboundMedia(
   supabase: SupabaseClient | null,
   session: SessionRow,
@@ -359,6 +385,10 @@ function sessionFromMem(
     active_ticket_id: existing.active_ticket_id ?? null,
     pending_media_url: existing.pending_media_url ?? null,
     pending_media_kind: existing.pending_media_kind ?? null,
+    thread_kind: existing.thread_kind ?? 'store_manager',
+    bot_mode: existing.bot_mode ?? 'auto',
+    linked_professional_id: existing.linked_professional_id ?? null,
+    linked_ticket_id: existing.linked_ticket_id ?? null,
     human_takeover: Boolean(existing.human_takeover),
     human_takeover_until: existing.human_takeover_until ?? null,
     expires_at: existing.expires_at,
@@ -386,6 +416,17 @@ function normalizeSessionRow(row: Record<string, unknown>): SessionRow {
     active_ticket_id: (row.active_ticket_id as string | null) ?? null,
     pending_media_url: (row.pending_media_url as string | null) ?? null,
     pending_media_kind: pendingKind,
+    thread_kind:
+      row.thread_kind === 'pro_coord' || row.thread_kind === 'ops_broadcast'
+        ? row.thread_kind
+        : 'store_manager',
+    bot_mode:
+      row.bot_mode === 'paused' || row.bot_mode === 'never'
+        ? row.bot_mode
+        : 'auto',
+    linked_professional_id:
+      (row.linked_professional_id as string | null) ?? null,
+    linked_ticket_id: (row.linked_ticket_id as string | null) ?? null,
     human_takeover: Boolean(row.human_takeover),
     human_takeover_until: (row.human_takeover_until as string | null) ?? null,
     expires_at: String(row.expires_at),
@@ -635,7 +676,19 @@ async function logWhatsAppMessage(params: {
     ticketId,
   } = params
   const text = typeof body === 'string' ? body.trim() : ''
-  if (!text) return
+  const hasMedia = Boolean(mediaRef)
+  if (!text && !hasMedia) return
+  const bodyText =
+    text ||
+    (mediaKind === 'image'
+      ? '📷 תמונה'
+      : mediaKind === 'video'
+        ? '🎬 וידאו'
+        : mediaKind === 'audio'
+          ? '🎤 הודעה קולית'
+          : mediaKind === 'document'
+            ? '📄 מסמך'
+            : 'מדיה')
 
   if (!supabase) {
     try {
@@ -643,8 +696,16 @@ async function logWhatsAppMessage(params: {
       memAddInboxMessage({
         wa_id: waId,
         direction,
-        body: text,
+        body: bodyText,
         ticket_id: ticketId ?? null,
+        media_url: mediaRef ?? null,
+        media_kind:
+          mediaKind === 'image' ||
+          mediaKind === 'video' ||
+          mediaKind === 'document' ||
+          mediaKind === 'audio'
+            ? mediaKind
+            : null,
       })
     } catch {
       /* memory mirror optional */
@@ -658,16 +719,22 @@ async function logWhatsAppMessage(params: {
       country_id: country.id,
       wa_id: waId,
       direction,
-      body: text,
+      body: bodyText,
       meta_message_id: metaMessageId,
       media_kind: mediaKind ?? null,
       media_ref: mediaRef ?? null,
+      media_url: mediaRef ?? null,
       ticket_id: ticketId ?? null,
       intake_session_id: session && !session.id.startsWith('mem-') ? session.id : null,
     }
     const { error } = await supabase.from('whatsapp_messages').insert(row)
-    if (error && isMissingColumnError(error, 'media_ref')) {
+    if (
+      error &&
+      (isMissingColumnError(error, 'media_ref') ||
+        isMissingColumnError(error, 'media_url'))
+    ) {
       delete row.media_ref
+      delete row.media_url
       await supabase.from('whatsapp_messages').insert(row)
     }
   } catch {
@@ -676,13 +743,27 @@ async function logWhatsAppMessage(params: {
 
   // Mirror into desk inbox so ops sees bot Q&A without a separate merge path.
   try {
-    await supabase.from('inbox_messages').insert({
+    const inboxRow: Record<string, unknown> = {
       country_id: country.id,
       wa_id: waId,
       direction,
-      body: text,
+      body: bodyText,
       ticket_id: ticketId ?? null,
-    })
+      media_url: mediaRef ?? null,
+      media_kind: mediaKind ?? null,
+    }
+    const { error: inboxError } = await supabase
+      .from('inbox_messages')
+      .insert(inboxRow)
+    if (
+      inboxError &&
+      (isMissingColumnError(inboxError, 'media_url') ||
+        isMissingColumnError(inboxError, 'media_kind'))
+    ) {
+      delete inboxRow.media_url
+      delete inboxRow.media_kind
+      await supabase.from('inbox_messages').insert(inboxRow)
+    }
   } catch {
     /* inbox_messages may be missing — listSessionMessages still merges whatsapp_messages */
   }
@@ -813,6 +894,10 @@ type SessionPatch = Partial<{
   active_ticket_id: string | null
   pending_media_url: string | null
   pending_media_kind: InboundMessage['mediaKind']
+  thread_kind: SessionRow['thread_kind']
+  bot_mode: SessionRow['bot_mode']
+  linked_professional_id: string | null
+  linked_ticket_id: string | null
   last_inbound: string | null
   human_takeover: boolean
   human_takeover_until: string | null
@@ -857,6 +942,20 @@ async function updateSession(
         patch.pending_media_kind !== undefined
           ? patch.pending_media_kind
           : session.pending_media_kind,
+      thread_kind:
+        patch.thread_kind !== undefined
+          ? patch.thread_kind
+          : session.thread_kind,
+      bot_mode:
+        patch.bot_mode !== undefined ? patch.bot_mode : session.bot_mode,
+      linked_professional_id:
+        patch.linked_professional_id !== undefined
+          ? patch.linked_professional_id
+          : session.linked_professional_id,
+      linked_ticket_id:
+        patch.linked_ticket_id !== undefined
+          ? patch.linked_ticket_id
+          : session.linked_ticket_id,
       human_takeover:
         patch.human_takeover !== undefined
           ? patch.human_takeover
@@ -1270,6 +1369,22 @@ export async function processInboundMessage(
 
     const storeCodeHint = text ? parseStoreCodeFromText(text) : null
 
+    // OC-22: pro_coord / bot_mode=never — never run store intake or bot replies.
+    {
+      const { botShouldStaySilent } = await import('@/modules/inbox/thread-kinds')
+      if (botShouldStaySilent(session)) {
+        if (message.mediaUrl) {
+          session = await stashInboundMedia(supabase, session, message)
+        }
+        logEvent('whatsapp:intake', 'info', 'pro_coord_bot_silent', {
+          waId: message.waId,
+          threadKind: session.thread_kind,
+          botMode: session.bot_mode,
+        })
+        return { ok: true, reply: null, state: session.state }
+      }
+    }
+
     // Per-chat private window only — bot stays on for every other wa_id.
     // Expired / legacy permanent flags auto-clear so the bot resumes.
     if (session.human_takeover) {
@@ -1640,8 +1755,10 @@ export async function processInboundMessage(
       spoken &&
       /^(עדכון|המשך|בנוסף)\b/.test(spoken)
     ) {
+      const ticketId = session.active_ticket_id
+      const addition = spoken.replace(/^(עדכון|המשך|בנוסף)\b[:\s-]*/i, '').trim()
       try {
-        memAddMessage(session.active_ticket_id, {
+        memAddMessage(ticketId, {
           channel: 'whatsapp',
           direction: 'inbound',
           body: spoken,
@@ -1649,6 +1766,26 @@ export async function processInboundMessage(
         })
       } catch {
         // Ticket may live only in Supabase; the reply still confirms receipt.
+      }
+      // Keep SoT description in sync so Ari's assistant / desk read the update —
+      // never opens a duplicate ticket or restarts booking flows.
+      if (addition) {
+        try {
+          const { getById, updateDescription } = await import(
+            '@/modules/tickets/service'
+          )
+          const current = await getById(ticketId)
+          if (current && !['closed', 'cancelled'].includes(current.status)) {
+            const merged = [current.description?.trim(), addition]
+              .filter(Boolean)
+              .join('\n')
+            if (merged && merged !== current.description) {
+              await updateDescription(ticketId, merged, null)
+            }
+          }
+        } catch {
+          /* message already attached; description sync is best-effort */
+        }
       }
       const reply = await craftIntakeReply(
         'ההודעה צורפה לפנייה הקיימת. היא נקלטת, ועדיין לא מהווה אישור של ארי.',
@@ -1659,11 +1796,11 @@ export async function processInboundMessage(
         message,
         country,
         reply,
-        session.active_ticket_id,
+        ticketId,
         options,
         session,
       )
-      return { ok: true, reply, ticketId: session.active_ticket_id, state: 'done' }
+      return { ok: true, reply, ticketId, state: 'done' }
     }
 
     const desk = await routeInboundToDesk({
@@ -2174,6 +2311,37 @@ async function analyzeAndFinalize(params: {
     return { ok: true, reply, state: 'done' }
   }
 
+  // HARD proof gate — never open a ticket without photo/video proof.
+  if (!hasProofMedia(message, session)) {
+    let nextSession = session
+    if (message.mediaUrl) {
+      // Stash non-proof media (voice/document) so Ari can still see it later;
+      // still do not open a ticket.
+      nextSession = await stashInboundMedia(supabase, session, message)
+    }
+    const pending =
+      description.trim() || nextSession.pending_description || null
+    await updateSession(supabase, nextSession, {
+      state: 'awaiting_description',
+      pending_description: pending,
+    })
+    const reply = await craftIntakeReply(
+      copyForInbound(description || message.text || '', country).copy
+        .needProofMedia,
+      'intake_need_proof_media',
+    )
+    await sendReply(supabase, message, country, reply, null, options, {
+      ...nextSession,
+      state: 'awaiting_description',
+      pending_description: pending,
+    })
+    logEvent('whatsapp:intake', 'info', 'proof_gate_blocked', {
+      waId: message.waId,
+      mediaKind: message.mediaKind ?? session.pending_media_kind,
+    })
+    return { ok: true, reply, state: 'awaiting_description' }
+  }
+
   if (message.mediaKind === 'audio' && !forceCreate) {
     const parts = splitSpokenFaults(description)
     if (parts.length > 1) {
@@ -2320,6 +2488,12 @@ async function finalizeTicket(params: {
     : decision.possibleDuplicateHint
 
   const effective = resolveEffectiveMedia(message, session)
+  if (!isProofMediaKind(effective.mediaKind) || !effective.mediaUrl) {
+    // Defense in depth — analyzeAndFinalize already gates; never create without proof.
+    const reply = await craftIntakeReply(copy.needProofMedia, 'intake_need_proof_media')
+    await sendReply(supabase, message, country, reply, null, options, session)
+    return { ok: true, reply, state: session.state }
+  }
 
   const { ticketId, displayNumber, mediaFailed } = await createTicketFromIntake({
     store,

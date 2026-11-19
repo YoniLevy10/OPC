@@ -7,6 +7,7 @@ import {
   getTicketForMutation,
   listInternalTechnicians,
   setRepairEta,
+  updateDescription,
   updateStatus,
   type TicketRecord,
 } from '@/modules/tickets/service'
@@ -34,6 +35,7 @@ const patchSchema = z
     status: z.enum(TICKET_STATUSES).optional(),
     assignedTo: z.string().uuid().optional(),
     note: z.string().trim().max(2000).optional(),
+    description: z.string().trim().min(1).max(4000).optional(),
     /** Ari (global_maintenance) override when resolving without image/video. */
     overrideReason: z.string().trim().min(3).max(2000).optional(),
     /** B03 — close before quality hold ends (requires overrideReason). */
@@ -48,9 +50,10 @@ const patchSchema = z
       v.status != null ||
       v.assignedTo != null ||
       Boolean(v.note) ||
+      v.description != null ||
       v.repairEtaAt !== undefined,
     {
-      message: 'יש לציין status, assignedTo, note או repairEtaAt',
+      message: 'יש לציין status, assignedTo, note, description או repairEtaAt',
     },
   )
 
@@ -150,6 +153,9 @@ export async function PATCH(
     }
     if (parsed.data.repairEtaAt !== undefined) {
       ticket = await setRepairEta(id, parsed.data.repairEtaAt, actor.id)
+    }
+    if (parsed.data.description != null) {
+      ticket = await updateDescription(id, parsed.data.description, actor.id)
     }
     if (parsed.data.note) {
       const { appendEvent } = await import('@/modules/tickets/service')

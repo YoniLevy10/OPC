@@ -110,6 +110,53 @@ function openFor(locale: Locale, count: number, unit: 'minute' | 'hour' | 'day')
   return `Open for ${count} day${count === 1 ? '' : 's'}`
 }
 
+/** Calendar date+time for desk operators (dd/MM/yyyy HH:mm). */
+export function plainCalendarDate(
+  iso: string | null | undefined,
+  locale: Locale = 'he',
+): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  try {
+    return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : locale === 'en' ? 'en-GB' : 'he-IL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d)
+  } catch {
+    return iso.slice(0, 16).replace('T', ' ')
+  }
+}
+
+/** Work-done timestamp: prefer resolved_at, then closed_at, then store_confirmed. */
+export function plainWorkDoneAt(
+  ticket: {
+    status: string
+    resolved_at?: string | null
+    closed_at?: string | null
+    store_confirmed_at?: string | null
+  },
+  locale: Locale = 'he',
+): string | null {
+  const iso =
+    ticket.resolved_at ||
+    ticket.closed_at ||
+    ticket.store_confirmed_at ||
+    null
+  if (!iso) return null
+  if (
+    ticket.status !== 'resolved' &&
+    ticket.status !== 'closed' &&
+    !ticket.resolved_at
+  ) {
+    return null
+  }
+  return plainCalendarDate(iso, locale)
+}
+
 /** Friendly relative time for "Opened" rows. */
 export function plainAgoHe(iso: string, now = new Date(), locale: Locale = 'he'): string {
   const ms = now.getTime() - new Date(iso).getTime()

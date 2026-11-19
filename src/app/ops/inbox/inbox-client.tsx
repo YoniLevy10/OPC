@@ -15,9 +15,11 @@ import {
   CheckCheck,
   ExternalLink,
   MessageCirclePlus,
+  Paperclip,
   Search,
   SendHorizontal,
   Trash2,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'
@@ -61,6 +63,8 @@ type Session = {
   inbox_status?: 'waiting' | 'handled'
   /** False when last inbound is older than 24h — free-form reply blocked. */
   care_window_open?: boolean
+  thread_kind?: 'store_manager' | 'pro_coord' | 'ops_broadcast' | string | null
+  bot_mode?: 'auto' | 'paused' | 'never' | string | null
   updated_at: string
   country_id?: string
 }
@@ -81,6 +85,8 @@ type ThreadMessage = {
   body: string
   created_at: string
   ticket_id?: string | null
+  media_url?: string | null
+  media_kind?: 'image' | 'video' | 'document' | 'audio' | null
 }
 
 type OpenTicket = {
@@ -238,6 +244,27 @@ export function InboxClient() {
   const [startOpen, setStartOpen] = useState(false)
   const [startQuery, setStartQuery] = useState('')
   const [startBusy, setStartBusy] = useState(false)
+  const [threadFilter, setThreadFilter] = useState<
+    'all' | 'managers' | 'pros' | 'waiting'
+  >('all')
+  const [mediaLink, setMediaLink] = useState('')
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [forwardBusy, setForwardBusy] = useState(false)
+  const [forwardOpen, setForwardOpen] = useState(false)
+  const [forwardTicketId, setForwardTicketId] = useState<string | null>(null)
+  const [proSuggestions, setProSuggestions] = useState<
+    Array<{
+      id: string
+      full_name: string
+      phone_masked: string | null
+      trade: string | null
+      reason: string
+      score: number
+    }>
+  >([])
+  const [proSuggestBusy, setProSuggestBusy] = useState(false)
+  const [proSuggestError, setProSuggestError] = useState<string | null>(null)
+  const mediaLinkRef = useRef<HTMLInputElement | null>(null)
 
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
   /** When true, keep the thread pinned to the latest message. */
@@ -398,6 +425,69 @@ export function InboxClient() {
       setError(safeClientError(err, 'פתיחת השיחה נכשלה', p))
     } finally {
       setStartBusy(false)
+    }
+  }
+
+  async function openForwardPicker(ticketId: string) {
+    setForwardTicketId(ticketId)
+    setForwardOpen(true)
+    setProSuggestions([])
+    setProSuggestError(null)
+    setProSuggestBusy(true)
+    try {
+      const res = await fetch(
+        `/api/inbox/tickets/${encodeURIComponent(ticketId)}/pro-suggestions`,
+      )
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || p('טעינת מקצוענים נכשלה'))
+      setProSuggestions(json.suggestions ?? [])
+    } catch (err) {
+      setProSuggestError(safeClientError(err, 'טעינת מקצוענים נכשלה', p))
+    } finally {
+      setProSuggestBusy(false)
+    }
+  }
+
+  async function forwardToProfessional(professionalId: string) {
+    if (!forwardTicketId) return
+    setForwardBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/inbox/forward-pro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: forwardTicketId,
+          professionalId,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || p('שיתוף נכשל'))
+      setForwardOpen(false)
+      setForwardTicketId(null)
+      setProSuggestions([])
+      setThreadFilter('pros')
+      const parts: string[] = []
+      if (json.dryRun) {
+        parts.push(
+          p('חבילת תקלה נשמרה לשיחת מקצוען במצב הדגמה (ללא שליחה חיה)'),
+        )
+      } else {
+        parts.push(p('חבילת תקלה נשלחה למקצוען'))
+      }
+      if (json.engagementLocked) {
+        parts.push(p('התקלה סומנה כמשובצת'))
+      }
+      setNotice(parts.join(' · '))
+      if (json.sessionWaId) {
+        await loadSessions()
+        openConversation(String(json.sessionWaId))
+      }
+    } catch (err) {
+      setError(safeClientError(err, 'שיתוף נכשל', p))
+    } finally {
+      setForwardBusy(false)
     }
   }
 
@@ -581,6 +671,21 @@ export function InboxClient() {
   const pauseUntilLabel = waiting
     ? formatPauseUntilLabel(active?.human_takeover_until)
     : null
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      if (threadFilter === 'managers') {
+        return !s.thread_kind || s.thread_kind === 'store_manager'
+      }
+      if (threadFilter === 'pros') {
+        return s.thread_kind === 'pro_coord'
+      }
+      if (threadFilter === 'waiting') {
+        return Boolean(s.human_takeover) || s.inbox_status === 'waiting'
+      }
+      return true
+    })
+  }, [sessions, threadFilter])
+
   const threadItems = useMemo(
     () => buildThreadItems(messages, p),
     [messages, p],
@@ -588,15 +693,39 @@ export function InboxClient() {
 
   const listPanel = (
     <Panel flush elevated className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <PanelHeader title={p('שיחות')} meta={`${sessions.length}`} />
-      {sessions.length === 0 ? (
+      <PanelHeader title={p('שיחות')} meta={`${filteredSessions.length}`} />
+      <div className="flex shrink-0 gap-1 border-b border-border px-2 py-1.5">
+        {(
+          [
+            ['all', 'הכל'],
+            ['managers', 'מנהלים'],
+            ['pros', 'מקצוענים'],
+            ['waiting', 'ממתין לארי'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setThreadFilter(id)}
+            className={cn(
+              'rounded-full px-2.5 py-1 text-[11px]',
+              threadFilter === id
+                ? 'bg-[var(--wa-send,#128C7E)] text-white'
+                : 'bg-surface-sunken text-ink-2',
+            )}
+          >
+            {p(label)}
+          </button>
+        ))}
+      </div>
+      {filteredSessions.length === 0 ? (
         <EmptyState
           title={p('אין שיחות פעילות')}
           description={p('לחצו + כדי להתחיל שיחה עם מנהל סניף')}
         />
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto overscroll-contain pb-20">
-          {sessions.map((s) => {
+          {filteredSessions.map((s) => {
             const selectedRow = selected === s.wa_id
             const title = sessionTitle(s)
             return (
@@ -887,6 +1016,20 @@ export function InboxClient() {
                   </span>
                 ))}
               </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="mt-1 h-7 px-2 text-[12px]"
+                disabled={forwardBusy || busy || proSuggestBusy}
+                onClick={() => {
+                  const ticketId = linkedTickets[0]?.id
+                  if (!ticketId) return
+                  void openForwardPicker(ticketId)
+                }}
+              >
+                {p('שתף תקלה עם מקצוען')}
+              </Button>
             </div>
           ) : null}
 
@@ -932,6 +1075,46 @@ export function InboxClient() {
                             : 'wa-bubble-in rounded-2xl rounded-es-md',
                         )}
                       >
+                        {item.message.media_url &&
+                        (item.message.media_kind === 'image' ||
+                          (!item.message.media_kind &&
+                            /\.(jpe?g|png|gif|webp)(\?|$)/i.test(
+                              item.message.media_url,
+                            ))) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.message.media_url}
+                            alt=""
+                            className="mb-1 max-h-56 w-full rounded-lg object-cover"
+                          />
+                        ) : null}
+                        {item.message.media_url &&
+                        item.message.media_kind === 'video' ? (
+                          <video
+                            src={item.message.media_url}
+                            controls
+                            className="mb-1 max-h-56 w-full rounded-lg"
+                          />
+                        ) : null}
+                        {item.message.media_url &&
+                        item.message.media_kind === 'audio' ? (
+                          <audio
+                            src={item.message.media_url}
+                            controls
+                            className="mb-1 w-full"
+                          />
+                        ) : null}
+                        {item.message.media_url &&
+                        item.message.media_kind === 'document' ? (
+                          <a
+                            href={item.message.media_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mb-1 block text-[13px] underline"
+                          >
+                            {p('הורדת מסמך')}
+                          </a>
+                        ) : null}
                         <p className="whitespace-pre-wrap break-words pe-12">
                           {item.message.body}
                         </p>
@@ -962,38 +1145,159 @@ export function InboxClient() {
             )}
           </div>
 
-          <div className="wa-composer-bar flex shrink-0 items-end gap-2 px-2 py-2 sm:px-3">
-            <label className="sr-only" htmlFor="inbox-reply">
-              {p('הודעה ללקוח')}
-            </label>
-            <Textarea
-              ref={composerRef}
-              id="inbox-reply"
-              rows={1}
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void sendReply()
-                }
-              }}
-              placeholder={p('כתבו הודעה ללקוח…')}
-              disabled={busy}
-              className="wa-composer-input max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 px-4 py-2.5 focus:ring-0 focus:outline-none"
-            />
-            <button
-              type="button"
-              disabled={busy || !reply.trim()}
-              onClick={() => void sendReply()}
-              aria-label={busy ? p('שולח') : p('שליחה')}
-              className={cn(
-                'wa-send-btn mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity',
-                'shadow-[var(--shadow-1)] disabled:opacity-40',
-              )}
-            >
-              <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
-            </button>
+          <div className="wa-composer-bar flex shrink-0 flex-col gap-1.5 px-2 py-2 sm:px-3">
+            {attachOpen ? (
+              <div className="wa-attach-sheet flex items-center gap-2 rounded-[18px] border border-border/60 bg-surface px-2.5 py-1.5 shadow-[var(--shadow-1)]">
+                <Paperclip
+                  className="h-4 w-4 shrink-0 text-[var(--wa-send,#00a884)]"
+                  aria-hidden
+                />
+                <Input
+                  ref={mediaLinkRef}
+                  value={mediaLink}
+                  onChange={(e) => setMediaLink(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setAttachOpen(false)
+                      setMediaLink('')
+                    }
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      ;(
+                        e.currentTarget
+                          .closest('.wa-attach-sheet')
+                          ?.querySelector('[data-attach-send]') as HTMLButtonElement | null
+                      )?.click()
+                    }
+                  }}
+                  placeholder={p('הדביקו קישור לתמונה / וידאו…')}
+                  className="h-8 flex-1 border-0 bg-transparent px-1 text-[13px] shadow-none focus-visible:ring-0"
+                  disabled={busy}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  data-attach-send
+                  disabled={busy || !selected || !mediaLink.trim()}
+                  aria-label={p('שלח מדיה')}
+                  className={cn(
+                    'flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-medium transition-opacity',
+                    'bg-[var(--wa-send,#00a884)] text-white disabled:opacity-40',
+                  )}
+                  onClick={() => {
+                    if (!selected || !mediaLink.trim()) return
+                    setBusy(true)
+                    void fetch(
+                      `/api/inbox/sessions/${encodeURIComponent(selected)}/media`,
+                      {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          link: mediaLink.trim(),
+                          kind: 'image',
+                          caption: reply.trim() || undefined,
+                        }),
+                      },
+                    )
+                      .then(async (res) => {
+                        const json = await res.json()
+                        if (!res.ok) {
+                          throw new Error(json.error || p('שליחת מדיה נכשלה'))
+                        }
+                        setMediaLink('')
+                        setAttachOpen(false)
+                        setNotice(
+                          json.send?.dryRun || json.safeDryRun
+                            ? p('מדיה נשמרה בתיבה במצב הדגמה')
+                            : p('מדיה נשלחה'),
+                        )
+                        await Promise.all([
+                          loadThread(selected),
+                          loadSessions(),
+                        ])
+                      })
+                      .catch((err) =>
+                        setError(safeClientError(err, 'שליחת מדיה נכשלה', p)),
+                      )
+                      .finally(() => setBusy(false))
+                  }}
+                >
+                  {p('צרף')}
+                </button>
+                <button
+                  type="button"
+                  aria-label={p('סגור')}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-sunken hover:text-ink"
+                  onClick={() => {
+                    setAttachOpen(false)
+                    setMediaLink('')
+                  }}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            ) : null}
+
+            <div className="flex items-end gap-1.5">
+              <button
+                type="button"
+                disabled={busy || !selected}
+                aria-label={p('צרף מדיה')}
+                aria-expanded={attachOpen}
+                aria-pressed={attachOpen}
+                className={cn(
+                  'mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors',
+                  attachOpen
+                    ? 'bg-[var(--wa-send,#00a884)]/15 text-[var(--wa-send,#00a884)]'
+                    : 'text-ink-2 hover:bg-black/5 hover:text-ink',
+                  'disabled:opacity-40',
+                )}
+                onClick={() => {
+                  setAttachOpen((open) => {
+                    const next = !open
+                    if (next) {
+                      queueMicrotask(() => mediaLinkRef.current?.focus())
+                    } else {
+                      setMediaLink('')
+                    }
+                    return next
+                  })
+                }}
+              >
+                <Paperclip className="h-[22px] w-[22px]" aria-hidden />
+              </button>
+              <label className="sr-only" htmlFor="inbox-reply">
+                {p('הודעה ללקוח')}
+              </label>
+              <Textarea
+                ref={composerRef}
+                id="inbox-reply"
+                rows={1}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void sendReply()
+                  }
+                }}
+                placeholder={p('כתבו הודעה ללקוח…')}
+                disabled={busy}
+                className="wa-composer-input max-h-32 min-h-[42px] flex-1 resize-none rounded-[22px] border-0 px-4 py-2.5 focus:ring-0 focus:outline-none"
+              />
+              <button
+                type="button"
+                disabled={busy || !reply.trim()}
+                onClick={() => void sendReply()}
+                aria-label={busy ? p('שולח') : p('שליחה')}
+                className={cn(
+                  'wa-send-btn mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity',
+                  'shadow-[var(--shadow-1)] disabled:opacity-40',
+                )}
+              >
+                <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -1002,6 +1306,56 @@ export function InboxClient() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden md:gap-3">
+      <Modal
+        open={forwardOpen}
+        onOpenChange={(open) => {
+          setForwardOpen(open)
+          if (!open) {
+            setForwardTicketId(null)
+            setProSuggestions([])
+            setProSuggestError(null)
+          }
+        }}
+        title="שתף תקלה עם מקצוען"
+        description="בחרו איש מקצוע מותאם — תיפתח שיחת תיאום (מצב הדגמה כברירת מחדל)."
+      >
+        <div className="space-y-3">
+          {proSuggestBusy ? (
+            <p className="t-caption text-ink-2">{p('טוען הצעות…')}</p>
+          ) : null}
+          {proSuggestError ? (
+            <ErrorState title={p('שגיאה')} description={proSuggestError} />
+          ) : null}
+          {!proSuggestBusy && !proSuggestError && proSuggestions.length === 0 ? (
+            <EmptyState
+              title={p('אין מקצוענים מתאימים')}
+              description={p('הוסיפו אנשי מקצוע עם טלפון ומקצוע בספר הקשרים')}
+            />
+          ) : null}
+          {proSuggestions.length > 0 ? (
+            <ul className="max-h-[min(50dvh,360px)] divide-y divide-border overflow-y-auto rounded-[var(--radius-md)] border border-border">
+              {proSuggestions.map((pro) => (
+                <li key={pro.id}>
+                  <button
+                    type="button"
+                    disabled={forwardBusy}
+                    onClick={() => void forwardToProfessional(pro.id)}
+                    className="flex w-full flex-col gap-0.5 px-3 py-3 text-start transition-colors hover:bg-surface-sunken/50 disabled:opacity-50"
+                  >
+                    <span className="t-body-strong text-ink">{pro.full_name}</span>
+                    <span className="t-caption text-ink-2">
+                      {pro.trade || p('מקצוע כללי')}
+                      {pro.phone_masked ? ` · ${pro.phone_masked}` : ''}
+                    </span>
+                    <span className="t-caption text-ink-3">{pro.reason}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </Modal>
+
       <Modal
         open={startOpen}
         onOpenChange={(open) => {

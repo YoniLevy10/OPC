@@ -21,7 +21,7 @@ const schema = z.object({
   reporterPhone: z.string().max(32).optional(),
   category: z.string().max(32).optional(),
   assetId: z.string().uuid().optional(),
-  photos: z.array(z.string().max(320_000)).max(3).optional(),
+  photos: z.array(z.string().max(320_000)).min(1).max(3),
 })
 
 function actorStoreIds(actor: Awaited<ReturnType<typeof requireActor>>): string[] {
@@ -98,9 +98,7 @@ export async function POST(request: Request) {
       assetId: parsed.data.assetId,
     })
 
-    if (parsed.data.photos?.length) {
-      await attachReportPhotos(ticket.id, parsed.data.photos)
-    }
+    await attachReportPhotos(ticket.id, parsed.data.photos)
 
     return NextResponse.json(
       { ticket, repairRange: repairRangeLine(category) },

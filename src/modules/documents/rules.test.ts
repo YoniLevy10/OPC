@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   DOCUMENT_TYPES,
   documentNeedsReminder,
+  canonicalizeDocumentType,
   cleanDocumentTitle,
   documentTypeLabel,
   documentReminders,
   documentReminderStage,
+  hearingCalibrationSlots,
   remindersFor,
   isDocumentDueSoon,
   isDocumentOverdue,
@@ -42,12 +44,26 @@ describe('C08 hearing calibrations', () => {
     expect(keys).toContain('hearing_b')
     expect(keys).toContain('hearing_c')
     expect(keys).not.toContain('hearing')
+    expect(keys).not.toContain('hearing_booth')
     expect(documentTypeLabel('hearing_a')).toBe('טימפנומטר')
     expect(documentTypeLabel('hearing_b')).toBe('אודיומטר')
     expect(documentTypeLabel('hearing_c')).toBe('תא אקוסטי')
+    expect(documentTypeLabel('hearing_booth')).toBe('תא אקוסטי')
+    expect(documentTypeLabel('hearing_meter')).toBe('אודיומטר')
+    expect(canonicalizeDocumentType('hearing_tymp')).toBe('hearing_a')
+    expect(canonicalizeDocumentType('אופטיקל סנטר גבעת שאול 2025')).toBe(
+      'hearing_c',
+    )
+    expect(canonicalizeDocumentType('אודיומטר גבעת שאול 26')).toBe('hearing_b')
+    expect(hearingCalibrationSlots().map((row) => row.key)).toEqual([
+      'hearing_a',
+      'hearing_b',
+      'hearing_c',
+    ])
     expect(DOCUMENT_TYPES.find((row) => row.key === 'hearing_c')?.cycleMonths).toBe(24)
     expect(DOCUMENT_TYPES.find((row) => row.key === 'hearing_a')?.cycleMonths).toBe(12)
     expect(isHearingCalibrationType('hearing_a')).toBe(true)
+    expect(isHearingCalibrationType('hearing_booth')).toBe(true)
     expect(isHearingCalibrationType('fire')).toBe(false)
   })
 
@@ -68,29 +84,32 @@ describe('C08 hearing calibrations', () => {
     expect(isDocumentOverdue(soon, now)).toBe(false)
     expect(documentNeedsReminder(soon, now)).toBe(true)
     expect(isDocumentDueSoon(far, now)).toBe(false)
-    expect(isDocumentDueSoon(fireSoon, now)).toBe(false)
+    expect(isDocumentDueSoon(fireSoon, now)).toBe(true)
   })
 
-  it('sets a reminder half a year before and another two months before', () => {
-    const [half, two] = documentReminders('2027-06-15T00:00:00.000Z')
-    expect(half.at.slice(0, 10)).toBe('2026-12-15')
-    expect(two.at.slice(0, 10)).toBe('2027-04-15')
-    const now = new Date('2027-01-02T00:00:00.000Z')
-    expect(documentReminderStage(doc({ extractedExpiry: '2027-06-15T00:00:00.000Z' }), now)).toBe(
-      'six',
-    )
+  it('sets a single month-ahead reminder', () => {
+    const [month] = documentReminders('2027-06-15T00:00:00.000Z')
+    expect(month.months).toBe(1)
+    expect(month.at.slice(0, 10)).toBe('2027-05-15')
     expect(
-      documentReminderStage(doc({ extractedExpiry: '2027-06-15T00:00:00.000Z' }), new Date('2027-05-01T00:00:00.000Z')),
-    ).toBe('two')
+      documentReminderStage(
+        doc({ extractedExpiry: '2027-06-15T00:00:00.000Z' }),
+        new Date('2027-05-20T00:00:00.000Z'),
+      ),
+    ).toBe('month')
     expect(
-      documentReminderStage(doc({ extractedExpiry: '2027-06-15T00:00:00.000Z' }), new Date('2026-11-01T00:00:00.000Z')),
+      documentReminderStage(
+        doc({ extractedExpiry: '2027-06-15T00:00:00.000Z' }),
+        new Date('2026-11-01T00:00:00.000Z'),
+      ),
     ).toBeNull()
     const edited = doc({
       extractedExpiry: '2027-06-15T00:00:00.000Z',
-      reminderSixAt: '2027-02-01T00:00:00.000Z',
+      reminderMonthAt: '2027-05-01T00:00:00.000Z',
     })
-    expect(remindersFor(edited).find((row) => row.months === 6)?.at.slice(0, 10)).toBe('2027-02-01')
-    expect(remindersFor(edited).find((row) => row.months === 2)?.at.slice(0, 10)).toBe('2027-04-15')
+    expect(remindersFor(edited).find((row) => row.months === 1)?.at.slice(0, 10)).toBe(
+      '2027-05-01',
+    )
   })
 
   it('keeps a hand-typed document name and clears a blank one', () => {

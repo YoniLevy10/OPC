@@ -73,6 +73,7 @@ export function TicketReportForm({
   const [fieldErrors, setFieldErrors] = useState<{
     store?: string
     description?: string
+    media?: string
   }>({})
   const [ticketId, setTicketId] = useState<string | null>(null)
   const [repairRange, setRepairRange] = useState<string | null>(null)
@@ -168,9 +169,16 @@ export function TicketReportForm({
     e.preventDefault()
     // Guard double-tap before React re-renders disabled state (cellular lag).
     if (busy || ticketId) return
-    const nextErrors: { store?: string; description?: string } = {}
+    const nextErrors: { store?: string; description?: string; media?: string } = {}
     if (!locked && !storeCode) nextErrors.store = 'בחרו חנות'
     if (!description.trim()) nextErrors.description = 'תארו את התקלה'
+    const imagePayload = media
+      .filter((m) => m.kind === 'image' && m.preview.startsWith('data:'))
+      .map((m) => m.preview)
+      .slice(0, 3)
+    if (!imagePayload.length) {
+      nextErrors.media = 'חובה לצרף לפחות תמונה אחת (סרטון לבד לא מספיק)'
+    }
     setFieldErrors(nextErrors)
     if (nextErrors.store) {
       storeRef.current?.focus()
@@ -178,6 +186,10 @@ export function TicketReportForm({
     }
     if (nextErrors.description) {
       descriptionRef.current?.focus()
+      return
+    }
+    if (nextErrors.media) {
+      setError(nextErrors.media)
       return
     }
     setBusy(true)
@@ -193,6 +205,7 @@ export function TicketReportForm({
           reporterPhone: phone || undefined,
           category: category || undefined,
           assetId: assetId || undefined,
+          photos: imagePayload,
           ...(mode === 'ops' ? { source: 'web_fallback' as const } : {}),
         }),
       })
@@ -200,13 +213,13 @@ export function TicketReportForm({
       if (!res.ok) throw new Error(json.error || 'שליחה נכשלה')
       const id = json.ticket?.id as string
       const displayNumber = (json.ticket?.display_number as string | null) ?? null
-      if (id && media.length) {
-        await uploadTicketMedia(id, media)
-      }
-      setTicketId(id ?? null)
+      if (!id) throw new Error('שליחה נכשלה')
+      // Durable storage for all picked files (images + optional videos).
+      await uploadTicketMedia(id, media)
+      setTicketId(id)
       setDisplay(displayNumber)
       setRepairRange(typeof json.repairRange === 'string' ? json.repairRange : null)
-      if (id) onCreated?.({ id, display_number: displayNumber })
+      onCreated?.({ id, display_number: displayNumber })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שליחה נכשלה')
     } finally {
@@ -394,28 +407,35 @@ export function TicketReportForm({
         </Field>
       ) : null}
 
-      <Field label="תמונות / סרטונים (אופציונלי)" htmlFor="report-media">
+      <Field
+        label="תמונות / סרטונים (חובה)"
+        htmlFor="report-media"
+        error={fieldErrors.media}
+      >
         <div className="space-y-2">
           {media.length > 0 ? (
             <ul className="flex flex-wrap gap-2">
-              {media.map((p) => (
-                <li key={p.id} className="relative">
-                  {p.kind === 'video' ? (
+              {media.map((item) => (
+                <li key={item.id} className="relative">
+                  {item.kind === 'video' ? (
                     <video
-                      src={p.preview}
+                      src={item.preview}
                       className="h-16 w-16 rounded-[var(--radius-md)] border border-border object-cover"
                     />
                   ) : (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
-                      src={p.preview}
+                      src={item.preview}
                       alt=""
                       className="h-16 w-16 rounded-[var(--radius-md)] border border-border object-cover"
                     />
                   )}
                   <button
                     type="button"
-                    onClick={() => removeMedia(p.id)}
+                    onClick={() => {
+                      removeMedia(item.id)
+                      setFieldErrors((prev) => ({ ...prev, media: undefined }))
+                    }}
                     className="absolute -end-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-surface"
                     aria-label="הסרת קובץ"
                   >
@@ -439,13 +459,15 @@ export function TicketReportForm({
                 className="sr-only"
                 onChange={(e) => {
                   void onPickFiles(e.target.files)
+                  setFieldErrors((prev) => ({ ...prev, media: undefined }))
                   e.target.value = ''
                 }}
               />
             </label>
           ) : null}
           <p className="t-caption text-ink-3">
-            עד {MEDIA_LIMITS.maxFiles} קבצים · תמונה עד 5MB · סרטון MP4/WebM עד 15MB
+            חובה לפחות תמונה אחת · עד {MEDIA_LIMITS.maxFiles} קבצים · תמונה עד 5MB · סרטון
+            MP4/WebM עד 15MB
           </p>
         </div>
       </Field>

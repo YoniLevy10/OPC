@@ -9,6 +9,7 @@ import {
 import {
   calibrationIntake,
   splitCalibrations,
+  resolveCalibrationCategory,
   unclassifiedCertificateLabel,
 } from '@/modules/documents/calibrations'
 import type { StoreDocument } from '@/modules/documents/rules'
@@ -334,20 +335,23 @@ function linkDocument(
   if (unclassified && !file.docType) {
     const meta = storeMeta(file.storeCode)
     const existing = documents.find((doc) => doc.driveFileId === remote.id && !doc.renewed)
+    const category =
+      resolveCalibrationCategory(file.name, remote.text) ?? 'hearing_c'
     if (!existing) {
       documents.unshift({
         id: idFactory(),
         storeId: meta.storeId,
         storeCode: file.storeCode ?? '',
         storeName: meta.storeName,
-        docType: unclassified,
+        docType: category,
+        title: null,
         sourceUrl: file.sourceUrl,
         extractedExpiry: null,
         computedNextCheck: null,
         owner: ownerFromText(remote.text, meta.owner),
-        intakeStatus: 'needs_review',
+        intakeStatus: file.storeCode ? 'ingested' : 'needs_review',
         intakeReason: file.storeCode
-          ? 'סוג הכיול לא זוהה — ייתכן אישור שמכסה כמה כיולים'
+          ? null
           : 'השיוך לסניף לא ודאי',
         version: 1,
         previousId: null,
@@ -357,6 +361,11 @@ function linkDocument(
         fieldsLocked: false,
         localUpdatedAt: remote.modifiedTime,
       })
+    } else if (!existing.fieldsLocked) {
+      existing.docType = category
+      if (!existing.title || /אופטיקל|optical/i.test(existing.title)) {
+        existing.title = null
+      }
     }
     return
   }

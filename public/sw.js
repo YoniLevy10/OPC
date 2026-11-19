@@ -2,7 +2,7 @@
    Static icons, brand art, and the offline page only.
    Document navigations and API responses are never written to Cache Storage,
    so one person's signed-in shell cannot be replayed for another session. */
-const CACHE = 'maintainos-static-v11'
+const CACHE = 'maintainos-static-v12'
 
 const PRECACHE = [
   '/offline.html',
@@ -57,6 +57,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting()
+    return
+  }
+  if (event.data && event.data.type === 'SET_APP_BADGE') {
+    const count = typeof event.data.count === 'number' ? event.data.count : 0
+    event.waitUntil(
+      (async () => {
+        try {
+          if (count > 0 && self.registration.setAppBadge) {
+            await self.registration.setAppBadge(count)
+          } else if (self.registration.clearAppBadge) {
+            await self.registration.clearAppBadge()
+          }
+        } catch {
+          /* badge API unsupported */
+        }
+      })(),
+    )
   }
 })
 
@@ -109,6 +126,15 @@ self.addEventListener('push', (event) => {
         icon: '/icons/icon-192.png',
         badge: '/icons/icon-32.png',
       })
+      try {
+        if (self.registration.getNotifications && self.registration.setAppBadge) {
+          const notes = await self.registration.getNotifications()
+          const n = Math.max(1, notes.length)
+          await self.registration.setAppBadge(n)
+        }
+      } catch {
+        /* badge optional */
+      }
     })(),
   )
 })
@@ -122,6 +148,18 @@ self.addEventListener('notificationclick', (event) => {
   const targetUrl = new URL(raw, self.location.origin).href
   event.waitUntil(
     (async () => {
+      try {
+        if (self.registration.getNotifications && self.registration.setAppBadge) {
+          const notes = await self.registration.getNotifications()
+          if (notes.length === 0 && self.registration.clearAppBadge) {
+            await self.registration.clearAppBadge()
+          } else if (notes.length > 0) {
+            await self.registration.setAppBadge(notes.length)
+          }
+        }
+      } catch {
+        /* ignore */
+      }
       const clientsList = await self.clients.matchAll({
         type: 'window',
         includeUncontrolled: true,
@@ -135,6 +173,7 @@ self.addEventListener('notificationclick', (event) => {
               if ('navigate' in client && typeof client.navigate === 'function') {
                 await client.navigate(targetUrl)
               }
+              client.postMessage({ type: 'PUSH_OPENED', url: targetUrl })
               return
             }
           } catch {

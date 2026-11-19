@@ -12,6 +12,10 @@ import {
 import { proposeSyncedValue } from '@/modules/stores/directory-rules'
 import { BRANCH_CATALOG } from '@/modules/documents/branch-catalog'
 import {
+  canonicalizeDocumentType,
+  documentTypeLabel,
+  isHearingCalibrationType,
+  isRawCertificateTitle,
   renewDocument,
   type StoreDocument,
 } from '@/modules/documents/rules'
@@ -602,7 +606,7 @@ function branchDocument(row: (typeof BRANCH_CATALOG)[number], now: string): Stor
     storeId: store ? israelStoreId(store.code) : '',
     storeCode: row.storeCode,
     storeName: store?.name ?? 'לבדיקה',
-    docType: row.kind,
+    docType: canonicalizeDocumentType(row.kind),
     sourceUrl: row.sourceUrl,
     extractedExpiry: row.expiry ? `${row.expiry}T00:00:00.000Z` : null,
     computedNextCheck: null,
@@ -630,8 +634,10 @@ function ensureBranchDocuments() {
   )
   for (const doc of ledger.documents) {
     const row = byId.get(doc.id)
-    if (!row || doc.fieldsLocked || doc.renewed) continue
-    Object.assign(doc, branchDocument(row, doc.createdAt || now))
+    if (row && !doc.fieldsLocked && !doc.renewed) {
+      Object.assign(doc, branchDocument(row, doc.createdAt || now))
+    }
+    normalizeDocumentCategory(doc)
   }
   for (const row of BRANCH_CATALOG) {
     if (!ledger.documents.some((doc) => doc.id === row.id)) {
@@ -662,7 +668,29 @@ function ensureBranchDocuments() {
 
 export function listDocuments(): StoreDocument[] {
   ensureBranchDocuments()
+  for (const doc of ledger.documents) normalizeDocumentCategory(doc)
   return ledger.documents
+}
+
+/** Fix filename-as-docType rows and surface category names instead of Drive titles. */
+function normalizeDocumentCategory(doc: StoreDocument): void {
+  const next = canonicalizeDocumentType(doc.docType)
+  if (next !== doc.docType) doc.docType = next
+  if (
+    isHearingCalibrationType(doc.docType) &&
+    isRawCertificateTitle(doc.title)
+  ) {
+    // Clear raw Drive titles so the UI shows טימפנומטר / אודיומטר / תא אקוסטי.
+    doc.title = null
+  }
+  // If somehow title equals a category label already, keep it.
+  if (
+    isHearingCalibrationType(doc.docType) &&
+    doc.title &&
+    doc.title.trim() === documentTypeLabel(doc.docType)
+  ) {
+    return
+  }
 }
 
 export function decideStoredDocument(
@@ -704,12 +732,14 @@ export function addDocument(
 
 export function setDocumentReminders(
   id: string,
-  reminders: { six: string | null; two: string | null },
+  reminders: { month: string | null; six?: string | null; two?: string | null },
 ): StoreDocument {
   const doc = ledger.documents.find((row) => row.id === id)
   if (!doc) throw new Error('מסמך לא נמצא')
-  doc.reminderSixAt = reminders.six
-  doc.reminderTwoAt = reminders.two
+  doc.reminderMonthAt = reminders.month
+  // Clear legacy 6m/2m hand-sets so cron/UI only use the month-ahead window.
+  doc.reminderSixAt = reminders.six ?? null
+  doc.reminderTwoAt = reminders.two ?? null
   doc.localUpdatedAt = new Date().toISOString()
   return doc
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { enUS, fr, he } from 'date-fns/locale'
 import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
@@ -15,6 +15,12 @@ import type {
   OpsAlert,
 } from '@/modules/alerts/types'
 import { filterAlerts, splitAlertBuckets } from '@/modules/alerts/types'
+import {
+  countUnseenAlerts,
+  loadSeenAlertIds,
+  markAlertsSeen,
+  syncAppBadge,
+} from '@/modules/alerts/read-state'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 import { PhoneList, PhoneRow } from '@/components/mobile'
 
@@ -66,6 +72,22 @@ export function AlertsClient({
   const [storeCode, setStoreCode] = useState('')
   const [source, setSource] = useState<AlertSource | 'all'>('all')
   const [q, setQ] = useState('')
+  const [unseen, setUnseen] = useState(0)
+
+  // On entering alerts: mark currently open items as read and sync home-screen badge.
+  useEffect(() => {
+    const ids = open.map((alert) => alert.id)
+    const seen = markAlertsSeen(ids)
+    const remaining = countUnseenAlerts(ids, seen)
+    setUnseen(remaining)
+    void syncAppBadge(remaining)
+  }, [open])
+
+  // Keep badge in sync when open set changes without remount (e.g. soft nav).
+  useEffect(() => {
+    const ids = open.map((alert) => alert.id)
+    setUnseen(countUnseenAlerts(ids, loadSeenAlertIds()))
+  }, [open])
 
   const stores = useMemo(() => {
     const map = new Map<string, string>()
@@ -248,7 +270,11 @@ export function AlertsClient({
       <Panel elevated>
         <PanelHeader
           title={p('פעולות פתוחות')}
-          meta={String(filtered.length)}
+          meta={
+            unseen > 0
+              ? `${filtered.length} · ${unseen} ${p('לא נקראו')}`
+              : String(filtered.length)
+          }
         />
         {!partialFailure && filtered.length === 0 ? (
           <EmptyState title={p('אין פעולות פתוחות')} />

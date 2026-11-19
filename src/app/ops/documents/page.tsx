@@ -12,6 +12,7 @@ import { selectableDocumentTypes } from '@/modules/documents/rules'
 import { driveCanWrite, driveFolderUrl } from '@/modules/drive/folder'
 import { addDocumentAction, ingestFileAction } from '../work-actions'
 import { DocumentCabinet, preferStoredFiles } from './document-cabinet'
+import { DocumentAddButton } from './document-add-button'
 import { DriveImportForm } from './drive-import-form'
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 import { getLocale } from '@/lib/i18n/server'
@@ -52,6 +53,7 @@ export default async function DocumentsPage() {
                 ? p('{review} קבצים דורשים בדיקה', { review })
                 : p('תוקף מהמסמך נשמר בנפרד ממועד שחושב')
           }
+          actions={<DocumentAddButton />}
         />
         {documents.length === 0 ? (
           <Panel elevated>

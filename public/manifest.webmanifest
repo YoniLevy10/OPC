@@ -39,9 +39,9 @@
       "url": "/ops/stores"
     },
     {
-      "name": "WhatsApp",
-      "short_name": "WhatsApp",
-      "url": "/ops/inbox"
+      "name": "דלפק WhatsApp",
+      "short_name": "דלפק WA",
+      "url": "/ops/inbox?source=pwa"
     }
   ],
   "icons": [

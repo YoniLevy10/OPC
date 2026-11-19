@@ -114,6 +114,23 @@ export default async function ProTicketPage({
           תאמו הגעה ישירות עם מנהל החנות. סגירת התקלה מתבצעת אחרי אישור החנות.
         </p>
       </Panel>
+
+      <Panel elevated>
+        <p className="t-section text-ink">תנאי תשלום</p>
+        <ul className="mt-2 list-disc space-y-1 pe-5 t-body text-ink-2">
+          <li>לאחר אישור סיום העבודה בחנות — התשלום בהעברה בנקאית בתוך 10 ימים.</li>
+          <li>
+            יש לשלוח קבלה למייל{' '}
+            <a
+              className="text-accent underline"
+              dir="ltr"
+              href="mailto:harry.bendriem@optical-center.com"
+            >
+              harry.bendriem@optical-center.com
+            </a>
+          </li>
+        </ul>
+      </Panel>
     </div>
   )
 }

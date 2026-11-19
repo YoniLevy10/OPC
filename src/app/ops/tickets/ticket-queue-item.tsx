@@ -9,7 +9,12 @@ import { OperationalRow, Dot } from '@/components/ui/operational-row'
 import { PhoneSwipeRow } from '@/components/mobile'
 import { StatusLabel } from '@/components/ui/signal'
 import { cn } from '@/lib/utils'
-import { plainOpenForHe, plainStatus } from '@/components/ops/plain-labels'
+import {
+  plainCalendarDate,
+  plainOpenForHe,
+  plainStatus,
+  plainWorkDoneAt,
+} from '@/components/ops/plain-labels'
 import { ticketDecision } from '@/modules/decisions/queue'
 import { ticketIsUrgent } from '@/modules/tickets/urgent'
 import type { QueueTicket } from '@/modules/tickets/queue'
@@ -39,6 +44,8 @@ export function TicketQueueItem({
   const visitSelection = useVisitSelection()
   const open = OPEN_TICKET_STATUSES.includes(ticket.status as TicketStatus)
   const openFor = plainOpenForHe(ticket.created_at, ticket, new Date(), locale)
+  const openedAt = plainCalendarDate(ticket.created_at, locale)
+  const workDone = plainWorkDoneAt(ticket, locale)
   const selected = visitSelection?.selected.has(ticket.id) ?? false
   const decision = ticketDecision(ticket, new Date(), locale)
   const actionLabel = decision?.action || p('לטפל')
@@ -71,6 +78,18 @@ export function TicketQueueItem({
         footer={
           <>
             <StatusLabel status={ticket.status} />
+            <Dot />
+            <span className="t-meta text-ink-2">
+              {p('נפתחה')} {openedAt}
+            </span>
+            {workDone ? (
+              <>
+                <Dot />
+                <span className="t-meta text-ink-2">
+                  {p('בוצעה')} {workDone}
+                </span>
+              </>
+            ) : null}
             <Dot />
             <span className="t-meta truncate text-ink-2">{assigneeLabel}</span>
           </>
@@ -118,6 +137,9 @@ export function TicketQueueItem({
 
         <Link href={href} className="min-w-0 flex-1 space-y-1">
           <p className="t-body line-clamp-2 text-ink">{title}</p>
+          <p className="t-meta font-semibold text-ink">
+            {p('נפתחה')} {openedAt}
+          </p>
           <p className="t-meta text-ink-3">
             <span
               className={cn(
@@ -139,6 +161,17 @@ export function TicketQueueItem({
             >
               {statusText}
             </span>
+            {workDone ? (
+              <>
+                <span aria-hidden className="text-ink-3">
+                  {' '}
+                  ·{' '}
+                </span>
+                <span className="text-ink-2">
+                  {p('בוצעה')} {workDone}
+                </span>
+              </>
+            ) : null}
           </p>
         </Link>
 

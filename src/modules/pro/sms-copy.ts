@@ -67,3 +67,37 @@ export function buildProAssignmentSms(input: {
     .filter((line): line is string => Boolean(line && line.trim()))
     .join('\n')
 }
+
+/** Receipt email Ari uses for accounting handoff after work is confirmed closed. */
+export const PRO_RECEIPT_EMAIL = 'harry.bendriem@optical-center.com'
+
+/**
+ * SMS after store confirms work and the ticket/engagement closes:
+ * bank transfer within 10 days + request to email the receipt.
+ */
+export function buildProPaymentSms(input: {
+  storeName: string
+  storeCode: string
+  faultLines: string[]
+  receiptEmail?: string
+}): string {
+  const email = (input.receiptEmail || PRO_RECEIPT_EMAIL).trim()
+  const faults = input.faultLines.map(faultDescription).filter(Boolean)
+  const faultBlock =
+    faults.length === 0
+      ? null
+      : faults.length === 1
+        ? `עבודה: ${faults[0]}`
+        : `עבודות:\n${faults.map((f) => `- ${f}`).join('\n')}`
+
+  return [
+    `Optical Center · סיום עבודה אושר`,
+    `חנות: ${input.storeName} (#${input.storeCode})`,
+    faultBlock,
+    'התשלום יתבצע בהעברה בנקאית בתוך 10 ימים ממועד האישור.',
+    `נא לשלוח קבלה למייל: ${email}`,
+    'תודה.',
+  ]
+    .filter((line): line is string => Boolean(line && line.trim()))
+    .join('\n')
+}

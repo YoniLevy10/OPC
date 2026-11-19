@@ -1,6 +1,7 @@
 import { ISRAEL_STORES } from '@/modules/stores/israel-stores'
 
-export type HearingKind = 'hearing_booth' | 'hearing_meter' | 'hearing_tymp'
+/** Canonical Ari calibrations (legacy booth/meter/tymp map here). */
+export type HearingKind = 'hearing_a' | 'hearing_b' | 'hearing_c'
 
 export type ReadForm = {
   kind: HearingKind | null
@@ -137,9 +138,9 @@ function serialOf(text: string): string | null {
 }
 
 function kindOf(text: string): HearingKind | null {
-  if (/חוות דעת|בדיקת התא|תא שמיעה/.test(text)) return 'hearing_booth'
-  if (/טימפ|Tymp/i.test(text)) return 'hearing_tymp'
-  if (/אודיומטר/.test(text)) return 'hearing_meter'
+  if (/חוות דעת|בדיקת התא|תא שמיעה|תא אקוסטי/.test(text)) return 'hearing_c'
+  if (/טימפ|Tymp/i.test(text)) return 'hearing_a'
+  if (/אודיומטר/.test(text)) return 'hearing_b'
   return null
 }
 
@@ -220,10 +221,10 @@ export function readHearingForm(raw: string): ReadForm {
   const kind = kindOf(text)
   const store = chooseStore(text)
   const expiry =
-    kind === 'hearing_booth'
+    kind === 'hearing_c'
       ? (dateNear(text, 'תוקף בדיקת התא') ?? dateNear(text, 'תוקף הבדיקה'))
       : dateNear(text, 'תוקף הבדיקה')
-  const calibrationExpiry = kind === 'hearing_booth' ? calibrationDate(text) : null
+  const calibrationExpiry = kind === 'hearing_c' ? calibrationDate(text) : null
   const serial = serialOf(text)
   const candidates = scoreStores(text)
     .filter((row) => row.score >= 50)

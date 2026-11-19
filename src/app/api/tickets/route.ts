@@ -8,6 +8,7 @@ import { AuthError, actorHasHqAccess } from '@/lib/auth/types'
 import { listTickets } from '@/modules/tickets/service'
 import { repairRangeLine } from '@/modules/recommendations/estimate'
 import { createTicket } from '@/modules/tickets/service'
+import { attachReportPhotos } from '@/modules/tickets/attachments'
 import { TICKET_PRIORITIES } from '@/modules/tickets/constants'
 import { captureError } from '@/lib/monitoring'
 import { resolveTicketsSupabase } from '@/lib/supabase/tickets-client'
@@ -27,6 +28,8 @@ const createSchema = z.object({
   reporterName: z.string().optional(),
   language: z.string().optional(),
   assetId: z.string().uuid().optional(),
+  /** At least one photo/data-URL — required for web HQ create (Ari meeting). */
+  photos: z.array(z.string().max(320_000)).min(1).max(3),
 })
 
 export async function GET(request: Request) {
@@ -78,7 +81,9 @@ export async function POST(request: Request) {
       )
     }
 
-    const ticket = await createTicket(parsed.data)
+    const { photos, ...ticketInput } = parsed.data
+    const ticket = await createTicket(ticketInput)
+    await attachReportPhotos(ticket.id, photos)
     return NextResponse.json(
       { ticket, repairRange: repairRangeLine(parsed.data.category || 'other') },
       { status: 201 },

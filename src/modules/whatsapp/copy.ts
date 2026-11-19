@@ -23,6 +23,8 @@ export type WaCopy = {
   storeNotFound: (code: string) => string
   askDescription: (storeName: string, managerName?: string | null) => string
   needDescription: string
+  /** HARD proof gate — ticket opens only with photo or video. */
+  needProofMedia: string
   confirmed: (displayNumber: string, storeName: string) => string
   confirmedIntake: (params: {
     displayNumber: string
@@ -50,11 +52,13 @@ const HE: WaCopy = {
   askDescription: (storeName: string, managerName?: string | null) => {
     const name = managerName?.trim()
     if (name) {
-      return `שלום ${name}, מה שלומך?\nבבקשה תארו את התקלה בחנות ${storeName}. אפשר גם לצרף תמונה.`
+      return `שלום ${name}, מה שלומך?\nבבקשה תארו את התקלה בחנות ${storeName} וצרפו תמונה או סרטון (חובה).`
     }
-    return `שלום, מה שלומך?\nזוהתה חנות: ${storeName}.\nבבקשה תארו את התקלה. אפשר גם לצרף תמונה.`
+    return `שלום, מה שלומך?\nזוהתה חנות: ${storeName}.\nבבקשה תארו את התקלה וצרפו תמונה או סרטון (חובה).`
   },
-  needDescription: 'נא לתאר את התקלה בטקסט (או לצרף תמונה עם תיאור קצר).',
+  needDescription: 'נא לתאר את התקלה בטקסט ולצרף תמונה או סרטון.',
+  needProofMedia:
+    'כדי לפתוח תקלה חובה לצרף תמונה או סרטון של התקלה. שלחו צילום או וידאו (מסמך או הודעה קולית לבד לא מספיקים).',
   confirmed: (displayNumber: string, storeName: string) =>
     `הדיווח התקבל ✓\nמספר תקלה: ${displayNumber}\nחנות: ${storeName}\nהצוות קיבל את הדיווח.`,
   confirmedIntake: (params) => {
@@ -95,12 +99,14 @@ const EN: WaCopy = {
   askDescription: (storeName: string, managerName?: string | null) => {
     const name = managerName?.trim()
     if (name) {
-      return `Hi ${name}, how are you?\nPlease describe the fault at ${storeName}. You can also attach a photo.`
+      return `Hi ${name}, how are you?\nPlease describe the fault at ${storeName} and attach a photo or video (required).`
     }
-    return `Hi, how are you?\nStore identified: ${storeName}.\nPlease describe the fault. You can also attach a photo.`
+    return `Hi, how are you?\nStore identified: ${storeName}.\nPlease describe the fault and attach a photo or video (required).`
   },
   needDescription:
-    'Please describe the fault in text (or attach a photo with a short description).',
+    'Please describe the fault in text and attach a photo or video.',
+  needProofMedia:
+    'To open a ticket you must attach a photo or video of the fault. A document or voice note alone is not enough.',
   confirmed: (displayNumber: string, storeName: string) =>
     `Report received ✓\nTicket: ${displayNumber}\nStore: ${storeName}\nThe team has your report.`,
   confirmedIntake: (params) => {
@@ -141,12 +147,14 @@ const FR: WaCopy = {
   askDescription: (storeName: string, managerName?: string | null) => {
     const name = managerName?.trim()
     if (name) {
-      return `Bonjour ${name}, comment allez-vous ?\nDécrivez la panne au magasin ${storeName}. Vous pouvez aussi joindre une photo.`
+      return `Bonjour ${name}, comment allez-vous ?\nDécrivez la panne au magasin ${storeName} et joignez une photo ou une vidéo (obligatoire).`
     }
-    return `Bonjour, comment allez-vous ?\nMagasin identifié : ${storeName}.\nDécrivez la panne. Vous pouvez aussi joindre une photo.`
+    return `Bonjour, comment allez-vous ?\nMagasin identifié : ${storeName}.\nDécrivez la panne et joignez une photo ou une vidéo (obligatoire).`
   },
   needDescription:
-    'Veuillez décrire la panne en texte (ou joindre une photo avec une courte description).',
+    'Veuillez décrire la panne en texte et joindre une photo ou une vidéo.',
+  needProofMedia:
+    'Pour ouvrir un ticket, joignez une photo ou une vidéo de la panne. Un document ou un message vocal seuls ne suffisent pas.',
   confirmed: (displayNumber: string, storeName: string) =>
     `Signalement reçu ✓\nTicket : ${displayNumber}\nMagasin : ${storeName}\nL’équipe a reçu le signalement.`,
   confirmedIntake: (params) => {

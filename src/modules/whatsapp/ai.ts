@@ -10,6 +10,7 @@ export type WhatsAppAiSituation =
   | 'intake_store_not_found'
   | 'intake_ask_description'
   | 'intake_need_description'
+  | 'intake_need_proof_media'
   | 'intake_confirmed'
   | 'intake_media_not_saved'
   | 'intake_non_issue_ack'

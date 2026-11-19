@@ -276,16 +276,74 @@ export async function importDriveAction(formData: FormData) {
 
 export async function addDocumentAction(formData: FormData) {
   await actorName()
-  const expiry = String(formData.get('expiry') || '')
-  const sourceUrl = String(formData.get('sourceUrl') || '') || null
+  const expiryRaw = String(formData.get('expiry') || '')
+  const expiry = expiryRaw ? expiryInputToIso(expiryRaw) : null
+  if (expiryRaw && !expiry) throw new Error('תאריך התוקף לא ברור')
+
+  const storeCode = String(formData.get('storeCode') || '').trim()
+  const storeFromDir = ISRAEL_STORES.find(
+    (row) =>
+      row.code === storeCode ||
+      row.stableKey === storeCode ||
+      row.aliases?.includes(storeCode),
+  )
+  const storeName =
+    String(formData.get('storeName') || '').trim() ||
+    storeFromDir?.name ||
+    ''
+  const storeId =
+    String(formData.get('storeId') || '').trim() ||
+    (storeFromDir
+      ? israelStoreId(storeFromDir.stableKey ?? storeFromDir.code)
+      : '')
+  if (!storeCode || !storeName) throw new Error('יש לבחור סניף')
+
+  const docType = String(formData.get('docType') || '').trim() || 'hearing_a'
+  const allowed = new Set([
+    'fire',
+    'electrical',
+    'hearing_a',
+    'hearing_b',
+    'hearing_c',
+  ])
+  if (!allowed.has(docType)) throw new Error('סוג מסמך לא תקין')
+
+  let sourceUrl = String(formData.get('sourceUrl') || '').trim() || null
+  let storagePath: string | null = null
+  const uploaded = formData.get('documentFile')
   const linked = sourceUrl ? parseDriveLink(sourceUrl) : null
-  addDocument({
-    storeId: String(formData.get('storeId') || ''),
-    storeCode: String(formData.get('storeCode') || ''),
-    storeName: String(formData.get('storeName') || ''),
-    docType: String(formData.get('docType') || 'fire'),
-    sourceUrl: linked?.kind === 'file' ? `https://drive.google.com/file/d/${linked.id}/view` : sourceUrl,
-    extractedExpiry: expiry || null,
+  if (linked?.kind === 'file') {
+    sourceUrl = `https://drive.google.com/file/d/${linked.id}/view`
+  }
+
+  const pendingBytes =
+    uploaded instanceof File && uploaded.size > 0 ? uploaded : null
+  if (pendingBytes) {
+    if (pendingBytes.size > 15 * 1024 * 1024) {
+      throw new Error('הקובץ גדול מדי (מקסימום 15MB)')
+    }
+    const isPdf =
+      pendingBytes.type === 'application/pdf' ||
+      pendingBytes.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) throw new Error('אפשר להעלות רק קובץ PDF')
+    if (!(await supabaseReady())) {
+      throw new Error(
+        'העלאת קובץ דורשת חיבור Supabase פעיל. אפשר להדביק קישור לדרייב במצב מקומי.',
+      )
+    }
+  }
+
+  const titleRaw = String(formData.get('title') || '').trim()
+  const title = titleRaw ? cleanDocumentTitle(titleRaw) : null
+
+  const created = addDocument({
+    storeId,
+    storeCode,
+    storeName,
+    docType,
+    sourceUrl,
+    storagePath: null,
+    extractedExpiry: expiry,
     computedNextCheck: null,
     owner: String(formData.get('owner') || '') || null,
     intakeStatus: expiry ? 'ingested' : 'needs_review',
@@ -293,21 +351,104 @@ export async function addDocumentAction(formData: FormData) {
     driveFileId: linked?.kind === 'file' ? linked.id : null,
     fieldsLocked: true,
     localUpdatedAt: new Date().toISOString(),
+    title,
   })
+
+  if (pendingBytes) {
+    const safeName =
+      pendingBytes.name.replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-100) ||
+      'document.pdf'
+    storagePath = `uploads/${created.id}-${safeName}`
+    const supabase = createAdminClient()
+    const bytes = Buffer.from(await pendingBytes.arrayBuffer())
+    const { error } = await supabase.storage
+      .from('store-documents')
+      .upload(storagePath, bytes, {
+        contentType: 'application/pdf',
+        upsert: false,
+      })
+    if (error) throw new Error(`שמירת הקובץ נכשלה: ${error.message}`)
+    created.storagePath = storagePath
+    created.sourceUrl = `/api/ops/document-file/${created.id}`
+    await linkNewDocumentUpload(created, storagePath, pendingBytes.name)
+  }
+
   await mirrorDrive()
   await refresh('/ops/documents')
+}
+
+async function linkNewDocumentUpload(
+  doc: ReturnType<typeof addDocument>,
+  storagePath: string,
+  name: string,
+) {
+  const file = {
+    client_id: `file-${doc.id}`,
+    name,
+    mime: 'application/pdf',
+    source_url: doc.sourceUrl,
+    doc_type: doc.docType,
+    store_code: doc.storeCode,
+    status: doc.intakeStatus,
+    reason: doc.intakeReason,
+    version_of: null,
+    deleted_in_source: false,
+    extracted_text: null,
+    stage: 'validate',
+    drive_file_id: null,
+    storage_path: storagePath,
+    drive_modified_time: null,
+    origin: 'maintainos',
+    local_updated_at: new Date().toISOString(),
+  }
+  const ingested = {
+    id: `file-${doc.id}`,
+    name,
+    mime: 'application/pdf',
+    sourceUrl: doc.sourceUrl,
+    storagePath,
+    stage: 'validate' as const,
+    docType: doc.docType,
+    storeCode: doc.storeCode || null,
+    extractedText: null,
+    status: doc.intakeStatus,
+    reason: doc.intakeReason,
+    versionOf: null,
+    deletedInSource: false,
+    driveFileId: null,
+    driveModifiedTime: null,
+    origin: 'maintainos' as const,
+    localUpdatedAt: new Date().toISOString(),
+  }
+  const currentFiles = listFiles()
+  const existingIndex = currentFiles.findIndex((row) => row.id === ingested.id)
+  if (existingIndex >= 0) currentFiles[existingIndex] = ingested
+  else currentFiles.unshift(ingested)
+  if (!(await supabaseReady())) return
+  const supabase = createAdminClient()
+  const { error: fileError } = await supabase
+    .from('ingested_files')
+    .upsert(file, { onConflict: 'client_id' })
+  if (fileError) {
+    throw new Error(`הקובץ הועלה אך רישומו נכשל: ${fileError.message}`)
+  }
+  const { error: docError } = await supabase
+    .from('store_documents')
+    .update({ storage_path: storagePath, source_url: doc.sourceUrl })
+    .eq('client_id', doc.id)
+  if (docError) {
+    throw new Error(`הקובץ הועלה אך קישורו למסמך נכשל: ${docError.message}`)
+  }
 }
 
 export async function setDocumentRemindersAction(formData: FormData) {
   await actorName()
   const id = documentIdFrom(formData)
-  const sixRaw = String(formData.get('six') || '')
-  const twoRaw = String(formData.get('two') || '')
-  const six = sixRaw ? expiryInputToIso(sixRaw) : null
-  const two = twoRaw ? expiryInputToIso(twoRaw) : null
-  if ((sixRaw && !six) || (twoRaw && !two)) throw new Error('תאריך התוקף לא ברור')
-  setDocumentReminders(id, { six, two })
-  await patchDevDocumentReminders(id, { six, two })
+  const monthRaw = String(formData.get('month') || '')
+  const month = monthRaw ? expiryInputToIso(monthRaw) : null
+  if (monthRaw && !month) throw new Error('תאריך התוקף לא ברור')
+  setDocumentReminders(id, { month, six: null, two: null })
+  await patchDevDocumentReminders(id, { month, six: null, two: null })
   await refresh('/ops/documents')
 }
 

@@ -25,9 +25,14 @@ export type StoreDocument = {
   localUpdatedAt?: string | null
   /** WhatsApp sender to answer after Ari decides. */
   originWaId?: string | null
-  /** Hand-set reminder dates. Empty falls back to six months and two months before expiry. */
+  /**
+   * Legacy hand-set reminder dates (six / two months). Kept for stored rows;
+   * new reminders use a single month-ahead window only.
+   */
   reminderSixAt?: string | null
   reminderTwoAt?: string | null
+  /** Optional hand-set month-ahead reminder ISO. */
+  reminderMonthAt?: string | null
   /** Name Ari typed. Wins over the file name and the document type. */
   title?: string | null
 }
@@ -64,8 +69,13 @@ export type DocumentTypeDef = {
  * Legacy `hearing` stays readable for older rows.
  */
 export const DOCUMENT_TYPES: readonly DocumentTypeDef[] = [
-  { key: 'fire', label: 'כיבוי אש', cycleMonths: 12 },
-  { key: 'electrical', label: 'חשמל', cycleMonths: 12 },
+  { key: 'fire', label: 'כיבוי אש', cycleMonths: 12, monthAheadReminder: true },
+  {
+    key: 'electrical',
+    label: 'חשמל',
+    cycleMonths: 12,
+    monthAheadReminder: true,
+  },
   {
     key: 'hearing_a',
     label: 'טימפנומטר',
@@ -87,9 +97,24 @@ export const DOCUMENT_TYPES: readonly DocumentTypeDef[] = [
     monthAheadReminder: true,
     hearingCalibration: true,
   },
-  { key: 'hearing_booth', label: 'תא שמיעה', cycleMonths: 24 },
-  { key: 'hearing_meter', label: 'כיול אודיומטר', cycleMonths: 12 },
-  { key: 'hearing_tymp', label: 'טימפנומטר', cycleMonths: 12 },
+  {
+    key: 'hearing_booth',
+    label: 'תא שמיעה',
+    cycleMonths: 24,
+    monthAheadReminder: true,
+  },
+  {
+    key: 'hearing_meter',
+    label: 'כיול אודיומטר',
+    cycleMonths: 12,
+    monthAheadReminder: true,
+  },
+  {
+    key: 'hearing_tymp',
+    label: 'טימפנומטר',
+    cycleMonths: 12,
+    monthAheadReminder: true,
+  },
   /**
    * Legacy single annual hearing check — still readable in UI;
    * new docs should use hearing_a / hearing_b / hearing_c.
@@ -110,16 +135,80 @@ export function documentTypeDef(docType: string): DocumentTypeDef | undefined {
 }
 
 export function documentTypeLabel(docType: string): string {
-  return documentTypeDef(docType)?.label ?? docType
+  return documentTypeDef(canonicalizeDocumentType(docType))?.label ?? docType
 }
 
 export function isHearingCalibrationType(docType: string): boolean {
-  return Boolean(documentTypeDef(docType)?.hearingCalibration)
+  return Boolean(documentTypeDef(canonicalizeDocumentType(docType))?.hearingCalibration)
 }
 
-/** Selectable types for new manual documents (exclude legacy `hearing`). */
+/**
+ * Map legacy catalog / Drive kinds onto Ari's three fixed calibrations:
+ * hearing_a טימפנומטר · hearing_b אודיומטר · hearing_c תא אקוסטי.
+ * Also recovers when Drive/mail stored the filename as `docType`.
+ */
+export function canonicalizeDocumentType(docType: string): string {
+  const key = docType.trim()
+  switch (key) {
+    case 'hearing_tymp':
+    case 'hearing_a':
+      return 'hearing_a'
+    case 'hearing_meter':
+    case 'hearing_b':
+      return 'hearing_b'
+    case 'hearing_booth':
+    case 'hearing_c':
+      return 'hearing_c'
+    case 'hearing':
+      // Legacy single annual check — leave as-is for UI read; new docs use a/b/c.
+      return 'hearing'
+    case 'fire':
+    case 'electrical':
+      return key
+    default: {
+      // Filename-as-type from unclassified Optical Center certificates.
+      // Lazy import avoided — resolve inline with the same heuristics as calibrations.
+      if (/טימפנו|tympan/i.test(key)) return 'hearing_a'
+      if (/אודיו|audio/i.test(key)) return 'hearing_b'
+      if (/תא\s*שמיעה|תא\s*אקוסט|booth/i.test(key)) return 'hearing_c'
+      if (/אופטיקל|optical\s*center/i.test(key)) return 'hearing_c'
+      return key
+    }
+  }
+}
+
+/** True when the stored title is just a raw Drive/mail filename, not Ari's hand label. */
+export function isRawCertificateTitle(title: string | null | undefined): boolean {
+  if (!title?.trim()) return true
+  const t = title.trim()
+  if (/^(טימפנומטר|אודיומטר|תא אקוסטי)$/.test(t)) return false
+  return (
+    /אופטיקל|optical\s*center/i.test(t) ||
+    /\.pdf$/i.test(t) ||
+    /\b20(2[4-9]|3[0-6])\b/.test(t) ||
+    /אודיומטר|טימפנו|תא\s*שמיעה/i.test(t)
+  )
+}
+
+/** The three calibration slots every hearing store should track. */
+export function hearingCalibrationSlots(): DocumentTypeDef[] {
+  return DOCUMENT_TYPES.filter(
+    (row) =>
+      row.key === 'hearing_a' ||
+      row.key === 'hearing_b' ||
+      row.key === 'hearing_c',
+  )
+}
+
+/** Selectable types for new manual documents (canonical calibrations only). */
 export function selectableDocumentTypes(): DocumentTypeDef[] {
-  return DOCUMENT_TYPES.filter((row) => row.key !== 'hearing')
+  const legacy = new Set([
+    'hearing',
+    'hearing_booth',
+    'hearing_meter',
+    'hearing_tymp',
+  ])
+  return DOCUMENT_TYPES.filter((row) => !legacy.has(row.key))
 }
 
 export function addMonths(isoDate: string, months: number): string {
@@ -169,45 +258,50 @@ export function documentNeedsReminder(doc: StoreDocument, now = new Date()): boo
 }
 
 export type DocumentReminder = {
-  months: 6 | 2
+  /** Only month-ahead (1) is used for new reminders; 6/2 kept for legacy UI reads. */
+  months: 6 | 2 | 1
   label: string
   at: string
 }
 
-/** Two reminders on every dated document: half a year before, then two months before. */
+/** Single reminder ~1 month before expiry (Ari meeting). */
 export function documentReminders(expiryIso: string): DocumentReminder[] {
   return [
-    { months: 6, label: 'חצי שנה לפני', at: shiftMonthsUtc(expiryIso, -6) },
-    { months: 2, label: 'חודשיים לפני', at: shiftMonthsUtc(expiryIso, -2) },
+    {
+      months: 1,
+      label: 'חודש לפני',
+      at: shiftMonthsUtc(expiryIso, -1),
+    },
   ]
 }
 
-/** Computed reminders, replaced when someone edited a date on the card. */
+/** Computed reminders; hand-set month wins over default. */
 export function remindersFor(doc: StoreDocument): DocumentReminder[] {
   const due = documentDueAt(doc)
   const defaults = due ? documentReminders(due) : []
-  const six = doc.reminderSixAt || defaults.find((row) => row.months === 6)?.at
-  const two = doc.reminderTwoAt || defaults.find((row) => row.months === 2)?.at
-  const rows: DocumentReminder[] = []
-  if (six) rows.push({ months: 6, label: 'חצי שנה לפני', at: six })
-  if (two) rows.push({ months: 2, label: 'חודשיים לפני', at: two })
-  return rows
+  const month =
+    doc.reminderMonthAt ||
+    defaults.find((row) => row.months === 1)?.at ||
+    // Legacy overrides: treat two-month hand-set as the active reminder window.
+    doc.reminderTwoAt ||
+    null
+  if (!month) return []
+  return [{ months: 1, label: 'חודש לפני', at: month }]
 }
 
 /** Which reminder has arrived, while the document itself is not yet overdue. */
 export function documentReminderStage(
   doc: StoreDocument,
   now = new Date(),
-): 'six' | 'two' | null {
+): 'month' | 'six' | 'two' | null {
   const due = documentDueAt(doc)
   if (doc.renewed || doc.intakeStatus === 'failed') return null
   if (due && isDocumentOverdue(doc, now)) return null
+  if (isDocumentDueSoon(doc, now)) return 'month'
   const rows = remindersFor(doc)
   const nowMs = now.getTime()
-  const two = rows.find((row) => row.months === 2)
-  const six = rows.find((row) => row.months === 6)
-  if (two && nowMs >= new Date(two.at).getTime()) return 'two'
-  if (six && nowMs >= new Date(six.at).getTime()) return 'six'
+  const month = rows.find((row) => row.months === 1)
+  if (month && nowMs >= new Date(month.at).getTime()) return 'month'
   return null
 }
 

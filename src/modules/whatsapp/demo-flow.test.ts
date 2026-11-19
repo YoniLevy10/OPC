@@ -31,7 +31,11 @@ describe('E2E demo flow (memory)', () => {
     expect(a.reply).toMatch(/אבן גבירול|172/)
 
     const b = await processInboundMessage(
-      msg({ text: 'המזגן הראשי לא עובד ויש ממנו נזילה' }),
+      msg({
+        text: 'המזגן הראשי לא עובד ויש ממנו נזילה',
+        mediaUrl: 'https://example.com/proof.jpg',
+        mediaKind: 'image',
+      }),
       { skipOutboundGraph: true },
     )
     expect(b.ok).toBe(true)

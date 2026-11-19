@@ -141,14 +141,24 @@ export function buildActivity(
     // Writers emit {from,to}; older/alt payloads use from_status/to_status.
     const to = statusLabel(payload.to ?? payload.to_status)
     const from = statusLabel(payload.from ?? payload.from_status)
+    const descriptionBody =
+      e.event_type === 'description_updated' &&
+      typeof payload.to === 'string' &&
+      payload.to.trim()
+        ? payload.to.trim()
+        : null
 
     return {
       id: `e-${e.id}`,
-      kind: note && e.event_type !== 'status_changed' ? 'note' : 'event',
+      kind:
+        (note || descriptionBody) && e.event_type !== 'status_changed'
+          ? 'note'
+          : 'event',
       at: e.created_at,
       label: TICKET_EVENT_LABELS_HE[e.event_type] ?? e.event_type,
-      body: noiseBody(payload, note),
-      transition: to ? { from, to } : undefined,
+      body: noiseBody(payload, descriptionBody || note),
+      transition:
+        e.event_type === 'status_changed' && to ? { from, to } : undefined,
     }
   })
 

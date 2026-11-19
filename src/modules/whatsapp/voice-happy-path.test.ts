@@ -36,11 +36,11 @@ describe('WhatsApp voice happy path', () => {
     resetOpsLedger()
   })
 
-  it('creates a ticket from audio + mock Whisper transcript', async () => {
+  it('voice alone does not open a ticket; photo + transcript description does', async () => {
     const waId = '972501234580'
     const before = memListTickets().length
     await processInboundMessage(msg({ text: 'STORE_6018', waId }), dry)
-    const opened = await processInboundMessage(
+    const voice = await processInboundMessage(
       msg({
         text: null,
         waId,
@@ -50,14 +50,23 @@ describe('WhatsApp voice happy path', () => {
       }),
       dry,
     )
+    expect(voice.ticketId).toBeFalsy()
+    expect(memListTickets().length).toBe(before)
+    expect(voice.reply || '').toMatch(/תמונה|סרטון/i)
+
+    const opened = await processInboundMessage(
+      msg({
+        text: 'המזגן באולם לא מקרר',
+        waId,
+        messageId: 'voice-happy-2',
+        mediaKind: 'image',
+        mediaUrl: 'https://example.com/proof.jpg',
+      }),
+      dry,
+    )
     expect(opened.ticketId).toBeTruthy()
     expect(memListTickets().length).toBe(before + 1)
     const ticket = memGet(opened.ticketId!)
     expect(ticket?.description).toMatch(/מזגן/)
-    expect(
-      ticket?.messages.some(
-        (m) => m.media_url === 'https://example.com/happy-voice.ogg',
-      ),
-    ).toBe(true)
   })
 })

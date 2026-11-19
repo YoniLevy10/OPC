@@ -70,9 +70,13 @@ describe('document cycle', () => {
     expect(isDocumentOverdue(expired)).toBe(true)
 
     const upcoming = new Date()
-    upcoming.setUTCMonth(upcoming.getUTCMonth() + 5)
+    upcoming.setUTCDate(upcoming.getUTCDate() + 20)
     const staged = paper('store-a', upcoming.toISOString())
-    expect(documentReminderStage(staged)).toBe('six')
+    expect(documentReminderStage(staged)).toBe('month')
+
+    const far = new Date()
+    far.setUTCMonth(far.getUTCMonth() + 5)
+    expect(documentReminderStage(paper('store-a', far.toISOString()))).toBeNull()
 
     actorBox.current = {
       id: 'other-store',
@@ -112,12 +116,12 @@ describe('document cycle', () => {
     const body = (await reminded.json()) as {
       ok: boolean
       overdue: { id: string }[]
-      sixMonths: number
+      dueSoon: { id: string }[]
     }
     expect(reminded.status).toBe(200)
     expect(body.ok).toBe(true)
     expect(body.overdue.some((row) => row.id === expired.id)).toBe(true)
-    expect(body.sixMonths).toBeGreaterThanOrEqual(1)
+    expect(body.dueSoon.some((row) => row.id === staged.id)).toBe(true)
 
     const renewed = renewStoredDocument(expired.id, {
       sourceUrl: 'https://files.example/fire-renewed.pdf',

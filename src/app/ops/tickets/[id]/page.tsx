@@ -34,6 +34,8 @@ import { actorCanAccessTicket } from '@/lib/auth/ticket-scope'
 import { resolveTicketsSupabase } from '@/lib/supabase/tickets-client'
 import {
   plainAgoHe,
+  plainCalendarDate,
+  plainWorkDoneAt,
   plainOpenForHe,
 } from '@/components/ops/plain-labels'
 import { cn } from '@/lib/utils'
@@ -391,9 +393,24 @@ export default async function TicketDetailPage({
 
         <Panel elevated className="max-md:p-3">
           <dl className="grid grid-cols-2 gap-2 md:block md:divide-y md:divide-border max-md:[&>*:last-child:nth-child(odd)]:col-span-2">
-            <KeyValue phoneTile label={tx('ticket.opened')}>
-              {plainAgoHe(ticket.created_at, new Date(), locale)}
+            <KeyValue phoneTile label={p('תאריך פתיחה')}>
+              <span className="font-semibold text-ink">
+                {plainCalendarDate(ticket.created_at, locale)}
+              </span>
+              <span className="mt-0.5 block t-meta text-ink-3">
+                {plainAgoHe(ticket.created_at, new Date(), locale)}
+              </span>
             </KeyValue>
+            <KeyValue phoneTile label={p('סטטוס נוכחי')}>
+              <StatusLabel status={ticket.status as TicketStatus} />
+            </KeyValue>
+            {plainWorkDoneAt(ticket, locale) ? (
+              <KeyValue phoneTile label={p('תאריך ביצוע')}>
+                <span className="font-semibold text-ink">
+                  {plainWorkDoneAt(ticket, locale)}
+                </span>
+              </KeyValue>
+            ) : null}
             <KeyValue phoneTile label={tx('ticket.urgency')}>
               {tx(`priority.${priority}`)}
             </KeyValue>

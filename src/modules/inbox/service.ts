@@ -320,6 +320,8 @@ export type InboxMessage = {
   body: string
   created_at: string
   ticket_id?: string | null
+  media_url?: string | null
+  media_kind?: 'image' | 'video' | 'document' | 'audio' | null
 }
 
 export type InboxOpenTicket = {
@@ -721,6 +723,8 @@ export async function startOpsChatWithStore(input: {
         pending_description: null,
         human_takeover: true,
         human_takeover_until: pauseUntil,
+        thread_kind: 'store_manager',
+        bot_mode: 'auto',
         last_inbound: null,
       })
       memAddInboxMessage({
@@ -739,6 +743,8 @@ export async function startOpsChatWithStore(input: {
         customer_name: managerName ?? existing.customer_name ?? null,
         human_takeover: true,
         human_takeover_until: pauseUntil,
+        thread_kind: existing.thread_kind ?? 'store_manager',
+        bot_mode: existing.bot_mode ?? 'auto',
         pending_description: existing.pending_description,
       })
     }
@@ -1212,12 +1218,33 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
   const accessStore = Array.isArray(accessSession.stores) ? accessSession.stores[0] : accessSession.stores
   const authorizedSession = { ...accessSession, region_id: accessStore?.region_id, organization_id: accessStore?.organization_id }
   if (!canAccessInboxSession(actor, authorizedSession)) throw new AuthError('אין הרשאה לשיחה זו', 403)
-  const [inboxResult, ticketsResult, sessionResult, waResult] = await Promise.all([
-    supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let inboxResult: any = await supabase
+    .from('inbox_messages')
+    .select('id, direction, body, created_at, ticket_id, media_url, media_kind')
+    .eq('wa_id', waId)
+    .order('created_at', { ascending: true })
+  if (inboxResult.error && isMissingColumnError(inboxResult.error, 'media_url')) {
+    inboxResult = await supabase
       .from('inbox_messages')
       .select('id, direction, body, created_at, ticket_id')
       .eq('wa_id', waId)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: true })
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let waResult: any = await supabase
+    .from('whatsapp_messages')
+    .select('id, direction, body, created_at, ticket_id, media_url, media_kind')
+    .eq('wa_id', waId)
+    .order('created_at', { ascending: true })
+  if (waResult.error && isMissingColumnError(waResult.error, 'media_url')) {
+    waResult = await supabase
+      .from('whatsapp_messages')
+      .select('id, direction, body, created_at, ticket_id')
+      .eq('wa_id', waId)
+      .order('created_at', { ascending: true })
+  }
+  const [ticketsResult, sessionResult] = await Promise.all([
     supabase
       .from('tickets')
       .select(
@@ -1229,14 +1256,9 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
       .limit(20),
     supabase
       .from('intake_sessions')
-      .select('store_id, store_code, customer_name')
+      .select('store_id, store_code, customer_name, thread_kind, bot_mode')
       .eq('wa_id', waId)
       .maybeSingle(),
-    supabase
-      .from('whatsapp_messages')
-      .select('id, direction, body, created_at, ticket_id')
-      .eq('wa_id', waId)
-      .order('created_at', { ascending: true }),
   ])
 
   const { data: inboxRows, error } = inboxResult
@@ -1305,20 +1327,31 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
   const ticketMessages: InboxMessage[] = []
 
   if (ticketIds.length > 0) {
-    const { data: tMsgs } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let tMsgsQuery: any = await supabase
       .from('ticket_messages')
-      .select('id, direction, body, created_at, ticket_id')
+      .select('id, direction, body, created_at, ticket_id, media_url')
       .in('ticket_id', ticketIds)
       .order('created_at', { ascending: true })
+    if (tMsgsQuery.error && isMissingColumnError(tMsgsQuery.error, 'media_url')) {
+      tMsgsQuery = await supabase
+        .from('ticket_messages')
+        .select('id, direction, body, created_at, ticket_id')
+        .in('ticket_id', ticketIds)
+        .order('created_at', { ascending: true })
+    }
 
-    for (const m of tMsgs ?? []) {
-      if (!m.body) continue
+    for (const m of tMsgsQuery.data ?? []) {
+      if (!m.body && !(m as { media_url?: string }).media_url) continue
+      const mediaUrl = (m as { media_url?: string | null }).media_url ?? null
       ticketMessages.push({
         id: m.id,
         direction: m.direction === 'outbound' ? 'outbound' : 'inbound',
-        body: m.body,
+        body: m.body || (mediaUrl ? '📷 מדיה' : ''),
         created_at: m.created_at,
         ticket_id: m.ticket_id,
+        media_url: mediaUrl,
+        media_kind: mediaUrl ? 'image' : null,
       })
     }
   }
@@ -1328,23 +1361,31 @@ export async function listSessionMessages(waId: string, actor: Actor): Promise<{
   const waMessages: InboxMessage[] = []
   if (!waResult.error) {
     for (const m of waResult.data ?? []) {
-      if (!m.body) continue
+      const mediaUrl = (m as { media_url?: string | null }).media_url ?? null
+      const mediaKind = (m as { media_kind?: InboxMessage['media_kind'] }).media_kind ?? null
+      if (!m.body && !mediaUrl) continue
       waMessages.push({
         id: `wa-${m.id}`,
         direction: m.direction === 'outbound' ? 'outbound' : 'inbound',
-        body: m.body,
+        body: m.body || (mediaUrl ? '📷 מדיה' : ''),
         created_at: m.created_at,
         ticket_id: m.ticket_id,
+        media_url: mediaUrl,
+        media_kind: mediaKind,
       })
     }
   }
   const combined = [
-    ...safeInboxRows.map((m) => ({
-      id: m.id,
-      direction: m.direction as 'inbound' | 'outbound',
-      body: m.body,
-      created_at: m.created_at,
-      ticket_id: m.ticket_id,
+    ...safeInboxRows.map((m: Record<string, unknown>) => ({
+      id: String(m.id),
+      direction: (m.direction === 'outbound' ? 'outbound' : 'inbound') as
+        | 'inbound'
+        | 'outbound',
+      body: String(m.body ?? ''),
+      created_at: String(m.created_at),
+      ticket_id: (m.ticket_id as string | null) ?? null,
+      media_url: (m.media_url as string | null) ?? null,
+      media_kind: (m.media_kind as InboxMessage['media_kind']) ?? null,
     })),
     ...ticketMessages,
     ...waMessages,

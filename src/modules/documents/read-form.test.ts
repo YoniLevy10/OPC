@@ -10,7 +10,7 @@ describe('readHearingForm', () => {
     const form = readHearingForm(
       'מחלקת שירות 11/02/2025 לכבוד אופטיקל סðטר רעððה סðיף חוות דעת 11/02/2027תוקף בדיקת התא 11/02/2026 תוקף כיול רח יוני נתניהו',
     )
-    expect(form.kind).toBe('hearing_booth')
+    expect(form.kind).toBe('hearing_c')
     expect(form.storeCode).toBe('6026')
     expect(form.expiry).toBe('2027-02-11')
     expect(form.calibrationExpiry).toBe('2026-02-11')
@@ -92,7 +92,7 @@ describe('readHearingForm', () => {
       knownStoreCodes: codes,
       existingNames: [],
     })
-    expect(file.docType).toBe('hearing_booth')
+    expect(file.docType).toBe('hearing_c')
     expect(file.storeCode).toBe('6026')
     expect(file.status).toBe('ingested')
   })

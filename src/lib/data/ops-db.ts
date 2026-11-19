@@ -19,6 +19,11 @@ import {
   replacePersistedOps,
   setDriveSync,
 } from '@/lib/data/ops-ledger'
+import {
+  canonicalizeDocumentType,
+  isHearingCalibrationType,
+  isRawCertificateTitle,
+} from '@/modules/documents/rules'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -75,7 +80,7 @@ export async function patchDevDocumentExpiry(id: string, extractedExpiry: string
 /** Keep hand-edited reminder dates in the local snapshot. */
 export async function patchDevDocumentReminders(
   id: string,
-  reminders: { six: string | null; two: string | null },
+  reminders: { month: string | null; six?: string | null; two?: string | null },
 ): Promise<void> {
   if (process.env.NODE_ENV === 'production' || (await supabaseReady())) return
   const file = join(process.cwd(), '.local', 'ari-mail-ledger.json')
@@ -83,6 +88,7 @@ export async function patchDevDocumentReminders(
   const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
     documents?: Array<{
       id?: string
+      reminderMonthAt?: string | null
       reminderSixAt?: string | null
       reminderTwoAt?: string | null
       localUpdatedAt?: string | null
@@ -90,8 +96,9 @@ export async function patchDevDocumentReminders(
   }
   const doc = parsed.documents?.find((row) => row.id === id)
   if (!doc) return
-  doc.reminderSixAt = reminders.six
-  doc.reminderTwoAt = reminders.two
+  doc.reminderMonthAt = reminders.month
+  doc.reminderSixAt = reminders.six ?? null
+  doc.reminderTwoAt = reminders.two ?? null
   doc.localUpdatedAt = new Date().toISOString()
   writeFileSync(file, JSON.stringify(parsed))
 }
@@ -158,29 +165,46 @@ export async function hydrateOpsLedger(): Promise<void> {
         origin: row.origin === 'maintainos' || row.origin === 'drive' ? row.origin : null,
         localUpdatedAt: row.local_updated_at ? String(row.local_updated_at) : null,
       })),
-      documents: (documents.data ?? []).map((row) => ({
-        id: String(row.client_id || row.id),
-        storeId: row.store_id ? String(row.store_id) : '',
-        storeCode: String(row.store_code ?? ''),
-        storeName: String(row.store_name ?? ''),
-        docType: String(row.doc_type ?? ''),
-        sourceUrl: row.source_url ? String(row.source_url) : null,
-        extractedExpiry: row.extracted_expiry ? String(row.extracted_expiry) : null,
-        computedNextCheck: row.computed_next_check ? String(row.computed_next_check) : null,
-        owner: row.owner_name ? String(row.owner_name) : null,
-        intakeStatus: (row.intake_status as 'ingested') || 'needs_review',
-        intakeReason: row.intake_reason ? String(row.intake_reason) : null,
-        version: Number(row.version ?? 1),
-        previousId: row.previous_client_id ? String(row.previous_client_id) : null,
-        renewed: Boolean(row.renewed),
-        createdAt: String(row.created_at),
-        driveFileId: row.drive_file_id ? String(row.drive_file_id) : null,
-        storagePath: row.storage_path ? String(row.storage_path) : null,
-        fieldsLocked: Boolean(row.fields_locked),
-        localUpdatedAt: row.local_updated_at ? String(row.local_updated_at) : null,
-        originWaId: row.origin_wa_id ? String(row.origin_wa_id) : null,
-        title: row.title ? String(row.title) : null,
-      })),
+      documents: (documents.data ?? []).map((row) => {
+        const rawType = String(row.doc_type ?? '')
+        const rawTitle = row.title ? String(row.title) : null
+        const docType = canonicalizeDocumentType(rawType)
+        const title =
+          isHearingCalibrationType(docType) && isRawCertificateTitle(rawTitle)
+            ? null
+            : rawTitle
+        return {
+          id: String(row.client_id || row.id),
+          storeId: row.store_id ? String(row.store_id) : '',
+          storeCode: String(row.store_code ?? ''),
+          storeName: String(row.store_name ?? ''),
+          docType,
+          sourceUrl: row.source_url ? String(row.source_url) : null,
+          extractedExpiry: row.extracted_expiry
+            ? String(row.extracted_expiry)
+            : null,
+          computedNextCheck: row.computed_next_check
+            ? String(row.computed_next_check)
+            : null,
+          owner: row.owner_name ? String(row.owner_name) : null,
+          intakeStatus: (row.intake_status as 'ingested') || 'needs_review',
+          intakeReason: row.intake_reason ? String(row.intake_reason) : null,
+          version: Number(row.version ?? 1),
+          previousId: row.previous_client_id
+            ? String(row.previous_client_id)
+            : null,
+          renewed: Boolean(row.renewed),
+          createdAt: String(row.created_at),
+          driveFileId: row.drive_file_id ? String(row.drive_file_id) : null,
+          storagePath: row.storage_path ? String(row.storage_path) : null,
+          fieldsLocked: Boolean(row.fields_locked),
+          localUpdatedAt: row.local_updated_at
+            ? String(row.local_updated_at)
+            : null,
+          originWaId: row.origin_wa_id ? String(row.origin_wa_id) : null,
+          title,
+        }
+      }),
       spends: (spends.data ?? []).map((row) => ({
         id: String(row.client_id || row.id),
         storeId: row.store_id ? String(row.store_id) : '',

@@ -34,13 +34,36 @@ const CALIBRATION_PATTERNS: { docType: HearingCalibrationKey; test: RegExp }[] =
   },
   {
     docType: 'hearing_c',
-    test: /תא\s*אקוסטי|acoustic\s*booth|כיול[\s_\-]*ג|(?:^|[^a-z])hearing[_\s\-]?c(?![a-z])/i,
+    // «תא שמיעה» is the certificate label Ari's Drive uses for the acoustic booth.
+    test: /תא\s*אקוסטי|תא\s*שמיעה|acoustic\s*booth|hearing\s*booth|כיול[\s_\-]*ג|(?:^|[^a-z])hearing[_\s\-]?c(?![a-z])/i,
   },
 ]
 
 export function findCalibrations(name: string, text?: string | null): HearingCalibrationKey[] {
   const hay = `${name}\n${text ?? ''}`
   return CALIBRATION_PATTERNS.filter((row) => row.test.test(hay)).map((row) => row.docType)
+}
+
+/**
+ * Resolve one of Ari's three fixed categories from a filename / free-text docType.
+ * Store-named Optical Center certificates without an instrument → תא אקוסטי (hearing_c),
+ * matching Drive naming where booth letters are titled after the branch.
+ */
+export function resolveCalibrationCategory(
+  name: string,
+  text?: string | null,
+): HearingCalibrationKey | null {
+  const found = findCalibrations(name, text)
+  if (found.length === 1) return found[0]
+  if (found.length > 1) {
+    // Prefer the most specific instrument mention order: tymp → audio → booth.
+    if (found.includes('hearing_a')) return 'hearing_a'
+    if (found.includes('hearing_b')) return 'hearing_b'
+    return 'hearing_c'
+  }
+  const hay = `${name}\n${text ?? ''}`
+  if (/אופטיקל|optical\s*center/i.test(hay)) return 'hearing_c'
+  return null
 }
 
 /** One certificate that names more than one instrument becomes one slice per instrument. */
