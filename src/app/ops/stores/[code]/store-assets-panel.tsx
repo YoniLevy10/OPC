@@ -15,7 +15,7 @@ import { PhoneList } from '@/components/mobile'
 import { AdminRow } from '@/components/ui/admin-row'
 import { BarcodeScannerModal } from '@/components/assets/barcode-scanner'
 import { findAssetByCode } from '@/modules/assets/barcode'
-import { assetWhatsAppPrefill } from '@/modules/assets/service'
+import { assetWhatsAppPrefill } from '@/modules/assets/wa-prefill'
 import { usePhrase } from '@/components/i18n/locale-provider'
 
 type AssetRow = {

@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { buildAssetQrPayload } from '@/modules/assets/barcode'
-import { assetWhatsAppPrefill } from '@/modules/assets/service'
+import { assetWhatsAppPrefill } from '@/modules/assets/wa-prefill'
 
 type Props = {
   code: string

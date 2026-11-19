@@ -180,6 +180,4 @@ export async function deleteAsset(id: string): Promise<void> {
   memDeleteAsset(id)
 }
 
-export function assetWhatsAppPrefill(storeCode: string, assetCode: string) {
-  return `STORE_${storeCode} ASSET_${assetCode}`
-}
+export { assetWhatsAppPrefill } from '@/modules/assets/wa-prefill'

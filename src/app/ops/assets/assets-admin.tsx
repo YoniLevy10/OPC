@@ -21,7 +21,7 @@ import {
   loadScanHistory,
   type ScanHistoryEntry,
 } from '@/modules/assets/barcode'
-import { assetWhatsAppPrefill } from '@/modules/assets/service'
+import { assetWhatsAppPrefill } from '@/modules/assets/wa-prefill'
 import { cn } from '@/lib/utils'
 import { usePhrase } from '@/components/i18n/locale-provider'
 

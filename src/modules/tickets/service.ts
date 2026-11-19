@@ -707,9 +707,25 @@ function notifyNewTicketCreated(
   ticket: TicketRecord,
   store: { storeCode: string | null; storeName: string | null },
 ): void {
-  void import('@/modules/notify/new-ticket')
-    .then(({ notifyAriNewTicket }) =>
-      notifyAriNewTicket({
+  // webpackIgnore: tickets/service is pulled into some client graphs via
+  // unrelated barrels; server-only notify must stay out of that analysis.
+  void import(
+    /* webpackIgnore: true */
+    '@/modules/notify/new-ticket',
+  )
+    .then((mod) =>
+      (
+        mod as {
+          notifyAriNewTicket: (input: {
+            ticketId: string
+            displayNumber: string | null
+            storeName: string | null
+            storeCode: string | null
+            description: string
+            priority?: string | null
+          }) => Promise<void>
+        }
+      ).notifyAriNewTicket({
         ticketId: ticket.id,
         displayNumber: ticket.display_number,
         storeName: store.storeName,
