@@ -15,8 +15,9 @@ function urlBase64ToUint8Array(base64String: string) {
 type Variant = 'ops' | 'tech'
 
 /**
- * Web Push subscribe/unsubscribe when VAPID public key is configured.
- * Shared by Ops settings and /tech portal.
+ * Web Push subscribe/unsubscribe for Ops settings and /tech.
+ * Always shows «אשר התראות» for Ops: with VAPID it subscribes; without VAPID
+ * it still requests browser Notification permission and surfaces next steps.
  */
 export function PushSubscribeControl({
   variant = 'ops',
@@ -54,6 +55,33 @@ export function PushSubscribeControl({
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  /** Browser permission only — used when VAPID is not configured yet. */
+  async function requestBrowserPermission() {
+    setBusy(true)
+    setStatus(null)
+    try {
+      if (!('Notification' in window)) {
+        throw new Error('הדפדפן לא תומך בהתראות')
+      }
+      const permission = await Notification.requestPermission()
+      if (permission === 'granted') {
+        setStatus(
+          'הרשאת התראות אושרה בדפדפן. להפעלת Push מלאה יש להגדיר מפתחות VAPID בסביבה.',
+        )
+      } else if (permission === 'denied') {
+        setStatus(
+          'הרשאת התראות נדחתה. ניתן לאשר מחדש בהגדרות הדפדפן לאתר זה.',
+        )
+      } else {
+        setStatus('הרשאת התראות לא אושרה')
+      }
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'בקשת הרשאה נכשלה')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function subscribe() {
     setBusy(true)
@@ -138,12 +166,25 @@ export function PushSubscribeControl({
       )
     }
     return (
-      <div className={`space-y-1 ${className ?? ''}`.trim()}>
+      <div className={`space-y-2 ${className ?? ''}`.trim()}>
         <p className="t-body text-ink-2">התראות Push לא מוגדרות בסביבה</p>
         <p className="t-caption text-ink-3">
           נדרשים VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY /
           NEXT_PUBLIC_VAPID_PUBLIC_KEY.
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            size="touch"
+            className="md:h-9 md:min-h-0"
+            disabled={busy}
+            onClick={() => void requestBrowserPermission()}
+          >
+            {busy ? 'מבקשים הרשאה…' : 'אשר התראות'}
+          </Button>
+        </div>
+        {status ? <p className="t-caption text-ink-2">{status}</p> : null}
       </div>
     )
   }
@@ -168,10 +209,10 @@ export function PushSubscribeControl({
           {busy
             ? subscribed
               ? 'מכבים…'
-              : 'מפעיל…'
+              : 'מבקשים הרשאה…'
             : subscribed
               ? 'כיבוי התראות Push'
-              : 'הפעלת התראות Push'}
+              : 'אשר התראות'}
         </Button>
         {subscribed ? (
           <span className="t-caption text-ink-2">פעיל במכשיר זה</span>

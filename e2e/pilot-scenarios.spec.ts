@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { createStore172Ticket, DEMO_TECH_ID, patchTicket, authHeaders, HQ_ADMIN_ID } from './helpers/api'
+import {
+  DEMO_PROOF_PNG,
+  createStore172Ticket,
+  DEMO_TECH_ID,
+  patchTicket,
+  authHeaders,
+  HQ_ADMIN_ID,
+} from './helpers/api'
 import { signProPortalTokenForE2e } from './helpers/pro-token'
 
 test.describe('Pilot scenarios (memory backend)', () => {
@@ -13,6 +20,8 @@ test.describe('Pilot scenarios (memory backend)', () => {
     await description.click()
     await description.fill('בדיקת פיילוט — דליפת מים ליד הדלפק')
     await expect(description).toHaveValue(/דליפת מים/)
+    // Intake requires at least one proof photo.
+    await page.locator('#report-media').setInputFiles(DEMO_PROOF_PNG)
     await page.getByRole('button', { name: 'שליחת דיווח' }).click()
     await expect(page.getByText(/הדיווח התקבל/i)).toBeVisible({ timeout: 15_000 })
   })

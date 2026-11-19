@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { createStore172Ticket, demoWhatsApp, uniqueWaId } from './helpers/api'
+import {
+  DEMO_PROOF_MEDIA_URL,
+  createStore172Ticket,
+  demoWhatsApp,
+  uniqueWaId,
+} from './helpers/api'
 
 test.describe('Search & filters', () => {
   test('open / resolved tabs via querystring', async ({ page, request }) => {
@@ -43,6 +48,7 @@ test.describe('Search & filters', () => {
     const created = await demoWhatsApp(request, {
       wa_id: wa,
       text: 'QAUNIQUE_SEARCH_TOKEN_9911 נורה שרופה',
+      media_url: DEMO_PROOF_MEDIA_URL,
       source: 'whatsapp',
     })
     expect(created.ticket_id).toBeTruthy()

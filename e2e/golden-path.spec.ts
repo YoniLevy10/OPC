@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
+  DEMO_PROOF_MEDIA_URL,
   DEMO_TECH_ID,
   createStore172Ticket,
   demoWhatsApp,
@@ -26,6 +27,7 @@ test.describe('Golden Path — WhatsApp → HQ → Tech → Resolve', () => {
     const s2 = await demoWhatsApp(request, {
       wa_id,
       text: 'המזגן הראשי לא עובד',
+      media_url: DEMO_PROOF_MEDIA_URL,
       source: 'whatsapp',
     })
     expect(s2.ok).toBe(true)
@@ -109,6 +111,7 @@ test.describe('Golden Path — WhatsApp → HQ → Tech → Resolve', () => {
     const res = await demoWhatsApp(request, {
       wa_id,
       text: 'STORE_172 המזגן לא עובד',
+      media_url: DEMO_PROOF_MEDIA_URL,
       source: 'whatsapp',
     })
     expect(res.ok).toBe(true)

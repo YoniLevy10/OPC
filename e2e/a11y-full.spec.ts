@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { DEMO_PROOF_PNG } from './helpers/api'
 import { gotoStable } from './helpers/goto'
 
 const ROUTES = [
@@ -48,8 +49,19 @@ test.describe('A11y full pack', () => {
         }),
       })
     })
+    // Form uploads proof files after create; mock so fake ticket id does not 404.
+    await page.route('**/api/tickets/*/attachments', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      })
+    })
     await gotoStable(page, '/report?store=172')
     await page.getByLabel('תיאור התקלה').fill('בדיקת נגישות')
+    // Client validation requires a proof photo before submit.
+    await page.locator('#report-media').setInputFiles(DEMO_PROOF_PNG)
+    await expect(page.getByRole('button', { name: 'הסרת קובץ' })).toBeVisible()
     await page.getByRole('button', { name: 'שליחת דיווח' }).click()
     await expect(page.getByRole('button', { name: 'דיווח נוסף' })).toBeVisible()
     await expect(page.getByRole('link', { name: /HQ|תור/i })).toHaveCount(0)
