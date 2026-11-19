@@ -216,7 +216,9 @@ export default async function ReportsPage({
     {
       label: p('ממוצע פתרון'),
       value:
-        kpis.avgResolveHours != null ? `${kpis.avgResolveHours} שע׳` : '—',
+        kpis.avgResolveHours != null
+          ? `${kpis.avgResolveHours} ${p('שע׳')}`
+          : '—',
       href: undefined as string | undefined,
       tone: 'neutral' as const,
     },
@@ -326,7 +328,7 @@ export default async function ReportsPage({
         <Panel elevated className="!p-4 md:!p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <PanelHeader title="הנפקת דוח" meta="לפי הטווח שנבחר" />
+              <PanelHeader title={p('הנפקת דוח')} meta={p('לפי הטווח שנבחר')} />
             </div>
             <div className="flex flex-col items-stretch gap-3 md:items-end">
               <ReportsExportActions query={exportQuery} count={all.length} />
@@ -348,12 +350,12 @@ export default async function ReportsPage({
           ))}
         </div>
 
-        <PhoneFold title="פירוט" summary={`${all.length} תקלות`}>
+        <PhoneFold title={p('פירוט')} summary={p('{count} תקלות', { count: all.length })}>
         <div className="grid gap-5 lg:grid-cols-2">
           <Panel elevated className="!p-4 md:!p-5">
-            <PanelHeader title="התפלגות לפי קטגוריה" meta="תקלות בטווח" />
+            <PanelHeader title={p('התפלגות לפי קטגוריה')} meta={p('תקלות בטווח')} />
             {kpis.byCategory.length === 0 ? (
-              <EmptyState title="אין נתונים לטווח שנבחר" />
+              <EmptyState title={p('אין נתונים לטווח שנבחר')} />
             ) : (
               <ul className="mt-4 space-y-3">
                 {kpis.byCategory.map((c) => {
@@ -384,12 +386,12 @@ export default async function ReportsPage({
           </Panel>
 
           <Panel elevated className="!p-4 md:!p-5">
-            <PanelHeader title="תובנות SLA" meta="סיכום לתקופה" />
+            <PanelHeader title={p('תובנות SLA')} meta={p('סיכום לתקופה')} />
             <ul className="mt-3 space-y-3">
               <li>
-                <p className="t-caption text-ink-3">סניפים עם הכי הרבה תקלות</p>
+                <p className="t-caption text-ink-3">{p('סניפים עם הכי הרבה תקלות')}</p>
                 {topFaultStores.length === 0 ? (
-                  <p className="t-body text-ink-2">אין נתונים</p>
+                  <p className="t-body text-ink-2">{p('אין נתונים')}</p>
                 ) : (
                   <p className="t-body text-ink">
                     {topFaultStores
@@ -399,24 +401,26 @@ export default async function ReportsPage({
                 )}
               </li>
               <li>
-                <p className="t-caption text-ink-3">זמן טיפול ממוצע</p>
+                <p className="t-caption text-ink-3">{p('זמן טיפול ממוצע')}</p>
                 <p className="t-body text-ink">
                   {kpis.avgResolveHours != null
-                    ? `${kpis.avgResolveHours} שעות עד פתרון`
-                    : 'אין מספיק תקלות סגורות לחישוב'}
+                    ? p('{n} שעות עד פתרון', { n: kpis.avgResolveHours })
+                    : p('אין מספיק תקלות סגורות לחישוב')}
                 </p>
               </li>
               <li>
-                <p className="t-caption text-ink-3">חריגות SLA</p>
+                <p className="t-caption text-ink-3">{p('חריגות SLA')}</p>
                 <p className="t-body text-ink">
                   {sla.openBreached > 0
-                    ? `${sla.openBreached} פתוחות בחריגה כעת`
-                    : 'אין פתוחות בחריגה כעת'}
+                    ? p('{n} פתוחות בחריגה כעת', { n: sla.openBreached })
+                    : p('אין פתוחות בחריגה כעת')}
                   {sla.resolvedBreached > 0
-                    ? ` · ${sla.resolvedBreached} נפתרו אחרי חריגה`
+                    ? p(' · {n} נפתרו אחרי חריגה', {
+                        n: sla.resolvedBreached,
+                      })
                     : ''}
                   {sla.pctWithinSla != null
-                    ? ` · ${sla.pctWithinSla}% בתוך SLA`
+                    ? p(' · {pct}% בתוך SLA', { pct: sla.pctWithinSla })
                     : ''}
                 </p>
               </li>
@@ -426,11 +430,11 @@ export default async function ReportsPage({
 
         <Panel flush elevated className="overflow-hidden">
           <PanelHeader
-            title="פירוט לפי סניף"
-            meta={`${storeReport.length} סניפים`}
+            title={p('פירוט לפי סניף')}
+            meta={p('{n} סניפים', { n: storeReport.length })}
           />
           {storeReport.length === 0 ? (
-            <EmptyState title="אין נתונים" />
+            <EmptyState title={p('אין נתונים')} />
           ) : (
             <>
               <ul className="divide-y divide-border md:hidden">
@@ -443,9 +447,15 @@ export default async function ReportsPage({
                       <span className="t-num">#{s.code}</span> · {s.name}
                     </Link>
                     <p className="t-caption t-num mt-1 text-ink-2">
-                      {s.total} סה״כ ·{' '}
-                      {Math.round((s.total / ticketTotal) * 1000) / 10}% ·{' '}
-                      {s.open} פתוחות · {s.breached} חריגות
+                      {p(
+                        '{total} סה״כ · {pct}% · {open} פתוחות · {breached} חריגות',
+                        {
+                          total: s.total,
+                          pct: Math.round((s.total / ticketTotal) * 1000) / 10,
+                          open: s.open,
+                          breached: s.breached,
+                        },
+                      )}
                     </p>
                   </li>
                 ))}
@@ -504,7 +514,7 @@ export default async function ReportsPage({
 
         <Panel flush elevated className="overflow-hidden">
           <PanelHeader
-            title="היסטוריית תקלות"
+            title={p('היסטוריית תקלות')}
             meta={
               all.length > HISTORY_LIMIT
                 ? p('{shown} מתוך {total}', {
@@ -516,8 +526,8 @@ export default async function ReportsPage({
           />
           {history.length === 0 ? (
             <EmptyState
-              title="אין תקלות בטווח"
-              description="שנו את התאריכים או את סינון הסטטוס כדי לראות היסטוריה."
+              title={p('אין תקלות בטווח')}
+              description={p('שנו את התאריכים או את סינון הסטטוס כדי לראות היסטוריה.')}
             />
           ) : (
             <>
@@ -539,7 +549,7 @@ export default async function ReportsPage({
                         <LiveAge createdAt={t.created_at} className="t-caption text-ink-3" />
                       </div>
                       <p className="t-body mt-1 line-clamp-2 text-ink-2">
-                        {t.description || 'ללא תיאור'}
+                        {t.description || p('ללא תיאור')}
                       </p>
                       <p className="t-caption mt-1 text-ink-3">
                         {t.stores?.code ? `#${t.stores.code}` : '—'} ·{' '}
@@ -645,18 +655,18 @@ export default async function ReportsPage({
 
         <Panel flush elevated className="overflow-hidden">
           <PanelHeader
-            title="ארכיון שמורים"
-            meta={`${snapshotResult.snapshots.length} בארכיון`}
+            title={p('ארכיון שמורים')}
+            meta={p('{n} בארכיון', { n: snapshotResult.snapshots.length })}
             action={
               <Button asChild variant="secondary" size="sm">
-                <Link href="/ops/reports/history">כל ההיסטוריה</Link>
+                <Link href="/ops/reports/history">{p('כל ההיסטוריה')}</Link>
               </Button>
             }
           />
           {snapshots.length === 0 ? (
             <EmptyState
               title={p('אין דוחות שמורים עדיין')}
-              description="ב-1 לחודש נשמר כאן אוטומטית דוח של החודש שהסתיים."
+              description={p('ב-1 לחודש נשמר כאן אוטומטית דוח של החודש שהסתיים.')}
             />
           ) : (
             <ul className="divide-y divide-border">
@@ -678,8 +688,11 @@ export default async function ReportsPage({
                         {s.period_start} — {s.period_end}
                       </p>
                       <p className="t-meta mt-1 text-ink-2">
-                        פתוחות {k.open ?? '—'} · נפתרו {k.resolvedCount ?? '—'} ·
-                        SLA {k.pctWithinSla ?? '—'}%
+                        {p('פתוחות {open} · נפתרו {resolved} · SLA {sla}%', {
+                          open: k.open ?? '—',
+                          resolved: k.resolvedCount ?? '—',
+                          sla: k.pctWithinSla ?? '—',
+                        })}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">

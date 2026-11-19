@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePhrase } from '@/components/i18n/locale-provider'
 import { useToast } from '@/components/ui/toast'
+import { TM } from '@/lib/toast-messages'
 import { cn } from '@/lib/utils'
 
 export function TicketDeleteButton({
@@ -47,7 +48,7 @@ export function TicketDeleteButton({
       if (!res.ok) {
         throw new Error(data?.error || p('המחיקה נכשלה'))
       }
-      toast.push({ title: p('התקלה נמחקה'), tone: 'success' })
+      toast.push({ title: TM.ticketDeleted, tone: 'success' })
       startTransition(() => {
         if (redirectTo) router.push(redirectTo)
         else router.refresh()

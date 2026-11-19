@@ -30,13 +30,19 @@ type Snapshot = {
   created_at: string
 }
 
-function shareText(s: Snapshot): string {
+function shareText(
+  s: Snapshot,
+  p: (text: string, vars?: Record<string, string | number>) => string,
+): string {
   const k = s.kpis_json
   return [
     `MILO · ${s.label}`,
-    `תקופה: ${s.period_start} — ${s.period_end}`,
-    `פתוחות: ${k.open ?? '—'} · נפתרו: ${k.resolvedCount ?? '—'}`,
-    `% בתוך SLA: ${k.pctWithinSla ?? '—'}%`,
+    p('תקופה: {from} — {to}', { from: s.period_start, to: s.period_end }),
+    p('פתוחות: {open} · נפתרו: {resolved}', {
+      open: k.open ?? '—',
+      resolved: k.resolvedCount ?? '—',
+    }),
+    p('% בתוך SLA: {pct}%', { pct: k.pctWithinSla ?? '—' }),
   ].join('\n')
 }
 
@@ -70,14 +76,14 @@ export function ReportsHistoryClient() {
     try {
       const res = await fetch('/api/reports/snapshots')
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'טעינה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
       setSnapshots(json.snapshots ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה')
+      setError(err instanceof Error ? err.message : p('טעינה נכשלה'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [p])
 
   useEffect(() => {
     void load()
@@ -94,11 +100,13 @@ export function ReportsHistoryClient() {
         body: JSON.stringify({ ...body, format: 'pdf' }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'יצירה נכשלה')
-      setNotice(`נשמר: ${json.snapshot?.label ?? 'דוח'}`)
+      if (!res.ok) throw new Error(json.error || p('יצירה נכשלה'))
+      setNotice(
+        p('נשמר: {label}', { label: json.snapshot?.label ?? p('דוח') }),
+      )
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'יצירה נכשלה')
+      setError(err instanceof Error ? err.message : p('יצירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -106,7 +114,7 @@ export function ReportsHistoryClient() {
 
   return (
     <div className="flex flex-col gap-5">
-      {error ? <ErrorState title="שגיאה" description={error} /> : null}
+      {error ? <ErrorState title={p('שגיאה')} description={error} /> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -133,8 +141,9 @@ export function ReportsHistoryClient() {
             </Button>
           </div>
           <p className="t-caption mt-3 text-ink-3">
-            שליחה אוטומטית ב־1 לחודש (06:00 UTC) למייל ההתראות בהגדרות — כולל
-            שמירת snapshot ו־PDF.
+            {p(
+              'שליחה אוטומטית ב־1 לחודש (06:00 UTC) למייל ההתראות בהגדרות — כולל שמירת snapshot ו־PDF.',
+            )}
           </p>
         </Panel>
 
@@ -183,11 +192,11 @@ export function ReportsHistoryClient() {
           }
         />
         {loading ? (
-          <p className="t-body px-4 py-8 text-ink-2">טוען…</p>
+          <p className="t-body px-4 py-8 text-ink-2">{p('טוען…')}</p>
         ) : snapshots.length === 0 ? (
           <EmptyState
             title={p('אין דוחות שמורים')}
-            description="ב-1 לחודש נשמר כאן אוטומטית דוח של החודש שהסתיים. אפשר גם לשמור טווח למעלה."
+            description={p('ב-1 לחודש נשמר כאן אוטומטית דוח של החודש שהסתיים. אפשר גם לשמור טווח למעלה.')}
           />
         ) : (
           <ul className="divide-y divide-border">
@@ -200,9 +209,11 @@ export function ReportsHistoryClient() {
                       {s.period_start} — {s.period_end}
                     </p>
                     <p className="t-meta mt-1 text-ink-2">
-                      פתוחות {s.kpis_json.open ?? '—'} · נפתרו{' '}
-                      {s.kpis_json.resolvedCount ?? '—'} · SLA{' '}
-                      {s.kpis_json.pctWithinSla ?? '—'}%
+                      {p('פתוחות {open} · נפתרו {resolved} · SLA {sla}%', {
+                        open: s.kpis_json.open ?? '—',
+                        resolved: s.kpis_json.resolvedCount ?? '—',
+                        sla: s.kpis_json.pctWithinSla ?? '—',
+                      })}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -216,7 +227,7 @@ export function ReportsHistoryClient() {
                       <a href={downloadHref(s, 'csv')}>CSV</a>
                     </Button>
                     <WhatsAppShareButton
-                      prefillText={shareText(s)}
+                      prefillText={shareText(s, p)}
                       label={p('שיתוף')}
                       size="sm"
                     />

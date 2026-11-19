@@ -35,7 +35,16 @@ export default async function DocumentsPage() {
   const sync = getDriveSync()
   const folderId = sync.rootFolderId || process.env.GOOGLE_DRIVE_FOLDER_ID?.trim() || null
   const statusLine = sync.lastSyncAt
-    ? `סונכרן לאחרונה ${new Date(sync.lastSyncAt).toLocaleString('he-IL')} · ${sync.lastPulled} מהדרייב · ${sync.lastPushed} לדרייב${sync.lastError ? ` · ${sync.lastError}` : ''}`
+    ? p('סונכרן לאחרונה {when} · {pulled} מהדרייב · {pushed} לדרייב{error}', {
+        when: new Date(sync.lastSyncAt).toLocaleString(
+          locale === 'fr' ? 'fr-FR' : 'he-IL',
+        ),
+        pulled: sync.lastPulled,
+        pushed: sync.lastPushed,
+        error: sync.lastError
+          ? p(' · שגיאה: {msg}', { msg: sync.lastError })
+          : '',
+      })
     : null
 
   return (
@@ -68,11 +77,13 @@ export default async function DocumentsPage() {
           <DocumentCabinet documents={documents} files={files} locale={locale} />
         )}
         <PhoneFoldStack>
-        <PhoneFold title="סנכרון עם גוגל דרייב" summary={statusLine ?? 'לא סונכרן'}>
+        <PhoneFold title={p('סנכרון עם גוגל דרייב')} summary={statusLine ?? p('לא סונכרן')}>
         <Panel elevated>
-          <h2 className="t-section mb-1 text-ink">סנכרון עם גוגל דרייב</h2>
+          <h2 className="t-section mb-1 text-ink">{p('סנכרון עם גוגל דרייב')}</h2>
           <p className="t-body mb-4 text-ink-2">
-            ארי ממשיך לעבוד בתיקיות. קובץ חדש או עדכון אצלו נכנס לכאן, ומסמך שנשמר כאן נכתב לתיקיית הסניף. עריכה שלו גוברת, וקובץ שלו לא נמחק ולא נדרס. מה שלא ברור נשאר לבדיקה.
+            {p(
+              'ארי ממשיך לעבוד בתיקיות. קובץ חדש או עדכון אצלו נכנס לכאן, ומסמך שנשמר כאן נכתב לתיקיית הסניף. עריכה שלו גוברת, וקובץ שלו לא נמחק ולא נדרס. מה שלא ברור נשאר לבדיקה.',
+            )}
           </p>
           <DriveImportForm
             connectedFolder={folderId ? driveFolderUrl(folderId) : null}
@@ -81,55 +92,57 @@ export default async function DocumentsPage() {
           />
         </Panel>
         </PhoneFold>
-        <PhoneFold title="מסמך ידני" summary="לא לשימוש יומיומי">
+        <PhoneFold title={p('מסמך ידני')} summary={p('לא לשימוש יומיומי')}>
           <form action={addDocumentAction} className="grid gap-3">
-            <Field label="קוד סניף" htmlFor="doc-store">
+            <Field label={p('קוד סניף')} htmlFor="doc-store">
               <Input id="doc-store" name="storeCode" placeholder="6018" required />
             </Field>
-            <Field label="שם סניף" htmlFor="doc-store-name">
+            <Field label={p('שם סניף')} htmlFor="doc-store-name">
               <Input id="doc-store-name" name="storeName" required />
             </Field>
-            <Field label="אחראי חידוש" htmlFor="doc-owner">
+            <Field label={p('אחראי חידוש')} htmlFor="doc-owner">
               <Input id="doc-owner" name="owner" />
             </Field>
-            <Field label="קישור לקובץ המקור" htmlFor="doc-url">
+            <Field label={p('קישור לקובץ המקור')} htmlFor="doc-url">
               <Input id="doc-url" name="sourceUrl" dir="ltr" />
             </Field>
-            <Field label="תוקף שמופיע במסמך" htmlFor="doc-expiry">
+            <Field label={p('תוקף שמופיע במסמך')} htmlFor="doc-expiry">
               <Input id="doc-expiry" name="expiry" type="date" />
             </Field>
-            <Field label="סוג מסמך" htmlFor="doc-type">
+            <Field label={p('סוג מסמך')} htmlFor="doc-type">
               <select id="doc-type" name="docType" className="h-11 rounded-md border border-border bg-surface px-2">
                 {selectableDocumentTypes().map((type) => (
                   <option key={type.key} value={type.key}>
                     {type.label}
-                    {type.hearingCalibration ? ' · כיול שמיעה' : ''}
+                    {type.hearingCalibration ? p(' · כיול שמיעה') : ''}
                   </option>
                 ))}
               </select>
             </Field>
             <p className="t-meta text-ink-2">
-              כיולי שמיעה: טימפנומטר ואודיומטר כל שנה, תא אקוסטי כל שנתיים. אישור שמכסה כמה כיולים נשמר בנפרד לכל כיול. תזכורת חודש לפני תוקף.
+              {p(
+                'כיולי שמיעה: טימפנומטר ואודיומטר כל שנה, תא אקוסטי כל שנתיים. אישור שמכסה כמה כיולים נשמר בנפרד לכל כיול. תזכורת חודש לפני תוקף.',
+              )}
             </p>
-            <Button type="submit">שמירת מסמך</Button>
+            <Button type="submit">{p('שמירת מסמך')}</Button>
           </form>
         </PhoneFold>
-        <PhoneFold title="קליטה ידנית של קובץ" summary="לא לשימוש יומיומי">
+        <PhoneFold title={p('קליטה ידנית של קובץ')} summary={p('לא לשימוש יומיומי')}>
           <form action={ingestFileAction} className="grid gap-3">
-            <Field label="שם קובץ" htmlFor="file-name">
+            <Field label={p('שם קובץ')} htmlFor="file-name">
               <Input id="file-name" name="name" required />
             </Field>
-            <Field label="קוד סניף" htmlFor="file-store">
+            <Field label={p('קוד סניף')} htmlFor="file-store">
               <Input id="file-store" name="storeCode" />
             </Field>
-            <Field label="קישור לדרייב" htmlFor="file-url">
+            <Field label={p('קישור לדרייב')} htmlFor="file-url">
               <Input id="file-url" name="sourceUrl" dir="ltr" />
             </Field>
-            <Field label="טקסט שחולץ" htmlFor="file-text">
+            <Field label={p('טקסט שחולץ')} htmlFor="file-text">
               <Input id="file-text" name="text" />
             </Field>
             <input type="hidden" name="mime" value="application/pdf" />
-            <Button type="submit">קליטה</Button>
+            <Button type="submit">{p('קליטה')}</Button>
           </form>
         </PhoneFold>
         </PhoneFoldStack>

@@ -8,7 +8,9 @@ import { Panel, ErrorState, EmptyState, KeyValue } from '@/components/ui/primiti
 import { StatusLabel } from '@/components/ui/signal'
 import { EvidenceGrid } from '@/components/ui/evidence'
 import { PhoneCallLink } from '@/components/ui/phone-call-link'
+import { CopyActionButton } from '@/components/ui/copy-action-button'
 import { OpsPageHero } from '@/components/ops/ops-page-hero'
+import { TM } from '@/lib/toast-messages'
 import type { TicketStatus } from '@/modules/tickets/constants'
 import { TICKET_CATEGORY_LABELS_HE } from '@/modules/tickets/constants'
 import { fetchTechTicket, isTicketRef, snippet } from '@/modules/tickets/tech'
@@ -168,6 +170,15 @@ export default async function TechTicketDetailPage({
           footer={
             <div className="flex flex-wrap items-center gap-2">
               <StatusLabel status={ticket.status as TicketStatus} />
+              {num ? (
+                <CopyActionButton
+                  value={num}
+                  successMessage={TM.ticketNumberCopied}
+                  label="העתק מספר"
+                  mode="label"
+                  size="sm"
+                />
+              ) : null}
               {isCritical ? (
                 <span className="inline-flex items-center gap-1 text-[var(--signal-critical)]">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
@@ -215,6 +226,7 @@ export default async function TechTicketDetailPage({
                 <PhoneCallLink
                   phone={managerPhone}
                   label={managerName ? `חיוג · ${managerName}` : 'חיוג למנהל'}
+                  showCopy
                 />
               ) : null}
             </div>

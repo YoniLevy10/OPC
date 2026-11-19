@@ -17,12 +17,13 @@ export function RecommendationList({
   cards: RecommendationCardModel[]
   notice: string | null
 }) {
+  const p = usePhrase()
   if (cards.length === 0) {
     return (
       <div className="rounded-[var(--radius-xl)] border border-border bg-surface px-5 py-12 text-center shadow-[var(--shadow-1)]">
         {notice ? <p className="t-body mb-3 text-ink">{notice}</p> : null}
-        <p className="t-title text-ink">הכל שקט</p>
-        <p className="t-body mt-2 text-ink-2">אין פריטים שמחכים להחלטה.</p>
+        <p className="t-title text-ink">{p('הכל שקט')}</p>
+        <p className="t-body mt-2 text-ink-2">{p('אין פריטים שמחכים להחלטה.')}</p>
       </div>
     )
   }
@@ -93,13 +94,13 @@ function CardAction({ card }: { card: RecommendationCardModel }) {
               ? await approveBundleNow(card.spendId)
               : card.request
                 ? await sendBundleApproval(card.request)
-                : { error: 'אין פעולה לכרטיס', notice: null }
+                : { error: phrase('אין פעולה לכרטיס'), notice: null }
             if (result.error) setError(result.error)
             else if (result.notice) setDone(result.notice)
           })
         }}
       >
-        {card.spendId ? 'אשר הזמנה' : card.actionLabel}
+        {card.spendId ? phrase('אשר הזמנה') : card.actionLabel}
       </Button>
       {error ? <p className="t-body text-[var(--signal-critical)]">{error}</p> : null}
     </div>

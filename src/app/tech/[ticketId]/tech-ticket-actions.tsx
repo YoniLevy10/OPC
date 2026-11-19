@@ -9,6 +9,7 @@ import { Textarea, Field } from '@/components/ui/input'
 import { PhoneSheet } from '@/components/mobile'
 import { ErrorState, Notice } from '@/components/ui/primitives'
 import { useToast } from '@/components/ui/toast'
+import { TM } from '@/lib/toast-messages'
 import { nextStatusActions } from '@/modules/tickets/tech'
 import { validateMediaFile } from '@/modules/tickets/media-limits'
 import {
@@ -103,7 +104,7 @@ export function TechTicketActions({
         toast.push({ title: 'העדכון נכשל', tone: 'critical' })
         return
       }
-      toast.push({ title: TECH_COMPLETION.startSuccess, tone: 'success' })
+      toast.push({ title: TM.techStarted, tone: 'success' })
       startTransition(() => router.refresh())
     } finally {
       setBusy(false)
@@ -152,7 +153,7 @@ export function TechTicketActions({
         return
       }
 
-      toast.push({ title: TECH_COMPLETION.successToast, tone: 'success' })
+      toast.push({ title: TM.techCompleted, tone: 'success' })
       setPhase('done')
       setNote('')
       setBeforeFile(null)

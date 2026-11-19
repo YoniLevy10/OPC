@@ -161,7 +161,7 @@ export function SimulatorForm() {
                 send({
                   wa_id: waId,
                   store_code: null,
-                  text: text.trim() || 'שלום',
+                  text: text.trim() || p('שלום'),
                   source: 'whatsapp',
                 })
               }}

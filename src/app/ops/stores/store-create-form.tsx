@@ -198,7 +198,7 @@ export function StoreCreateForm({
           </Notice>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="קוד סניף" htmlFor="store-code">
+            <Field label={p('קוד סניף')} htmlFor="store-code">
               <Input
                 id="store-code"
                 dir="ltr"
@@ -215,7 +215,7 @@ export function StoreCreateForm({
                 className={editing ? 'bg-surface-sunken text-ink-2' : undefined}
               />
             </Field>
-            <Field label="מחוז" htmlFor="store-region">
+            <Field label={p('מחוז')} htmlFor="store-region">
               <Select
                 id="store-region"
                 value={fields.region}
@@ -237,7 +237,7 @@ export function StoreCreateForm({
             </Field>
           </div>
 
-          <Field label="שם הסניף" htmlFor="store-name">
+          <Field label={p('שם הסניף')} htmlFor="store-name">
             <Input
               id="store-name"
               required
@@ -246,34 +246,34 @@ export function StoreCreateForm({
               onChange={(e) =>
                 setFields((prev) => ({ ...prev, name: e.target.value }))
               }
-              placeholder="למשל: רעננה"
+              placeholder={p('למשל: רעננה')}
             />
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="עיר" htmlFor="store-city">
+            <Field label={p('עיר')} htmlFor="store-city">
               <Input
                 id="store-city"
                 value={fields.city}
                 onChange={(e) =>
                   setFields((prev) => ({ ...prev, city: e.target.value }))
                 }
-                placeholder="רעננה"
+                placeholder={p('רעננה')}
               />
             </Field>
-            <Field label="כתובת (אופציונלי)" htmlFor="store-address">
+            <Field label={p('כתובת (אופציונלי)')} htmlFor="store-address">
               <Input
                 id="store-address"
                 value={fields.address}
                 onChange={(e) =>
                   setFields((prev) => ({ ...prev, address: e.target.value }))
                 }
-                placeholder="רחוב…"
+                placeholder={p('רחוב…')}
               />
             </Field>
           </div>
 
-          <Field label="מנהל/ת מחוז" htmlFor="store-area-manager">
+          <Field label={p('מנהל/ת מחוז')} htmlFor="store-area-manager">
             <Input
               id="store-area-manager"
               required
@@ -281,12 +281,12 @@ export function StoreCreateForm({
               onChange={(e) =>
                 setFields((prev) => ({ ...prev, areaManager: e.target.value }))
               }
-              placeholder="ונסה / ארמנד / אלכס…"
+              placeholder={p('ונסה / ארמנד / אלכס…')}
             />
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="מנהל/ת חנות" htmlFor="store-manager-name">
+            <Field label={p('מנהל/ת חנות')} htmlFor="store-manager-name">
               <Input
                 id="store-manager-name"
                 required
@@ -297,10 +297,10 @@ export function StoreCreateForm({
                     managerName: e.target.value,
                   }))
                 }
-                placeholder="שם פרטי"
+                placeholder={p('שם פרטי')}
               />
             </Field>
-            <Field label="טלפון מנהל/ת חנות" htmlFor="store-manager-phone">
+            <Field label={p('טלפון מנהל/ת חנות')} htmlFor="store-manager-phone">
               <Input
                 id="store-manager-phone"
                 required

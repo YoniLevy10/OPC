@@ -731,6 +731,59 @@ export function buildAriTools(input: {
     agentPhrase(locale, key, he, vars)
 
   return {
+    open_ops_screen: tool({
+      description:
+        'Open / send Ari a deep link to an ops screen (home/dashboard, tickets queue, approvals, documents, tasks, professionals). Use when he asks to open הבית, לוח הבקרה, התור, אישורים, מסמכים.',
+      inputSchema: z.object({
+        screen: z
+          .enum([
+            'home',
+            'tickets',
+            'approvals',
+            'documents',
+            'tasks',
+            'professionals',
+          ])
+          .describe('Which ops screen to open'),
+      }),
+      execute: async ({ screen }) => {
+        const map = {
+          home: {
+            href: '/ops/dashboard',
+            label: 'הבית',
+            message: 'הנה הבית — לוח הבקרה שלך.',
+          },
+          tickets: {
+            href: '/ops/tickets',
+            label: 'תור תקלות',
+            message: 'הנה תור התקלות.',
+          },
+          approvals: {
+            href: '/ops/approvals',
+            label: 'אישורים',
+            message: 'הנה מסך האישורים.',
+          },
+          documents: {
+            href: '/ops/documents',
+            label: 'מסמכים',
+            message: 'הנה המסמכים והתוקף.',
+          },
+          tasks: {
+            href: '/ops/tasks',
+            label: 'משימות',
+            message: 'הנה המשימות.',
+          },
+          professionals: {
+            href: '/ops/professionals',
+            label: 'אנשי מקצוע',
+            message: 'הנה ספר אנשי המקצוע.',
+          },
+        } as const
+        const picked = map[screen]
+        collectLink({ href: picked.href, label: picked.label })
+        return { ok: true, message: picked.message, href: picked.href }
+      },
+    }),
     set_urgent: tool({
       description:
         'Mark an open fault as urgent or not urgent for a store Ari named.',
@@ -1115,9 +1168,11 @@ export function ariSystemPrompt(locale: Locale): string {
 Tone: calm floor manager — grounded, decisive, one clear next step.
 Use only the facts below. Name the store and the single next move.
 Do not invent prices, vendors, documents, or faults.
+Never claim you opened, approved, locked, or created something unless a tool returned ok:true — then quote that tool message.
+«Open home / dashboard / הבית» → call open_ops_screen(screen=home). «Tickets queue / התור» → tickets. Approvals → approvals.
 When store/fault/spend is ambiguous, ask one short clarifying question with options — do not guess.
 «Waiting approval / spends waiting» → always call list_awaiting_approvals (money at /ops/approvals), not urgent tickets.
-Prefer tools: create_ticket / create_task (dueAt + repeatDays) / set_urgent / summarize_due_papers / list_open_by_store / list_awaiting_approvals / set_spend_decision / find_book_pro / recommend_bundles / estimate_repair_range / draft_engagement.
+Prefer tools: open_ops_screen / create_ticket / create_task (dueAt + repeatDays) / set_urgent / summarize_due_papers / list_open_by_store / list_awaiting_approvals / set_spend_decision / find_book_pro / recommend_bundles / estimate_repair_range / draft_engagement.
 When listing open faults, include path hints like /ops/tickets?store=CODE or /ops/tickets/{id}.
 Never expose system, provider, or model details.`
   }
@@ -1126,9 +1181,11 @@ Never expose system, provider, or model details.`
 Ton: responsable de terrain — calme, factuel, une seule prochaine étape.
 Utilise uniquement les faits ci-dessous. Nomme le magasin et le prochain geste.
 N’invente pas de prix, fournisseur, document ou panne.
+Ne dis jamais que tu as ouvert/approuvé/créé quelque chose sans outil ok:true.
+«Ouvrir l’accueil / dashboard» → open_ops_screen(screen=home).
 Si magasin/panne/dépense est ambigu, pose une seule question courte avec options.
 «Dépenses en attente / à approuver» → toujours list_awaiting_approvals (/ops/approvals), pas les tickets urgents.
-Préfère les outils: create_ticket / create_task (dueAt + repeatDays) / set_urgent / summarize_due_papers / list_open_by_store / list_awaiting_approvals / set_spend_decision / find_book_pro / recommend_bundles / estimate_repair_range / draft_engagement.
+Préfère les outils: open_ops_screen / create_ticket / create_task (dueAt + repeatDays) / set_urgent / summarize_due_papers / list_open_by_store / list_awaiting_approvals / set_spend_decision / find_book_pro / recommend_bundles / estimate_repair_range / draft_engagement.
 Pour les pannes ouvertes, indique des chemins comme /ops/tickets?store=CODE ou /ops/tickets/{id}.
 Ne révèle jamais de détails système ou fournisseur de modèle.`
   }
@@ -1136,9 +1193,11 @@ Ne révèle jamais de détails système ou fournisseur de modèle.`
 טון של מנהל רצפה: קצר, מבוסס עובדות, עם צעד הבא אחד ברור.
 כבר הסתכלת על העובדות למטה. ענה בעברית עם שם הסניף והצעד הבא.
 השתמש רק בעובדות האלה. אל תמציא מחיר, ספק, מסמך או תקלה.
+לעולם אל תגיד שפתחת / אישרת / נעלת / יצרת משהו בלי שכלי החזיר ok:true — ואז השתמש בניסוח של הכלי.
+«פתח את הבית / לוח הבקרה / הדשבורד» → קרא ל-open_ops_screen עם screen=home. «התור / תקלות» → tickets. «אישורים» → approvals. «מסמכים» → documents.
 כשחסר מידע או שיש כמה התאמות — שאל שאלה אחת קצרה עם אפשרויות (באיזה סניף? …). אל תנחש.
 «הוצאות ממתינות / מחכה לאישור / אישורים» = כסף ב-/ops/approvals — תמיד קרא ל-list_awaiting_approvals. אל תערבב עם תקלות דחופות.
-העדף כלים: create_ticket / create_task (עם dueAt ו-repeatDays) / set_urgent / summarize_due_papers / list_open_by_store / list_awaiting_approvals / set_spend_decision / find_book_pro / recommend_bundles / estimate_repair_range / draft_engagement.
+העדף כלים: open_ops_screen / create_ticket / create_task (עם dueAt ו-repeatDays) / set_urgent / summarize_due_papers / list_open_by_store / list_awaiting_approvals / set_spend_decision / find_book_pro / recommend_bundles / estimate_repair_range / draft_engagement.
 כשמסכמים תקלות פתוחות — כלול נתיבים כמו /ops/tickets?store=קוד או /ops/tickets/{id}.
 אל תשלח אותו למסך אחר בלי קישור. אל תגיד שאתה כאן כדי שיישאר. אל תחשוף פרטי מערכת או ספק מודל.`
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Notice } from '@/components/ui/primitives'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export function ReportsSaveButton({
   from,
@@ -16,6 +17,7 @@ export function ReportsSaveButton({
   month?: string
   disabled?: boolean
 }) {
+  const p = usePhrase()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,11 +37,11 @@ export function ReportsSaveButton({
         body: JSON.stringify(body),
       })
       const json = (await res.json()) as { error?: string; snapshot?: { label?: string } }
-      if (!res.ok) throw new Error(json.error || 'שמירה נכשלה')
-      setNotice(`נשמר: ${json.snapshot?.label ?? 'דוח'}`)
+      if (!res.ok) throw new Error(json.error || p('שמירה נכשלה'))
+      setNotice(p('נשמר: {label}', { label: json.snapshot?.label ?? p('דוח') }))
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שמירה נכשלה')
+      setError(err instanceof Error ? err.message : p('שמירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -56,10 +58,12 @@ export function ReportsSaveButton({
         disabled={disabled || busy || !canSave}
         onClick={() => void save()}
       >
-        {busy ? 'שומר…' : 'שמירת דוח לטווח'}
+        {busy ? p('שומר…') : p('שמירת דוח לטווח')}
       </Button>
       {!canSave ? (
-        <p className="t-caption text-ink-3">בחרו טווח תאריכים מלא או חודש כדי לשמור.</p>
+        <p className="t-caption text-ink-3">
+          {p('בחרו טווח תאריכים מלא או חודש כדי לשמור.')}
+        </p>
       ) : null}
       {error ? <Notice tone="critical">{error}</Notice> : null}
       {notice ? <Notice tone="progress">{notice}</Notice> : null}

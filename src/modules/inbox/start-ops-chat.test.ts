@@ -9,6 +9,7 @@ import {
 import {
   opsStartLiveEnabled,
   shouldForceDryRunForOpsStart,
+  startOpsChatWithPhone,
   startOpsChatWithStore,
 } from './service'
 
@@ -102,6 +103,53 @@ describe('ops start chat safety', () => {
     }
     await expect(
       startOpsChatWithStore({ actor: storeActor, storeId: store.id }),
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('startOpsChatWithPhone opens pro_coord without store lock', async () => {
+    const result = await startOpsChatWithPhone({
+      actor: hqActor(),
+      phone: '0501234567',
+      name: 'טכנאי חופשי',
+    })
+
+    expect(result.backend).toBe('memory')
+    expect(result.dryRunOnly).toBe(true)
+    expect(result.created).toBe(true)
+    expect(result.session.wa_id).toBe('972501234567')
+    expect(result.session.thread_kind).toBe('pro_coord')
+    expect(result.session.bot_mode).toBe('never')
+    expect(result.session.store_id).toBeNull()
+    expect(result.session.customer_name).toBe('טכנאי חופשי')
+    expect(result.templateRequired).toBe(true)
+
+    const mem = memListSessions().find((s) => s.wa_id === '972501234567')
+    expect(mem?.thread_kind).toBe('pro_coord')
+    expect(mem?.bot_mode).toBe('never')
+  })
+
+  it('startOpsChatWithPhone rejects bad phone and non-HQ', async () => {
+    await expect(
+      startOpsChatWithPhone({ actor: hqActor(), phone: '12' }),
+    ).rejects.toThrow(/טלפון/)
+
+    const storeActor: Actor = {
+      id: 'store',
+      memberships: [
+        {
+          id: 'm3',
+          profile_id: 'store',
+          organization_id: 'org',
+          role: 'store_employee',
+          country_id: MEM_COUNTRY_ID,
+          region_id: null,
+          store_id: 'il-store-172',
+        },
+      ],
+      authVia: 'test_bearer',
+    }
+    await expect(
+      startOpsChatWithPhone({ actor: storeActor, phone: '0509998877' }),
     ).rejects.toMatchObject({ status: 403 })
   })
 })

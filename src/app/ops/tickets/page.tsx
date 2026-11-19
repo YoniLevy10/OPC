@@ -41,7 +41,6 @@ import {
   sameStoreCompanionIds,
   type BundleFault,
 } from '@/modules/whatsapp/agent/bundle'
-import { presentRecommendations } from '@/modules/recommendations/present'
 import { TicketStoreGroups } from './ticket-store-groups'
 import { executionBlockReason } from '@/modules/spend/policy'
 
@@ -198,12 +197,6 @@ export default async function TicketsPage({
           professionals: [],
           backend: 'memory' as const,
         }))
-  const storeCodes: Record<string, string> = {}
-  for (const ticket of view === 'resolved' ? rows : filtered) {
-    if (ticket.store_id && ticket.stores?.code) {
-      storeCodes[ticket.store_id] = ticket.stores.code
-    }
-  }
   const historyTickets = actor
     ? scopeTicketsForActor(
         actor,
@@ -230,7 +223,6 @@ export default async function TicketsPage({
             use_count: pro.use_count,
           })),
         })
-  const bundleCards = presentRecommendations(rawBundles, storeCodes)
   const companionIdsByTicket = sameStoreCompanionIds(
     rawBundles,
     new Map(
@@ -245,11 +237,11 @@ export default async function TicketsPage({
 
   const viewCountLabel =
     view === 'urgent'
-      ? 'דחופות'
+      ? p('דחופות')
       : view === 'attention'
-        ? 'דורשות תשומת לב'
+        ? p('דורשות תשומת לב')
         : view === 'stuck'
-          ? 'תקועות'
+          ? p('תקועות')
           : null
   const statusLine =
     view === 'resolved'
@@ -392,7 +384,6 @@ export default async function TicketsPage({
               ) : (
                 <TicketStoreGroups
                   rows={rows}
-                  cards={bundleCards}
                   locale={locale}
                   renderRow={(t) => (
                     <TicketQueueItem
@@ -431,7 +422,6 @@ export default async function TicketsPage({
             ) : (
               <TicketStoreGroups
                 rows={rows}
-                cards={bundleCards}
                 locale={locale}
                 renderRow={(t) => (
                   <TicketQueueItem

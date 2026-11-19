@@ -311,6 +311,8 @@ describe('briefForAri / ari tools helpers', () => {
     expect(ariSystemPrompt('he')).toContain('summarize_due_papers')
     expect(ariSystemPrompt('he')).toContain('list_awaiting_approvals')
     expect(ariSystemPrompt('he')).toContain('find_book_pro')
+    expect(ariSystemPrompt('he')).toContain('open_ops_screen')
+    expect(ariSystemPrompt('he')).toContain('ok:true')
     expect(ariSystemPrompt('he')).toContain('/ops/approvals')
     expect(ariSystemPrompt('en')).toContain('list_open_by_store')
     expect(ariSystemPrompt('he')).toContain('שאלה אחת')

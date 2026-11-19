@@ -177,6 +177,7 @@ export function TicketFilters({
 
   const [draft, setDraft] = useState(filters)
   const count = activeFilterCount(filters)
+  const p = usePhrase()
 
   function apply(next: QueueFilters) {
     startTransition(() => {
@@ -213,7 +214,7 @@ export function TicketFilters({
           }}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-          סינון
+          {p('סינון')}
           {count > 0 ? (
             <span
               className={cn(
@@ -229,7 +230,7 @@ export function TicketFilters({
       <BottomSheet
         open={open}
         onOpenChange={setOpen}
-        title="סינון תקלות"
+        title={p('סינון תקלות')}
         detent="half"
       >
         <div className="flex flex-col gap-5">
@@ -254,7 +255,7 @@ export function TicketFilters({
                 })
               }
             >
-              נקה
+              {p('נקה')}
             </Button>
             <Button
               type="button"
@@ -270,7 +271,7 @@ export function TicketFilters({
                 })
               }
             >
-              החל
+              {p('החל')}
             </Button>
           </div>
         </div>

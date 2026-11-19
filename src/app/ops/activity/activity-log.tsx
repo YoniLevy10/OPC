@@ -27,7 +27,7 @@ function statusHe(raw: unknown, locale: Locale): string {
   return phrase(locale, he)
 }
 
-function sourceHe(source: string): string {
+function sourceHe(source: string, locale: Locale): string {
   const map: Record<string, string> = {
     whatsapp: 'וואטסאפ',
     qr_whatsapp: 'QR → וואטסאפ',
@@ -35,13 +35,14 @@ function sourceHe(source: string): string {
     web_fallback: 'טופס web',
     demo: 'דמו',
   }
-  return map[source] ?? source
+  const label = map[source] ?? source
+  return phrase(locale, label)
 }
 
-function urgencyHe(raw: unknown): string {
+function urgencyHe(raw: unknown, locale: Locale): string {
   const key = String(raw ?? '')
-  if (key === 'critical' || key === 'high') return 'דחוף'
-  if (key === 'medium' || key === 'low') return 'רגיל'
+  if (key === 'critical' || key === 'high') return phrase(locale, 'דחוף')
+  if (key === 'medium' || key === 'low') return phrase(locale, 'רגיל')
   return key || ''
 }
 
@@ -65,92 +66,100 @@ export function phraseEvent(e: AuditEvent, locale: Locale = 'he'): string {
     case 'assigned':
       return t('שויכה לטכנאי פנימי')
     case 'created': {
-      const source = p.source ? sourceHe(String(p.source)) : null
+      const source = p.source ? sourceHe(String(p.source), locale) : null
       return source ? `${t('נפתחה')} · ${source}` : t('תקלה נפתחה')
     }
     case 'sla_breached': {
       const kind =
         p.kind === 'respond'
-          ? 'תגובה'
+          ? t('תגובה')
           : p.kind === 'resolve'
-            ? 'סגירה'
+            ? t('סגירה')
             : null
-      const to = urgencyHe(p.to_priority)
-      if (kind && to) return `חריגת יעד (${kind}) · עלה ל־${to}`
-      if (kind) return `חריגת יעד · ${kind}`
-      return 'חריגת יעד טיפול'
+      const to = urgencyHe(p.to_priority, locale)
+      if (kind && to) return t('חריגת יעד ({kind}) · עלה ל־{to}', { kind, to })
+      if (kind) return t('חריגת יעד · {kind}', { kind })
+      return t('חריגת יעד טיפול')
     }
     case 'partner_dispatched': {
       const name = p.vendor_name ? String(p.vendor_name) : null
-      return name ? `שוגר לספק · ${name}` : 'שוגר לספק חיצוני'
+      return name
+        ? t('שוגר לספק · {name}', { name })
+        : t('שוגר לספק חיצוני')
     }
     case 'engagement_locked': {
       const name = p.professionalName ? String(p.professionalName) : null
       const phone = p.professionalPhone ? String(p.professionalPhone) : null
-      if (name && phone) return `אושר איש מקצוע · ${name} · ${phone}`
-      if (name) return `אושר איש מקצוע · ${name}`
-      return 'אושר איש מקצוע'
+      if (name && phone) {
+        return t('אושר איש מקצוע · {name} · {phone}', { name, phone })
+      }
+      if (name) return t('אושר איש מקצוע · {name}', { name })
+      return t('אושר איש מקצוע')
     }
     case 'engagement_cancelled':
-      return 'בוטל אישור איש מקצוע'
+      return t('בוטל אישור איש מקצוע')
     case 'store_handoff': {
       const line = typeof p.line === 'string' ? p.line : null
-      if (p.ok === false && line) return `WA לחנות — לא נמסר (${line})`
-      if (line) return `WA לחנות · ${line}`
-      return 'נשלח WA למנהל החנות'
+      if (p.ok === false && line) {
+        return t('WA לחנות — לא נמסר ({line})', { line })
+      }
+      if (line) return t('WA לחנות · {line}', { line })
+      return t('נשלח WA למנהל החנות')
     }
     case 'pro_sms': {
       const line = typeof p.line === 'string' ? p.line : null
-      if (p.ok === false && line) return `SMS לאיש מקצוע — לא נשלח (${line})`
-      return line || 'נשלח SMS לאיש מקצוע'
+      if (p.ok === false && line) {
+        return t('SMS לאיש מקצוע — לא נשלח ({line})', { line })
+      }
+      return line || t('נשלח SMS לאיש מקצוע')
     }
     case 'store_confirmed': {
       const by = p.by ? String(p.by) : null
-      return by ? `החנות אישרה תיקון · ${by}` : 'החנות אישרה תיקון'
+      return by ? t('החנות אישרה תיקון · {by}', { by }) : t('החנות אישרה תיקון')
     }
     case 'store_rejected':
-      return 'החנות דיווחה שהתקלה לא נפתרה'
+      return t('החנות דיווחה שהתקלה לא נפתרה')
     case 'urgent_changed':
       return p.urgent === true || p.to === true || p.to === 'true'
-        ? 'סומן כדחוף'
-        : 'סומן כלא דחוף'
+        ? t('סומן כדחוף')
+        : t('סומן כלא דחוף')
     case 'priority_changed':
-      return `דחיפות · ${urgencyHe(p.to) || String(p.to ?? '')}`
+      return `${t('דחיפות')} · ${urgencyHe(p.to, locale) || String(p.to ?? '')}`
     case 'hq_note':
     case 'note_added':
       return typeof p.note === 'string' && p.note.trim()
-        ? `הערת מוקד · ${p.note.trim().slice(0, 80)}`
-        : 'נוספה הערת מוקד'
+        ? t('הערת מוקד · {note}', { note: p.note.trim().slice(0, 80) })
+        : t('נוספה הערת מוקד')
     case 'tech_note':
       return typeof p.note === 'string' && p.note.trim()
-        ? `הערת טכנאי · ${p.note.trim().slice(0, 80)}`
-        : 'נוספה הערת טכנאי'
+        ? t('הערת טכנאי · {note}', { note: p.note.trim().slice(0, 80) })
+        : t('נוספה הערת טכנאי')
     case 'tech_photo':
     case 'photo_added':
-      return 'נוספה תמונה / תיעוד'
+      return t('נוספה תמונה / תיעוד')
     case 'service_visit_planned':
     case 'service_visit_created':
-      return 'תוכנן ביקור שירות'
+      return t('תוכנן ביקור שירות')
     case 'ari_manual_close':
-      return 'סגירה ידנית על ידי ארי'
+      return t('סגירה ידנית על ידי ארי')
     case 'resolve_override':
-      return 'סגירה ללא הוכחה (חריגה)'
+      return t('סגירה ללא הוכחה (חריגה)')
     case 'quality_hold_override':
-      return 'סגירה לפני תום החזקת איכות'
+      return t('סגירה לפני תום החזקת איכות')
     case 'repair_eta_set':
-      return 'עודכן מועד הגעה משוער'
+      return t('עודכן מועד הגעה משוער')
     case 'classification_corrected':
-      return 'תוקן סיווג התקלה'
+      return t('תוקן סיווג התקלה')
     case 'lifecycle_nudge':
-      return 'נשלחה תזכורת מחזור לחנות'
+      return t('נשלחה תזכורת מחזור לחנות')
     case 'unassigned_timeout_notified':
-      return 'תזכורת · תקלה בלי שיוך'
+      return t('תזכורת · תקלה בלי שיוך')
     default:
       return t(TICKET_EVENT_LABELS_HE[e.event_type] ?? e.event_type)
   }
 }
 
-function actorLabel(e: AuditEvent) {
+function actorLabel(e: AuditEvent, locale: Locale) {
   if (e.actor_name?.trim()) return e.actor_name.trim()
   const p =
     e.payload && typeof e.payload === 'object'
@@ -158,7 +167,7 @@ function actorLabel(e: AuditEvent) {
       : {}
   if (typeof p.approvedBy === 'string' && p.approvedBy.trim()) return p.approvedBy
   if (typeof p.by === 'string' && p.by.trim()) return p.by
-  if (!e.actor_id) return 'מערכת'
+  if (!e.actor_id) return phrase(locale, 'מערכת')
   if (e.actor_id.length <= 12) return e.actor_id
   return `${e.actor_id.slice(0, 8)}…`
 }
@@ -182,14 +191,14 @@ function fmtTime(iso: string) {
   }
 }
 
-function fmtDayLabel(iso: string) {
+function fmtDayLabel(iso: string, locale: Locale) {
   try {
     const d = parseISO(iso)
-    if (isSameDay(d, new Date())) return 'היום'
+    if (isSameDay(d, new Date())) return phrase(locale, 'היום')
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
-    if (isSameDay(d, yesterday)) return 'אתמול'
-    return format(d, 'EEEE d.M', { locale: he })
+    if (isSameDay(d, yesterday)) return phrase(locale, 'אתמול')
+    return format(d, 'EEEE d.M', { locale: locale === 'he' ? he : undefined })
   } catch {
     return iso
   }
@@ -223,7 +232,7 @@ export function ActivityLog({
       if (query.trim()) {
         const q = query.trim().toLowerCase()
         const hay =
-          `${e.ticket_display ?? ''} ${e.ticket_id} ${e.store_code ?? ''} ${e.store_name ?? ''} ${phraseEvent(e, locale)} ${actorLabel(e)}`.toLowerCase()
+          `${e.ticket_display ?? ''} ${e.ticket_id} ${e.store_code ?? ''} ${e.store_name ?? ''} ${phraseEvent(e, locale)} ${actorLabel(e, locale)}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -240,10 +249,10 @@ export function ActivityLog({
     }
     return Array.from(map.entries()).map(([key, items]) => ({
       key,
-      label: fmtDayLabel(items[0]!.created_at),
+      label: fmtDayLabel(items[0]!.created_at, locale),
       items,
     }))
-  }, [filtered])
+  }, [filtered, locale])
 
   const actionTotal = events.filter((e) => !NOISE_TYPES.has(e.event_type)).length
 
@@ -284,7 +293,9 @@ export function ActivityLog({
           >
             {p('הכל')}
             {slaCount > 0 ? (
-              <span className="t-num ms-1.5 opacity-70">+{slaCount} יעד</span>
+              <span className="t-num ms-1.5 opacity-70">
+                {p('+{n} יעד', { n: slaCount })}
+              </span>
             ) : null}
           </button>
         </div>
@@ -307,10 +318,12 @@ export function ActivityLog({
           title={mode === 'actions' ? p('אין פעולות עדיין') : p('אין אירועים')}
           description={
             query
-              ? 'נסו חיפוש אחר.'
+              ? p('נסו חיפוש אחר.')
               : mode === 'actions'
-                ? 'פתיחה, אישור, הודעות וסגירה יופיעו כאן. חריגות יעד ב«הכל».'
-                : 'ברגע שיש פעילות על תקלה — היא תופיע כאן.'
+                ? p(
+                    'פתיחה, אישור, הודעות וסגירה יופיעו כאן. חריגות יעד ב«הכל».',
+                  )
+                : p('ברגע שיש פעילות על תקלה — היא תופיע כאן.')
           }
         />
       ) : (
@@ -364,7 +377,7 @@ export function ActivityLog({
                             {phraseEvent(event, locale)}
                           </p>
                           <p className="t-caption mt-0.5 text-ink-3">
-                            {actorLabel(event)}
+                            {actorLabel(event, locale)}
                           </p>
                         </div>
                         <time

@@ -78,14 +78,16 @@ function VisitBarInner({
   const hasStoreId = storeIds.length === 1
   const canChoosePerson = selectedTickets.length > 0 && sameStore
   const canOpen = canChoosePerson && hasStoreId
-  const blockReason =
-    selectedTickets.length === 0
-      ? null
-      : storeCodes.length > 1 || storeIds.length > 1
-        ? 'בחרו תקלות מחנות אחת בלבד'
-        : !hasStoreId
-          ? 'לתקלות האלה חסר מזהה חנות — לא ניתן לתכנן ביקור'
-          : null
+  const blockReason = useMemo(() => {
+    if (selectedTickets.length === 0) return null
+    if (storeCodes.length > 1 || storeIds.length > 1) {
+      return p('בחרו תקלות מחנות אחת בלבד')
+    }
+    if (!hasStoreId) {
+      return p('לתקלות האלה חסר מזהה חנות — לא ניתן לתכנן ביקור')
+    }
+    return null
+  }, [selectedTickets.length, storeCodes.length, storeIds.length, hasStoreId, p])
 
   const suggestions = useMemo(() => {
     if (!selection || storeIds.length !== 1) return []
@@ -138,13 +140,13 @@ function VisitBarInner({
     retryTicketIds?: string[]
   }) {
     if (!canOpen || storeIds.length !== 1) {
-      throw new Error('יש לבחור תקלות מחנות אחת')
+      throw new Error(p('יש לבחור תקלות מחנות אחת'))
     }
     const ids =
       opts?.retryFailedOnly && plannedTicketIds.length > 0
         ? plannedTicketIds
         : planTicketIds()
-    if (ids.length === 0) throw new Error('אין תקלות לביקור')
+    if (ids.length === 0) throw new Error(p('אין תקלות לביקור'))
     setPlannedTicketIds(ids)
     const key = buildVisitIdempotencyKey({
       storeId: storeIds[0]!,
@@ -168,11 +170,11 @@ function VisitBarInner({
     const data = await res.json().catch(() => ({}))
     if (!res.ok && res.status !== 207) {
       throw new Error(
-        typeof data.error === 'string' ? data.error : 'תכנון הביקור נכשל',
+        typeof data.error === 'string' ? data.error : p('תכנון הביקור נכשל'),
       )
     }
     const visit = data.visit as VisitResult | undefined
-    if (!visit?.items) throw new Error('תשובה לא תקינה מהשרת')
+    if (!visit?.items) throw new Error(p('תשובה לא תקינה מהשרת'))
     return visit
   }
 
@@ -183,11 +185,12 @@ function VisitBarInner({
     amount: number
     scope: string
   }) {
-    let line = 'השליחה לחנות נכשלה'
+    let line = p('השליחה לחנות נכשלה')
     let ok = false
     if (!canOpen || storeIds.length !== 1) {
-      toast.push({ title: 'יש לבחור תקלות מחנות אחת', tone: 'critical' })
-      return { ok: false, line: 'יש לבחור תקלות מחנות אחת' }
+      const msg = p('יש לבחור תקלות מחנות אחת')
+      toast.push({ title: msg, tone: 'critical' })
+      return { ok: false, line: msg }
     }
     await run(async () => {
       try {
@@ -235,14 +238,14 @@ function VisitBarInner({
         const failed = visit.items.filter((i) => i.can_retry).length
         if (failed > 0) {
           toast.push({
-            title: `שיגור חלקי · ${failed} נכשלו`,
+            title: p('שיגור חלקי · {n} נכשלו', { n: failed }),
             tone: 'critical',
           })
         }
         startTransition(() => router.refresh())
       } catch (error) {
         toast.push({
-          title: error instanceof Error ? error.message : 'ניסיון חוזר נכשל',
+          title: error instanceof Error ? error.message : p('ניסיון חוזר נכשל'),
           tone: 'critical',
         })
       }
@@ -263,9 +266,10 @@ function VisitBarInner({
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--tenant-line)] bg-[var(--tenant-soft)] px-3 py-2.5 shadow-[var(--shadow-1)]">
           <div className="min-w-0 flex-1">
             <p className="t-body text-ink">
-              ביקור משולב · נבחרו{' '}
-              <span className="t-num font-semibold">{selectedTickets.length}</span>
-              {storeCodes[0] ? ` · חנות #${storeCodes[0]}` : ''}
+              {p('ביקור משולב · נבחרו {n}', { n: selectedTickets.length })}
+              {storeCodes[0]
+                ? ` · ${p('חנות #{code}', { code: storeCodes[0] })}`
+                : ''}
             </p>
             {blockReason ? (
               <p className="t-caption mt-0.5 text-[var(--signal-critical)]">
@@ -279,7 +283,7 @@ function VisitBarInner({
             size="sm"
             onClick={() => selection.clear()}
           >
-            נקה
+            {p('נקה')}
           </Button>
           <Button
             type="button"
@@ -293,7 +297,7 @@ function VisitBarInner({
             }}
           >
             <Truck className="h-3.5 w-3.5" aria-hidden />
-            תכנן ביקור
+            {p('תכנן ביקור')}
           </Button>
         </div>
       </div>
@@ -304,8 +308,12 @@ function VisitBarInner({
           setOpen(next)
           if (!next) setResult(null)
         }}
-        title="תכנון ביקור"
-        storeLabel={storeCodes[0] ? `חנות #${storeCodes[0]}` : 'חנות'}
+        title={p('תכנון ביקור')}
+        storeLabel={
+          storeCodes[0]
+            ? p('חנות #{code}', { code: storeCodes[0] })
+            : p('חנות')
+        }
         tickets={selectedTickets.map((t) => ({
           id: t.id,
           label: t.label,

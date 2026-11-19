@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { listTasks, resetOpsLedger } from '@/lib/data/ops-ledger'
 import { memListTickets } from '@/lib/data/memory-store'
-import { actForAri, parseDueAt, parseRepeatDays } from './agent-actions'
+import {
+  actForAri,
+  formatAriReplyWithLinks,
+  parseDueAt,
+  parseRepeatDays,
+} from './agent-actions'
 
 process.env.MAINTAINOS_FORCE_MEMORY = '1'
 
@@ -19,6 +24,26 @@ describe('actForAri', () => {
 
   it('ignores a question', async () => {
     expect(await actForAri({ message: 'איזה סניף הכי דחוף?' })).toBeNull()
+  })
+
+  it('opens home with a dashboard link', async () => {
+    const reply = await actForAri({ message: 'פתח את הבית' })
+    expect(reply?.reply).toContain('הבית')
+    expect(reply?.links[0]).toEqual({ href: '/ops/dashboard', label: 'הבית' })
+  })
+
+  it('opens the tickets queue from Hebrew', async () => {
+    const reply = await actForAri({ message: 'תפתח לי את התור' })
+    expect(reply?.links[0]?.href).toBe('/ops/tickets')
+  })
+
+  it('bakes absolute ops links into WhatsApp-ready text', () => {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://optical-center-rose.vercel.app'
+    const baked = formatAriReplyWithLinks('הנה הבית /ops/dashboard', [
+      { href: '/ops/dashboard', label: 'הבית' },
+    ])
+    expect(baked).toContain('https://optical-center-rose.vercel.app/ops/dashboard')
+    expect(baked).not.toMatch(/(^|\s)\/ops\/dashboard/)
   })
 
   it('writes a task, and a second copy of the same line stays one task', async () => {

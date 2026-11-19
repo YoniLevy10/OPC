@@ -8,7 +8,9 @@ import {
 } from '@/components/ui/primitives'
 import { OpsPageHero } from '@/components/ops/ops-page-hero'
 import { Button } from '@/components/ui/button'
+import { CopyActionButton } from '@/components/ui/copy-action-button'
 import { StatusLabel } from '@/components/ui/signal'
+import { TM } from '@/lib/toast-messages'
 import { EvidenceGrid } from '@/components/ui/evidence'
 import {
   normalizeTicketCategory,
@@ -23,6 +25,8 @@ import {
   mergeEvidence,
 } from '@/modules/tickets/attachments'
 import { EngagementPanel } from './engagement-panel'
+import { TicketEditCardButton } from './ticket-edit-card'
+import { TicketShareWaButton } from './ticket-share-wa'
 import { TicketDeleteButton } from '../ticket-delete-button'
 import { Tx } from '@/components/i18n/tx'
 import { Timeline } from '@/components/ui/timeline'
@@ -392,6 +396,27 @@ export default async function TicketDetailPage({
         ) : null}
 
         <Panel elevated className="max-md:p-3">
+          <div className="mb-2 flex flex-wrap justify-end gap-1">
+            {ticket.display_number || ticket.number != null ? (
+              <CopyActionButton
+                value={
+                  ticket.display_number?.trim() ||
+                  (ticket.number != null ? `OC-${ticket.number}` : '')
+                }
+                successMessage={TM.ticketNumberCopied}
+                label={p('העתק מספר')}
+                mode="label"
+                size="sm"
+              />
+            ) : null}
+            <TicketShareWaButton ticketId={ticket.id} />
+            <TicketEditCardButton
+              ticketId={ticket.id}
+              description={ticket.description || ticket.title || ''}
+              priority={priority}
+              category={normalizeTicketCategory(ticket.category)}
+            />
+          </div>
           <dl className="grid grid-cols-2 gap-2 md:block md:divide-y md:divide-border max-md:[&>*:last-child:nth-child(odd)]:col-span-2">
             <KeyValue phoneTile label={p('תאריך פתיחה')}>
               <span className="font-semibold text-ink">
@@ -427,7 +452,22 @@ export default async function TicketDetailPage({
               {call.professional ?? p('אחרי השיחה')}
             </KeyValue>
             <KeyValue phoneTile label={p('טלפון')}>
-              {call.phone ?? '—'}
+              {call.phone ? (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  <span className="t-num" dir="ltr">
+                    {call.phone}
+                  </span>
+                  <CopyActionButton
+                    value={call.phone}
+                    successMessage={TM.phoneCopied}
+                    mode="icon"
+                    ariaLabel={p('העתק טלפון')}
+                    size="sm"
+                  />
+                </span>
+              ) : (
+                '—'
+              )}
             </KeyValue>
             <KeyValue phoneTile label={p('מחיר שאושר')}>
               {call.approvedPrice != null ? formatIls(call.approvedPrice) : '—'}

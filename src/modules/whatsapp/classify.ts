@@ -75,12 +75,24 @@ export function isAriSender(waId: string): boolean {
   return deskDecisionPhones().some((phone) => phonesMatch(waId, phone))
 }
 
-/** The same three words work as a button title or as free text. */
+/** The same three words work as a button title or as free text (he / fr / en). */
 export function parseDeskDecision(text: string | null): DeskDecision | null {
   const value = text?.trim() || ''
   if (!value) return null
-  if (/לבקש מידע|צריך פרטים|מידע נוסף/.test(value)) return 'needs_info'
-  if (/לדחות|נדחה/.test(value)) return 'rejected'
-  if (/(?:^|\s)(?:לאשר|מאשר|אשר)(?:\s|$)/.test(value)) return 'approved'
+  if (
+    /לבקש מידע|צריך פרטים|מידע נוסף|demander (?:des )?infos?|besoin d['’]?infos?|need(?:s)? info|ask for info/i.test(
+      value,
+    )
+  ) {
+    return 'needs_info'
+  }
+  if (/לדחות|נדחה|refuser|rejeter|reject|deny/i.test(value)) return 'rejected'
+  if (
+    /(?:^|\s)(?:לאשר|מאשר|אשר)(?:\s|$)|(?:^|\s)(?:approuver|approuvé|approve|approved|ok)(?:\s|$)/i.test(
+      value,
+    )
+  ) {
+    return 'approved'
+  }
   return null
 }

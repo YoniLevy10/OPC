@@ -4,10 +4,12 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { MessageCircle, Pencil, Phone, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CopyActionButton } from '@/components/ui/copy-action-button'
 import { Input, Textarea } from '@/components/ui/input'
 import { PhoneList, PhoneSheet } from '@/components/mobile'
 import { useToast } from '@/components/ui/toast'
 import { usePhrase } from '@/components/i18n/locale-provider'
+import { TM } from '@/lib/toast-messages'
 import type { Professional } from '@/modules/professionals/types'
 import type { ProfessionalVisitRow } from '@/modules/engagements/service'
 import { ProfessionalHistoryButton } from './professional-history'
@@ -209,7 +211,7 @@ export function ProfessionalsBook({
       if (!res.ok) {
         throw new Error(data?.error || tx('העריכה נכשלה'))
       }
-      toast.push({ title: tx('איש המקצוע עודכן'), tone: 'success' })
+      toast.push({ title: TM.professionalUpdated, tone: 'success' })
       setEditing(null)
       startTransition(() => router.refresh())
     } catch {
@@ -240,7 +242,7 @@ export function ProfessionalsBook({
       if (!res.ok) {
         throw new Error(data?.error || tx('המחיקה נכשלה'))
       }
-      toast.push({ title: tx('איש המקצוע נמחק'), tone: 'success' })
+      toast.push({ title: TM.professionalDeleted, tone: 'success' })
       startTransition(() => router.refresh())
     } catch {
       toast.push({
@@ -319,23 +321,35 @@ export function ProfessionalsBook({
                   </Button>
                 ) : null}
                 {tel ? (
-                  <Button
-                    asChild
-                    variant="primary"
-                    size="sm"
-                    className="min-h-[44px]"
-                    disabled={busy}
-                  >
-                    <a
-                      href={tel}
-                      aria-label={`${tx('התקשר')} ${person.full_name}`}
-                      onClick={() => void touch(person.id)}
-                      className="inline-flex items-center gap-2"
+                  <>
+                    <Button
+                      asChild
+                      variant="primary"
+                      size="sm"
+                      className="min-h-[44px]"
+                      disabled={busy}
                     >
-                      <Phone className="h-3.5 w-3.5" aria-hidden />
-                      {tx('התקשר')}
-                    </a>
-                  </Button>
+                      <a
+                        href={tel}
+                        aria-label={`${tx('התקשר')} ${person.full_name}`}
+                        onClick={() => void touch(person.id)}
+                        className="inline-flex items-center gap-2"
+                      >
+                        <Phone className="h-3.5 w-3.5" aria-hidden />
+                        {tx('התקשר')}
+                      </a>
+                    </Button>
+                    {person.phone ? (
+                      <CopyActionButton
+                        value={person.phone}
+                        successMessage={TM.phoneCopied}
+                        mode="icon"
+                        ariaLabel={`${tx('העתק טלפון')} ${person.full_name}`}
+                        size="sm"
+                        disabled={busy}
+                      />
+                    ) : null}
+                  </>
                 ) : (
                   <span className={cn('t-caption text-ink-3')}>
                     {tx('אין טלפון')}

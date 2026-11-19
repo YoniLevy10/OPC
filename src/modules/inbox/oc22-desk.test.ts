@@ -140,6 +140,11 @@ describe('OC-22 desk: bot silence, media dry-run, forward pack', () => {
     ).toEqual({ ok: true, kind: 'document' })
     expect(
       classifyInboxOutboundFile(
+        new File([new Uint8Array([1])], 'a.webm', { type: 'audio/webm' }),
+      ),
+    ).toEqual({ ok: true, kind: 'audio' })
+    expect(
+      classifyInboxOutboundFile(
         new File([new Uint8Array([1])], 'a.txt', { type: 'text/plain' }),
       ).ok,
     ).toBe(false)

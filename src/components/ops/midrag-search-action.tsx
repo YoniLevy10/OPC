@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BottomSheet } from '@/components/ui/overlay'
 import { useToast } from '@/components/ui/toast'
+import { TM } from '@/lib/toast-messages'
 import {
   buildMidragResultsUrl,
   midragCityMatchForCity,
@@ -116,7 +117,7 @@ export function MidragSearchAction({
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'שמירה נכשלה')
-      toast.push({ title: 'איש מקצוע נשמר בספר', tone: 'success' })
+      toast.push({ title: TM.professionalBooked, tone: 'success' })
       setSaveName('')
       setSavePhone('')
       onSaved?.()

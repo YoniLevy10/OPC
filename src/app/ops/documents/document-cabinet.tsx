@@ -64,7 +64,7 @@ export function DocumentCabinet({
   const p: PhraseFn = (text, vars) => phrase(locale, text, vars)
   const byId = new Map(files.map((file) => [file.id, file]))
   const filesOnDisk = certificateIds()
-  const folders = groupByStore(preferStoredFiles(documents))
+  const folders = groupByStore(preferStoredFiles(documents), locale)
 
   return (
     <ListFinder
@@ -263,15 +263,15 @@ function Paper({
             name="title"
             defaultValue={doc.title?.trim() || title}
             maxLength={80}
-            aria-label={`שם המסמך ${title}`}
-            placeholder="שם שנוח לארי"
+            aria-label={p('שם המסמך {title}', { title })}
+            placeholder={p('שם שנוח לארי')}
           />
           <Button
             type="submit"
             size="sm"
             className="w-8 px-0"
-            aria-label={`שמור שם ${title}`}
-            title="שמור שם"
+            aria-label={p('שמור שם {title}', { title })}
+            title={p('שמור שם')}
           >
             <Pencil className="h-4 w-4" aria-hidden />
           </Button>
@@ -280,7 +280,7 @@ function Paper({
           <Button asChild size="sm">
             <a href={fileHref} target="_blank" rel="noreferrer">
               {p('פתח את המסמך')}
-              <span className="sr-only">, נפתח בלשונית חדשה</span>
+              <span className="sr-only">{p(', נפתח בלשונית חדשה')}</span>
             </a>
           </Button>
         ) : null}
@@ -333,7 +333,7 @@ function Paper({
             required
             defaultValue={expiry ? expiry.slice(0, 10) : undefined}
           />
-          <Button type="submit" size="sm" aria-label={`שמור תוקף ${title}`} className="max-md:w-full">
+          <Button type="submit" size="sm" aria-label={p('שמור תוקף {title}', { title })} className="max-md:w-full">
             {p('שמור')}
           </Button>
         </form>
@@ -354,24 +354,26 @@ function Paper({
             <input type="hidden" name="documentId" value={doc.id} />
             <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
               <label className="grid min-w-0 gap-1">
-                <span className="t-caption text-ink-2">העלאת PDF</span>
+                <span className="t-caption text-ink-2">{p('העלאת PDF')}</span>
                 <input
                   className="field-text w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-foreground"
                   type="file"
                   name="renewalFile"
                   accept="application/pdf,.pdf"
-                  aria-label="העלה מסמך מחודש"
+                  aria-label={p('העלה מסמך מחודש')}
                 />
               </label>
               <label className="grid min-w-0 gap-1">
-                <span className="t-caption text-ink-2">או קישור למסמך</span>
-                <Input name="sourceUrl" placeholder="הדביקו קישור מעודכן" aria-label="קישור למסמך המעודכן" dir="ltr" />
+                <span className="t-caption text-ink-2">{p('או קישור למסמך')}</span>
+                <Input name="sourceUrl" placeholder={p('הדביקו קישור מעודכן')} aria-label={p('קישור למסמך המעודכן')} dir="ltr" />
               </label>
             </div>
-            <p className="t-caption text-ink-3">אפשר לבחור או לגרור PDF, או להדביק קישור למסמך המעודכן.</p>
-            <Input name="expiry" type="date" aria-label="תוקף חדש" />
+            <p className="t-caption text-ink-3">
+              {p('אפשר לבחור או לגרור PDF, או להדביק קישור למסמך המעודכן.')}
+            </p>
+            <Input name="expiry" type="date" aria-label={p('תוקף חדש')} />
             <Button type="submit" size="sm">
-              חידוש ושמירה בתיקיית המסמכים
+              {p('חידוש ושמירה בתיקיית המסמכים')}
             </Button>
           </form>
         </details>
@@ -416,21 +418,22 @@ function ReminderMenu({
   return (
     <details className="doc-reminders">
       <summary>
-        {stage === 'month' ? 'תזכורת חודש מראש' : 'תזכורת'}
+        {stage === 'month' ? p('תזכורת חודש מראש') : p('תזכורת')}
       </summary>
       <form action={setDocumentRemindersAction} className="doc-reminder-form">
         <input type="hidden" name="documentId" value={doc.id} />
         <ReminderField
           id={doc.id}
-          label="חודש לפני"
+          label={p('חודש לפני')}
           name="month"
           value={month}
           title={title}
+          p={p}
         />
         {doc.extractedExpiry ? (
-          <p className="doc-reminder-empty">שדה ריק חוזר לחישוב לפי תאריך התוקף (חודש לפני).</p>
+          <p className="doc-reminder-empty">{p('שדה ריק חוזר לחישוב לפי תאריך התוקף (חודש לפני).')}</p>
         ) : null}
-        <Button type="submit" size="sm" aria-label={`שמור תזכורות ${title}`} className="max-md:w-full">
+        <Button type="submit" size="sm" aria-label={p('שמור תזכורות {title}', { title })} className="max-md:w-full">
           {p('שמור')}
         </Button>
       </form>
@@ -444,12 +447,14 @@ function ReminderField({
   name,
   value,
   title,
+  p,
 }: {
   id: string
   label: string
   name: string
   value: string | undefined
   title: string
+  p: PhraseFn
 }) {
   const reached = value ? new Date(value).getTime() <= Date.now() : false
   const fieldId = `${name}-${id}`
@@ -457,7 +462,7 @@ function ReminderField({
     <div className="doc-reminder-row">
       <label htmlFor={fieldId}>
         {label}
-        {reached ? <span className="doc-reminder-flag"> · הגיעה</span> : null}
+        {reached ? <span className="doc-reminder-flag">{p('· הגיעה')}</span> : null}
       </label>
       <input
         id={fieldId}
@@ -486,11 +491,11 @@ export function preferStoredFiles(documents: StoreDocument[]): StoreDocument[] {
   })
 }
 
-function groupByStore(documents: StoreDocument[]): Folder[] {
+function groupByStore(documents: StoreDocument[], locale: Locale): Folder[] {
   const map = new Map<string, Folder>()
   for (const doc of documents) {
     const code = doc.storeCode?.trim() ?? ''
-    const name = doc.storeName?.trim() || 'בלי סניף'
+    const name = doc.storeName?.trim() || phrase(locale, 'בלי סניף')
     const key = code || `unassigned:${name}`
     const normalized: StoreDocument = {
       ...doc,

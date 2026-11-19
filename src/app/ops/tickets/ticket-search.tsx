@@ -4,8 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { SearchField } from '@/components/ui/input'
 import { queueHref, parseQueueParams } from '@/modules/tickets/queue'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export function TicketSearch({ initialQ }: { initialQ: string }) {
+  const p = usePhrase()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
@@ -34,7 +36,7 @@ export function TicketSearch({ initialQ }: { initialQ: string }) {
     <SearchField
       value={q}
       onValueChange={setQ}
-      placeholder="חיפוש תקלה, חנות, מספר…"
+      placeholder={p('חיפוש תקלה, חנות, מספר…')}
       autoFocusKey="/"
       className="w-full"
     />

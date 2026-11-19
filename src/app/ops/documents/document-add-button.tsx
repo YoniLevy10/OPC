@@ -90,8 +90,8 @@ export function DocumentAddButton() {
           setOpen(next)
           if (!next) reset()
         }}
-        title="הבאת מסמך"
-        description="שייכו לסניף, בחרו קטגוריה, וציינו תאריך פג תוקף."
+        title={p('הבאת מסמך')}
+        description={p('שייכו לסניף, בחרו קטגוריה, וציינו תאריך פג תוקף.')}
       >
         <form onSubmit={onSubmit} className="grid gap-3" encType="multipart/form-data">
           <Field label={p('סניף')} htmlFor="add-doc-store">

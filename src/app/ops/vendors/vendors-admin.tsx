@@ -70,19 +70,20 @@ function reachLinks(phone: string | null) {
 }
 
 function VendorReach({ vendor }: { vendor: VendorRow }) {
+  const p = usePhrase()
   const links = reachLinks(vendor.contact_phone)
   if (!links) {
-    return <span className="t-caption text-ink-3">אין טלפון</span>
+    return <span className="t-caption text-ink-3">{p('אין טלפון')}</span>
   }
   const icon =
     'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-ink hover:bg-surface-sunken'
   return (
     <span className="inline-flex items-center gap-2 whitespace-nowrap">
       <span dir="ltr" className="t-meta text-ink">{links.label}</span>
-      <a href={links.wa} target="_blank" rel="noreferrer" aria-label={`וואטסאפ אל ${vendor.name}`} className={icon}>
+      <a href={links.wa} target="_blank" rel="noreferrer" aria-label={p('וואטסאפ אל {name}', { name: vendor.name })} className={icon}>
         <MessageCircle className="h-4 w-4" aria-hidden />
       </a>
-      <a href={links.tel} aria-label={`התקשר אל ${vendor.name}`} className={icon}>
+      <a href={links.tel} aria-label={p('התקשר אל {name}', { name: vendor.name })} className={icon}>
         <Phone className="h-4 w-4" aria-hidden />
       </a>
     </span>
@@ -144,12 +145,12 @@ export function VendorsAdmin({
       const notes = formatPersonalRating(rating, personalNote)
       const response = await fetch(`/api/vendors/${editingVendor.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes }) })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'השמירה נכשלה')
+      if (!response.ok) throw new Error(data.error || p('השמירה נכשלה'))
       setEditingVendor(null)
-      setNotice('פרטי הספק נשמרו')
+      setNotice(p('פרטי הספק נשמרו'))
       await load()
     } catch {
-      setError('השמירה נכשלה')
+      setError(p('השמירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -166,27 +167,31 @@ export function VendorsAdmin({
         body: JSON.stringify({ notes }),
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'השמירה נכשלה')
-      setNotice('הדירוג וההערה נשמרו')
+      if (!response.ok) throw new Error(data.error || p('השמירה נכשלה'))
+      setNotice(p('הדירוג וההערה נשמרו'))
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'השמירה נכשלה')
+      setError(err instanceof Error ? err.message : p('השמירה נכשלה'))
     } finally {
       setBusy(false)
     }
   }
 
   async function deleteVendor() {
-    if (!editingVendor || !window.confirm(`למחוק את ${editingVendor.name}?`)) return
+    if (
+      !editingVendor ||
+      !window.confirm(p('למחוק את {name}?', { name: editingVendor.name }))
+    )
+      return
     setBusy(true)
     try {
       const response = await fetch(`/api/vendors/${editingVendor.id}`, { method: 'DELETE' })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'המחיקה נכשלה')
+      if (!response.ok) throw new Error(data.error || p('המחיקה נכשלה'))
       setEditingVendor(null)
-      setNotice('הספק נמחק')
+      setNotice(p('הספק נמחק'))
       await load()
-    } catch (err) { setError(err instanceof Error ? err.message : 'המחיקה נכשלה') } finally { setBusy(false) }
+    } catch (err) { setError(err instanceof Error ? err.message : p('המחיקה נכשלה')) } finally { setBusy(false) }
   }
 
   const [dispatchTicketId, setDispatchTicketId] = useState('')
@@ -200,7 +205,7 @@ export function VendorsAdmin({
     try {
       const res = await fetch('/api/vendors')
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'טעינה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
       const next = (json.vendors ?? []) as VendorRow[]
       setVendors((prev) => {
         const statsById = new Map(prev.map((v) => [v.id, v]))
@@ -218,11 +223,11 @@ export function VendorsAdmin({
         setDispatchVendorId(next.find((v) => v.active)?.id ?? next[0].id)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה')
+      setError(err instanceof Error ? err.message : p('טעינה נכשלה'))
     } finally {
       setLoading(false)
     }
-  }, [dispatchVendorId])
+  }, [dispatchVendorId, p])
 
   useEffect(() => {
     if (initialVendors) return
@@ -272,13 +277,13 @@ export function VendorsAdmin({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'יצירה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('יצירה נכשלה'))
       resetCreate()
       setCreateOpen(false)
-      setNotice('הספק נוסף')
+      setNotice(p('הספק נוסף'))
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'יצירה נכשלה')
+      setError(err instanceof Error ? err.message : p('יצירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -302,12 +307,16 @@ export function VendorsAdmin({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'שליחה נכשלה')
-      setNotice(`שיגור לספק בוצע · סטטוס ${json.dispatch?.status ?? 'ok'}`)
+      if (!res.ok) throw new Error(json.error || p('שליחה נכשלה'))
+      setNotice(
+        p('שיגור לספק בוצע · סטטוס {status}', {
+          status: String(json.dispatch?.status ?? 'ok'),
+        }),
+      )
       setDispatchTicketId('')
       setDispatchOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שליחה נכשלה')
+      setError(err instanceof Error ? err.message : p('שליחה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -320,14 +329,14 @@ export function VendorsAdmin({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="תחום" htmlFor="vendor-cat-filter">
+          <Field label={p('תחום')} htmlFor="vendor-cat-filter">
             <Select
               id="vendor-cat-filter"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="min-w-[9rem]"
             >
-              <option value="">כל התחומים</option>
+              <option value="">{p('כל התחומים')}</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {specialtyLabel(c)}
@@ -335,16 +344,16 @@ export function VendorsAdmin({
               ))}
             </Select>
           </Field>
-          <Field label="סטטוס" htmlFor="vendor-status-filter">
+          <Field label={p('סטטוס')} htmlFor="vendor-status-filter">
             <Select
               id="vendor-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="min-w-[8rem]"
             >
-              <option value="">הכל</option>
-              <option value="active">פעיל</option>
-              <option value="inactive">לא פעיל</option>
+              <option value="">{p('הכל')}</option>
+              <option value="active">{p('פעיל')}</option>
+              <option value="inactive">{p('לא פעיל')}</option>
             </Select>
           </Field>
         </div>
@@ -370,15 +379,17 @@ export function VendorsAdmin({
         </div>
       </div>
 
-      <p className="t-meta t-num text-ink-3">{filtered.length} ספקים</p>
+      <p className="t-meta t-num text-ink-3">
+        {p('{n} ספקים', { n: filtered.length })}
+      </p>
 
       {dispatchOpen ? (
         <Panel elevated className="!p-4">
           <p className="t-caption mb-3 text-ink-3">
-            כלי מתקדם · שיגור תקלה לספק חיצוני
+            {p('כלי מתקדם · שיגור תקלה לספק חיצוני')}
           </p>
           <form onSubmit={onDispatch} className="grid gap-3 sm:grid-cols-2">
-            <Field label="מזהה תקלה" htmlFor="dispatch-ticket">
+            <Field label={p('מזהה תקלה')} htmlFor="dispatch-ticket">
               <Input
                 id="dispatch-ticket"
                 value={dispatchTicketId}
@@ -388,7 +399,7 @@ export function VendorsAdmin({
                 required
               />
             </Field>
-            <Field label="ספק" htmlFor="dispatch-vendor">
+            <Field label={p('ספק')} htmlFor="dispatch-vendor">
               <Select
                 id="dispatch-vendor"
                 value={dispatchVendorId}
@@ -405,7 +416,7 @@ export function VendorsAdmin({
             </Field>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
               <Button type="submit" variant="secondary" size="sm" disabled={busy || !dispatchTicketId}>
-                שיגור
+                {p('שיגור')}
               </Button>
               <Button
                 type="button"
@@ -413,24 +424,24 @@ export function VendorsAdmin({
                 size="sm"
                 onClick={() => setDispatchOpen(false)}
               >
-                סגירה
+                {p('סגירה')}
               </Button>
             </div>
           </form>
         </Panel>
       ) : null}
 
-      <Modal open={editingVendor != null} onOpenChange={(open) => { if (!open) setEditingVendor(null) }} title="עריכת ספק" description="דירוג אישי והערה פנימית" className="w-[min(92vw,520px)]">
+      <Modal open={editingVendor != null} onOpenChange={(open) => { if (!open) setEditingVendor(null) }} title={p('עריכת ספק')} description={p('דירוג אישי והערה פנימית')} className="w-[min(92vw,520px)]">
         <div className="grid gap-4">
           <div>
-            <p className="t-meta mb-2 text-ink-2">דירוג אישי</p>
-            <div className="flex gap-2" role="radiogroup" aria-label="דירוג ספק">
-              {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" role="radio" aria-checked={rating === value} aria-label={`${value} כוכבים`} onClick={() => setRating(value)} className="rounded-md p-1 text-[var(--tenant)]"><Star className="h-7 w-7" fill={rating >= value ? 'currentColor' : 'none'} aria-hidden /></button>)}
+            <p className="t-meta mb-2 text-ink-2">{p('דירוג אישי')}</p>
+            <div className="flex gap-2" role="radiogroup" aria-label={p('דירוג ספק')}>
+              {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" role="radio" aria-checked={rating === value} aria-label={p('{n} כוכבים', { n: value })} onClick={() => setRating(value)} className="rounded-md p-1 text-[var(--tenant)]"><Star className="h-7 w-7" fill={rating >= value ? 'currentColor' : 'none'} aria-hidden /></button>)}
             </div>
           </div>
-          <Field label="הערה אישית שלי" htmlFor="vendor-personal-note"><Textarea id="vendor-personal-note" rows={4} value={personalNote} onChange={(event) => setPersonalNote(event.target.value)} placeholder="רשמו הערה פנימית על העבודה עם הספק…" /></Field>
-          <Button type="button" variant="primary" disabled={busy} onClick={() => void saveVendorEdit()}>שמירת העריכה</Button>
-          <Button type="button" variant="critical" disabled={busy} onClick={() => void deleteVendor()}><Trash2 className="h-4 w-4" aria-hidden /> מחיקת ספק</Button>
+          <Field label={p('הערה אישית שלי')} htmlFor="vendor-personal-note"><Textarea id="vendor-personal-note" rows={4} value={personalNote} onChange={(event) => setPersonalNote(event.target.value)} placeholder={p('רשמו הערה פנימית על העבודה עם הספק…')} /></Field>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => void saveVendorEdit()}>{p('שמירת העריכה')}</Button>
+          <Button type="button" variant="critical" disabled={busy} onClick={() => void deleteVendor()}><Trash2 className="h-4 w-4" aria-hidden />{p('מחיקת ספק')}</Button>
         </div>
       </Modal>
 
@@ -441,13 +452,13 @@ export function VendorsAdmin({
           if (!next) resetCreate()
         }}
         title={p('ספק חדש')}
-        description="פרטי ספק · יצירת קשר · הערות"
+        description={p('פרטי ספק · יצירת קשר · הערות')}
         className="w-[min(92vw,520px)]"
       >
         <form onSubmit={onCreate} className="space-y-5">
           <section className="space-y-3">
-            <h3 className="t-caption text-ink-3">פרטי ספק</h3>
-            <Field label="שם" htmlFor="vendor-name">
+            <h3 className="t-caption text-ink-3">{p('פרטי ספק')}</h3>
+            <Field label={p('שם')} htmlFor="vendor-name">
               <Input
                 id="vendor-name"
                 value={name}
@@ -456,7 +467,7 @@ export function VendorsAdmin({
                 autoFocus
               />
             </Field>
-            <Field label="תחום / התמחות" htmlFor="vendor-spec">
+            <Field label={p('תחום / התמחות')} htmlFor="vendor-spec">
               <Select
                 id="vendor-spec"
                 value={specialties}
@@ -472,9 +483,9 @@ export function VendorsAdmin({
           </section>
 
           <section className="space-y-3 border-t border-border pt-4">
-            <h3 className="t-caption text-ink-3">יצירת קשר</h3>
+            <h3 className="t-caption text-ink-3">{p('יצירת קשר')}</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="טלפון" htmlFor="vendor-phone">
+              <Field label={p('טלפון')} htmlFor="vendor-phone">
                 <Input
                   id="vendor-phone"
                   value={phone}
@@ -482,7 +493,7 @@ export function VendorsAdmin({
                   dir="ltr"
                 />
               </Field>
-              <Field label="אימייל" htmlFor="vendor-email">
+              <Field label={p('אימייל')} htmlFor="vendor-email">
                 <Input
                   id="vendor-email"
                   value={email}
@@ -494,20 +505,20 @@ export function VendorsAdmin({
           </section>
 
           <section className="space-y-3 border-t border-border pt-4">
-            <h3 className="t-caption text-ink-3">הערות</h3>
-            <Field label="הערות פנימיות" htmlFor="vendor-notes" hint="אופציונלי">
+            <h3 className="t-caption text-ink-3">{p('הערות')}</h3>
+            <Field label={p('הערות פנימיות')} htmlFor="vendor-notes" hint={p('אופציונלי')}>
               <Textarea
                 id="vendor-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                placeholder="הערות לצוות התפעול…"
+                placeholder={p('הערות לצוות התפעול…')}
               />
             </Field>
             <Field
-              label="כתובת Webhook"
+              label={p('כתובת Webhook')}
               htmlFor="vendor-webhook"
-              hint="אופציונלי · לשיגור אוטומטי"
+              hint={p('אופציונלי · לשיגור אוטומטי')}
             >
               <Input
                 id="vendor-webhook"
@@ -530,10 +541,10 @@ export function VendorsAdmin({
                 resetCreate()
               }}
             >
-              ביטול
+              {p('ביטול')}
             </Button>
             <Button type="submit" variant="primary" size="sm" disabled={busy || !name.trim()}>
-              {busy ? 'שומר…' : 'הוספה'}
+              {busy ? p('שומר…') : p('הוספה')}
             </Button>
           </div>
         </form>
@@ -541,14 +552,14 @@ export function VendorsAdmin({
 
       <Panel flush elevated className="overflow-hidden">
         {loading ? (
-          <p className="t-body p-4 text-ink-3">טוען…</p>
+          <p className="t-body p-4 text-ink-3">{p('טוען…')}</p>
         ) : filtered.length === 0 ? (
           <EmptyState
-            title="אין ספקים"
+            title={p('אין ספקים')}
             description={
               categoryFilter || statusFilter
-                ? 'נסו לשנות את הסינון.'
-                : 'הוסיפו ספק חיצוני לשיגור תקלות.'
+                ? p('נסו לשנות את הסינון.')
+                : p('הוסיפו ספק חיצוני לשיגור תקלות.')
             }
           />
         ) : (
@@ -576,11 +587,11 @@ export function VendorsAdmin({
                             {v.name}
                             {v.preferred ? (
                               <span className="t-caption ms-2 text-[var(--signal-resolved)]">
-                                מועדף
+                                {p('מועדף')}
                               </span>
                             ) : null}
                             {!v.active ? (
-                              <span className="t-caption ms-2 text-ink-3">לא פעיל</span>
+                              <span className="t-caption ms-2 text-ink-3">{p('לא פעיל')}</span>
                             ) : null}
                           </span>
                         </button>
@@ -597,11 +608,11 @@ export function VendorsAdmin({
                         <p className="t-meta text-ink-2">
                           {v.coverage_regions?.length
                             ? v.coverage_regions.join(', ')
-                            : 'בלי כיסוי'}
+                            : p('בלי כיסוי')}
                           {' · '}
                           {v.open_tickets} {p('פתוחות')}
                         </p>
-                        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => editVendor(v)}><Pencil className="h-4 w-4" aria-hidden /> עריכה</Button>
+                        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => editVendor(v)}><Pencil className="h-4 w-4" aria-hidden />{p('עריכה')}</Button>
                         <VendorExpand v={v} onSave={saveVendorDetails} busy={busy} />
                       </div>
                     ) : null}
@@ -613,11 +624,11 @@ export function VendorsAdmin({
             <div className="hidden overflow-x-auto md:block">
               <Table>
                 <THead>
-                  <TH>שם</TH>
-                  <TH>תחום</TH>
-                  <TH>יצירת קשר</TH>
+                  <TH>{p('שם')}</TH>
+                  <TH>{p('תחום')}</TH>
+                  <TH>{p('יצירת קשר')}</TH>
                   <TH>{p('פתוחות')}</TH>
-                  <TH className="w-[120px]">פעולות</TH>
+                  <TH className="w-[120px]">{p('פעולות')}</TH>
                 </THead>
                 <TBody>
                   {filtered.map((v) => {
@@ -640,7 +651,7 @@ export function VendorsAdmin({
                               />
                               <span className="t-body-strong text-ink">{v.name}</span>
                               {!v.active ? (
-                                <span className="t-caption text-ink-3">לא פעיל</span>
+                                <span className="t-caption text-ink-3">{p('לא פעיל')}</span>
                               ) : null}
                             </button>
                           </TD>
@@ -665,7 +676,7 @@ export function VendorsAdmin({
                               disabled={busy}
                               onClick={() => editVendor(v)}
                             >
-                              עריכה
+                              {p('עריכה')}
                             </Button>
                           </TD>
                         </TR>
@@ -701,6 +712,7 @@ function VendorExpand({
   onSave: (vendor: VendorRow, rating: number, note: string) => Promise<void>
   busy: boolean
 }) {
+  const p = usePhrase()
   const parsed = parsePersonalRating(v.notes)
   const [rating, setRating] = useState(parsed.rating)
   const [note, setNote] = useState(parsed.note)
@@ -708,15 +720,15 @@ function VendorExpand({
   return (
     <div className="grid gap-4 px-4 py-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(20rem,1.4fr)_minmax(14rem,1fr)]">
       <section className="grid gap-2">
-        <p className="t-caption text-ink-3">דירוג והערה אישית</p>
-        <div className="flex gap-2" role="radiogroup" aria-label={`דירוג ספק ${v.name}`}>
+        <p className="t-caption text-ink-3">{p('דירוג והערה אישית')}</p>
+        <div className="flex gap-2" role="radiogroup" aria-label={p('דירוג ספק {name}', { name: v.name })}>
           {[1, 2, 3, 4, 5].map((value) => (
             <button
               key={value}
               type="button"
               role="radio"
               aria-checked={rating === value}
-              aria-label={`${value} כוכבים`}
+              aria-label={p('{n} כוכבים', { n: value })}
               onClick={() => setRating(rating === value ? 0 : value)}
               className="rounded-md p-1 text-[var(--tenant)] hover:bg-surface"
             >
@@ -725,21 +737,21 @@ function VendorExpand({
           ))}
         </div>
         <Textarea
-          aria-label={`הערה אישית על ${v.name}`}
+          aria-label={p('הערה אישית על {name}', { name: v.name })}
           rows={2}
           value={note}
           onChange={(event) => setNote(event.target.value)}
-          placeholder="הערה פנימית על העבודה עם הספק…"
+          placeholder={p('הערה פנימית על העבודה עם הספק…')}
         />
         <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void onSave(v, rating, note)}>
-          שמירת דירוג והערה
+          {p('שמירת דירוג והערה')}
         </Button>
       </section>
 
       <section className="grid gap-2">
-        <p className="t-caption text-ink-3">היסטוריית שיגורים אחרונה</p>
+        <p className="t-caption text-ink-3">{p('היסטוריית שיגורים אחרונה')}</p>
         {v.recent.length === 0 ? (
-          <p className="t-meta text-ink-3">אין שיגורים עדיין</p>
+          <p className="t-meta text-ink-3">{p('אין שיגורים עדיין')}</p>
         ) : (
           <ul className="space-y-1.5">
             {v.recent.slice(0, 5).map((r) => (
@@ -756,11 +768,11 @@ function VendorExpand({
       </section>
 
       <details className="t-caption self-start text-ink-3">
-        <summary className="cursor-pointer hover:text-ink-2">פרטים טכניים</summary>
+        <summary className="cursor-pointer hover:text-ink-2">{p('פרטים טכניים')}</summary>
         <dl className="mt-2 grid gap-1">
           <div>
             <dt className="text-ink-3">HMAC</dt>
-            <dd className="t-meta text-ink-2">{v.has_hmac ? 'מוגדר' : 'לא הוגדר'}</dd>
+            <dd className="t-meta text-ink-2">{v.has_hmac ? p('מוגדר') : p('לא הוגדר')}</dd>
           </div>
           <div>
             <dt className="text-ink-3">Webhook</dt>

@@ -318,14 +318,14 @@ export default async function ApprovalsPage({
             </div>
             <form action={reviseSpendAction} className="mt-2 flex flex-wrap gap-2">
               <input type="hidden" name="id" value={spend.id} />
-              <Input name="amount" type="number" defaultValue={spend.requestedAmount} aria-label="סכום" />
-              <Input name="vendor" defaultValue={spend.vendorName ?? ''} aria-label="ספק" />
-              <Input name="scope" defaultValue={spend.scope ?? ''} aria-label="היקף" />
+              <Input name="amount" type="number" defaultValue={spend.requestedAmount} aria-label={p('סכום')} />
+              <Input name="vendor" defaultValue={spend.vendorName ?? ''} aria-label={p('ספק')} />
+              <Input name="scope" defaultValue={spend.scope ?? ''} aria-label={p('היקף')} />
               <Button type="submit" size="sm">{tx('approvals.revise')}</Button>
             </form>
             <form action={actualSpendAction} className="mt-2 flex gap-2">
               <input type="hidden" name="id" value={spend.id} />
-              <Input name="actual" type="number" placeholder="עלות בפועל" aria-label="עלות בפועל" />
+              <Input name="actual" type="number" placeholder={p('עלות בפועל')} aria-label={p('עלות בפועל')} />
               <Button type="submit" size="sm">{tx('approvals.invoice')}</Button>
             </form>
           </Panel>

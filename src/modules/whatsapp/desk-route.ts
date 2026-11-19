@@ -8,24 +8,27 @@ import {
 } from '@/lib/data/ops-ledger'
 import type { SpendRequest } from '@/modules/spend/policy'
 import { expiryFromText } from '@/modules/drive/import'
-import type { StoreDocument } from '@/modules/documents/rules'
 import { ISRAEL_STORES, israelStoreId } from '@/modules/stores/israel-stores'
 import { canExecuteSpend } from '@/modules/spend/policy'
 import { getPublicAppUrl } from '@/lib/auth/app-url'
 import { logEvent } from '@/lib/logging'
 import { notifyAri } from '@/modules/notify/ari'
 import { replyToAri } from '@/modules/ops/agent-chat'
+import { formatAriReplyWithLinks } from '@/modules/ops/agent-actions'
 import {
   recentAriWaTurns,
   rememberAriWaExchange,
 } from '@/modules/ops/agent-wa-memory'
 import { sendWhatsAppAudio } from '@/modules/whatsapp/send'
-import { synthesizeHebrew, withVoiceOutcome } from '@/modules/whatsapp/speech'
+import { synthesizeSpeech, withVoiceOutcome } from '@/modules/whatsapp/speech'
 import {
   findTicketAwaitingAri,
   lockEngagement,
 } from '@/modules/engagements/service'
 import { parseEngagementApproval } from '@/modules/engagements/parse'
+import { reportLanguage } from '@/modules/whatsapp/spoken-language'
+import type { Locale } from '@/lib/i18n/locale'
+import { phrase } from '@/lib/i18n/phrases'
 import {
   classifyInbound,
   isAriSender,
@@ -101,56 +104,59 @@ function ariNote(headline: string, store: string, missing: string | null): strin
 async function applyAriDecision(
   decision: DeskDecision,
   text: string | null,
+  locale: Locale,
 ): Promise<DeskRouteResult> {
+  const p = (he: string, vars?: Record<string, string | number>) => phrase(locale, he, vars)
   const waiting = await findTicketAwaitingAri().catch(() => null)
   if (!waiting) {
     return {
-      reply: 'אין תקלה דחופה שמחכה לאישור.',
+      reply: p('אין תקלה דחופה שמחכה לאישור.'),
       storeReply: null,
     }
   }
-  const place = waiting.stores?.name || waiting.stores?.code || 'הסניף'
+  const place = waiting.stores?.name || waiting.stores?.code || p('הסניף')
   if (decision === 'rejected') {
     return {
-      reply: `התקלה ב${place} נשארת אצלך. לא ננעל מחיר.`,
+      reply: p('התקלה ב{place} נשארת אצלך. לא ננעל מחיר.', { place }),
       storeReply: null,
     }
   }
   if (decision === 'needs_info') {
     return {
-      reply: `על ${place} חסר טלפון. כתוב: אשר 0501234567 שם (מחיר אופציונלי).`,
+      reply: p('על {place} חסר טלפון. כתוב: אשר 0501234567 שם (מחיר אופציונלי).', { place }),
       storeReply: null,
     }
   }
   const parsed = parseEngagementApproval(text ?? '')
   if (!parsed.phone) {
-    const missing = [
-      parsed.phone == null ? 'טלפון' : null,
-    ]
-      .filter(Boolean)
-      .join(' ו')
+    const missing = p('טלפון')
     return {
-      reply: `על ${place} חסר ${missing}. כתוב: אשר 0501234567 שם (מחיר אופציונלי).`,
+      reply: p('על {place} חסר {missing}. כתוב: אשר 0501234567 שם (מחיר אופציונלי).', {
+        place,
+        missing,
+      }),
       storeReply: null,
     }
   }
   try {
     const locked = await lockEngagement({
       ticketId: waiting.id,
-      professionalName: parsed.name || 'איש מקצוע',
+      professionalName: parsed.name || p('איש מקצוע'),
       professionalPhone: parsed.phone,
       approvedAmount: parsed.amount ?? undefined,
       approvedBy: 'ארי',
     })
+    const line = locked.handoff?.line ?? p('ההודעה למנהל החנות לא יצאה.')
     return {
-      reply: locked.handoff?.ok
-        ? `אישרתי את ${locked.professionalName}. ${locked.handoff.line}.`
-        : `אישרתי את ${locked.professionalName}. ${locked.handoff?.line ?? 'ההודעה למנהל החנות לא יצאה.'}`,
+      reply: p('אישרתי את {name}. {line}.', {
+        name: locked.professionalName,
+        line,
+      }),
       storeReply: null,
     }
   } catch (error) {
     return {
-      reply: error instanceof Error ? error.message : 'לא הצלחתי לנעול את המחיר.',
+      reply: error instanceof Error ? error.message : p('לא הצלחתי לנעול את המחיר.'),
       storeReply: null,
     }
   }
@@ -350,8 +356,9 @@ export async function routeInboundToDesk(input: {
   openTicketId?: string | null
 }): Promise<DeskRouteResult | null> {
   if (isAriSender(input.waId)) {
+    const locale = reportLanguage(input.text ?? '') as Locale
     const decision = parseDeskDecision(input.text)
-    if (decision) return applyAriDecision(decision, input.text)
+    if (decision) return applyAriDecision(decision, input.text, locale)
     const message = input.text?.trim()
     if (message) {
       const voice = input.mediaKind === 'audio'
@@ -360,13 +367,16 @@ export async function routeInboundToDesk(input: {
         message,
         history,
         actor: null,
-        locale: 'he',
+        locale,
         source: 'whatsapp',
         voice,
       })
-      rememberAriWaExchange(input.waId, message, answered.reply)
-      if (!voice) return { reply: answered.reply, storeReply: null }
-      const spoken = await synthesizeHebrew(answered.reply)
+      // WhatsApp only delivers text — bake absolute /ops links into the body
+      // so “פתחתי / הנה המסך” is actually tappable.
+      const reply = formatAriReplyWithLinks(answered.reply, answered.links ?? [], locale)
+      rememberAriWaExchange(input.waId, message, reply)
+      if (!voice) return { reply, storeReply: null }
+      const spoken = await synthesizeSpeech(reply, locale)
       const sent =
         'bytes' in spoken
           ? await sendWhatsAppAudio({
@@ -377,7 +387,7 @@ export async function routeInboundToDesk(input: {
             })
           : null
       const delivered = Boolean(sent?.ok && !sent.dryRun && !sent.skippedByPolicy)
-      return { reply: withVoiceOutcome(answered.reply, delivered), storeReply: null }
+      return { reply: withVoiceOutcome(reply, delivered, locale), storeReply: null }
     }
   }
   const kind = classifyInbound({ text: input.text, mediaKind: input.mediaKind })

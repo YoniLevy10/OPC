@@ -928,6 +928,267 @@ export async function startOpsChatWithStore(input: {
   }
 }
 
+/**
+ * HQ opens or creates an inbox thread with any phone (not in store book).
+ * pro_coord + bot never — no engagement lock, no ticket pack.
+ * Create/open only; live outbound gated by MAINTAINOS_WA_OPS_START_LIVE.
+ */
+export async function startOpsChatWithPhone(input: {
+  actor: Actor
+  phone: string
+  name?: string | null
+}): Promise<StartOpsChatResult> {
+  if (!actorHasHqAccess(input.actor)) {
+    throw new AuthError('אין הרשאה לפתיחת שיחה יזומה', 403)
+  }
+
+  const waId = normalizePhoneDigits(input.phone)
+  if (!waId || waId.length < 9) {
+    throw new Error('מספר טלפון לא תקין')
+  }
+
+  const displayName = input.name?.trim() || null
+  const liveOutboundEnabled = opsStartLiveEnabled()
+  const dryRunOnly = !liveOutboundEnabled
+  const pauseUntil = humanPauseUntilIso()
+  const countryId =
+    input.actor.memberships.find((m) => m.country_id)?.country_id ||
+    MEM_COUNTRY_ID
+  const organizationId =
+    input.actor.memberships.find((m) => m.organization_id)?.organization_id ||
+    MEM_ORG_ID
+
+  const useMemory = !(await supabaseReady())
+
+  if (useMemory) {
+    if (!testAuthAllowed() && process.env.MAINTAINOS_FORCE_MEMORY !== '1') {
+      throw new AuthError('Inbox backend unavailable', 503)
+    }
+    const existing = memListSessions().find((s) => phonesMatch(s.wa_id, waId))
+    let created = false
+    if (!existing) {
+      memUpsertSession({
+        wa_id: waId,
+        country_id: countryId,
+        store_id: null,
+        store_code: null,
+        customer_name: displayName,
+        state: 'done',
+        pending_description: null,
+        human_takeover: true,
+        human_takeover_until: pauseUntil,
+        thread_kind: 'pro_coord',
+        bot_mode: 'never',
+        linked_professional_id: null,
+        linked_ticket_id: null,
+        last_inbound: null,
+      })
+      memAddInboxMessage({
+        wa_id: waId,
+        direction: 'outbound',
+        body: dryRunOnly
+          ? 'שיחה נפתחה מ־Ops למספר חיצוני (הדגמה — ללא שליחה ל־WhatsApp)'
+          : 'שיחה נפתחה מ־Ops למספר חיצוני',
+      })
+      created = true
+    } else {
+      memUpsertSession({
+        ...existing,
+        customer_name: displayName ?? existing.customer_name ?? null,
+        human_takeover: true,
+        human_takeover_until: pauseUntil,
+        thread_kind: existing.thread_kind ?? 'pro_coord',
+        bot_mode: existing.bot_mode ?? 'never',
+        pending_description: existing.pending_description,
+      })
+    }
+    const views = enrichMemorySessions(memListSessions()).filter((s) =>
+      phonesMatch(s.wa_id, waId),
+    )
+    const session = views[0]
+    if (!session) throw new Error('פתיחת השיחה נכשלה')
+    return {
+      session: {
+        ...session,
+        display_name: displayName || session.display_name || waId,
+      },
+      created,
+      backend: 'memory',
+      dryRunOnly,
+      templateRequired: !session.care_window_open,
+      care_window_open: Boolean(session.care_window_open),
+      liveOutboundEnabled,
+    }
+  }
+
+  const supabase = createSystemClient('inbox_start_ops_chat_phone')
+  const { data: existingRow } = await supabase
+    .from('intake_sessions')
+    .select(SESSION_SELECT_FULL)
+    .eq('wa_id', waId)
+    .maybeSingle()
+
+  let created = false
+  let row: Record<string, unknown>
+
+  if (existingRow) {
+    const patch: Record<string, unknown> = {
+      customer_name: displayName ?? existingRow.customer_name ?? null,
+      human_takeover: true,
+      human_takeover_until: pauseUntil,
+      thread_kind: 'pro_coord',
+      bot_mode: 'never',
+      updated_at: new Date().toISOString(),
+    }
+    let { data: updated, error } = await supabase
+      .from('intake_sessions')
+      .update(patch)
+      .eq('wa_id', waId)
+      .select(SESSION_SELECT_FULL)
+      .single()
+    if (
+      error &&
+      (isMissingColumnError(error, 'customer_name') ||
+        isMissingColumnError(error, 'human_takeover_until') ||
+        isMissingColumnError(error, 'thread_kind') ||
+        isMissingColumnError(error, 'bot_mode'))
+    ) {
+      delete patch.customer_name
+      delete patch.human_takeover_until
+      delete patch.thread_kind
+      delete patch.bot_mode
+      ;({ data: updated, error } = await supabase
+        .from('intake_sessions')
+        .update(patch)
+        .eq('wa_id', waId)
+        .select(SESSION_SELECT_LEGACY)
+        .single())
+    }
+    if (error || !updated) {
+      throw new Error(error?.message || 'עדכון השיחה נכשל')
+    }
+    row = updated as Record<string, unknown>
+  } else {
+    const insertRow: Record<string, unknown> = {
+      organization_id: organizationId,
+      country_id: countryId,
+      wa_id: waId,
+      store_id: null,
+      store_code: null,
+      customer_name: displayName,
+      state: 'done',
+      human_takeover: true,
+      human_takeover_until: pauseUntil,
+      thread_kind: 'pro_coord',
+      bot_mode: 'never',
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    }
+    let { data: inserted, error } = await supabase
+      .from('intake_sessions')
+      .insert(insertRow)
+      .select(SESSION_SELECT_FULL)
+      .single()
+    if (
+      error &&
+      (isMissingColumnError(error, 'customer_name') ||
+        isMissingColumnError(error, 'human_takeover_until') ||
+        isMissingColumnError(error, 'human_takeover') ||
+        isMissingColumnError(error, 'thread_kind') ||
+        isMissingColumnError(error, 'bot_mode'))
+    ) {
+      delete insertRow.customer_name
+      delete insertRow.human_takeover_until
+      delete insertRow.human_takeover
+      delete insertRow.thread_kind
+      delete insertRow.bot_mode
+      ;({ data: inserted, error } = await supabase
+        .from('intake_sessions')
+        .insert(insertRow)
+        .select(SESSION_SELECT_LEGACY)
+        .single())
+    }
+    if (error || !inserted) {
+      if (isSupabaseSchemaError(error)) {
+        memUpsertSession({
+          wa_id: waId,
+          country_id: countryId,
+          store_id: null,
+          store_code: null,
+          customer_name: displayName,
+          state: 'done',
+          pending_description: null,
+          human_takeover: true,
+          human_takeover_until: pauseUntil,
+          thread_kind: 'pro_coord',
+          bot_mode: 'never',
+          last_inbound: null,
+        })
+        memAddInboxMessage({
+          wa_id: waId,
+          direction: 'outbound',
+          body: 'שיחה נפתחה מ־Ops למספר חיצוני (הדגמה — ללא שליחה ל־WhatsApp)',
+        })
+        const views = enrichMemorySessions(memListSessions()).filter((s) =>
+          phonesMatch(s.wa_id, waId),
+        )
+        const session = views[0]
+        if (!session) throw new Error('פתיחת השיחה נכשלה')
+        return {
+          session: {
+            ...session,
+            display_name: displayName || session.display_name || waId,
+          },
+          created: true,
+          backend: 'memory',
+          dryRunOnly: true,
+          templateRequired: true,
+          care_window_open: false,
+          liveOutboundEnabled: false,
+        }
+      }
+      throw new Error(error?.message || 'יצירת השיחה נכשלה')
+    }
+    row = inserted as Record<string, unknown>
+    created = true
+  }
+
+  const session = enrichSession(mapSessionRow(row), {
+    storeName: null,
+    lastMessage: null,
+    lastDirection: null,
+    openPriorities: [],
+    customerName: displayName,
+    lastInboundAt: (row.last_inbound as string | null | undefined) ?? null,
+  })
+
+  const { data: lastIn } = await supabase
+    .from('inbox_messages')
+    .select('created_at')
+    .eq('wa_id', waId)
+    .eq('direction', 'inbound')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const lastInboundAt = (lastIn?.created_at as string | undefined) ?? null
+  const careOpen = isCareWindowOpen(lastInboundAt)
+
+  return {
+    session: {
+      ...session,
+      care_window_open: careOpen,
+      display_name: displayName || session.display_name || waId,
+      thread_kind: 'pro_coord',
+      bot_mode: 'never',
+    },
+    created,
+    backend: 'supabase',
+    dryRunOnly,
+    templateRequired: !careOpen,
+    care_window_open: careOpen,
+    liveOutboundEnabled,
+  }
+}
+
 export async function setSessionTakeover(
   waId: string,
   actor: Actor,

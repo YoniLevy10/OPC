@@ -6,13 +6,18 @@ import {
   getById,
   getTicketForMutation,
   listInternalTechnicians,
+  correctClassification,
   setRepairEta,
   updateDescription,
   updateStatus,
   type TicketRecord,
 } from '@/modules/tickets/service'
 import { captureError } from '@/lib/monitoring'
-import { TICKET_STATUSES } from '@/modules/tickets/constants'
+import {
+  TICKET_CATEGORIES,
+  TICKET_PRIORITIES,
+  TICKET_STATUSES,
+} from '@/modules/tickets/constants'
 import {
   authErrorResponse,
   requireActor,
@@ -36,6 +41,8 @@ const patchSchema = z
     assignedTo: z.string().uuid().optional(),
     note: z.string().trim().max(2000).optional(),
     description: z.string().trim().min(1).max(4000).optional(),
+    priority: z.enum(TICKET_PRIORITIES).optional(),
+    category: z.enum(TICKET_CATEGORIES).optional(),
     /** Ari (global_maintenance) override when resolving without image/video. */
     overrideReason: z.string().trim().min(3).max(2000).optional(),
     /** B03 — close before quality hold ends (requires overrideReason). */
@@ -51,9 +58,12 @@ const patchSchema = z
       v.assignedTo != null ||
       Boolean(v.note) ||
       v.description != null ||
+      v.priority != null ||
+      v.category != null ||
       v.repairEtaAt !== undefined,
     {
-      message: 'יש לציין status, assignedTo, note, description או repairEtaAt',
+      message:
+        'יש לציין status, assignedTo, note, description, priority, category או repairEtaAt',
     },
   )
 
@@ -156,6 +166,14 @@ export async function PATCH(
     }
     if (parsed.data.description != null) {
       ticket = await updateDescription(id, parsed.data.description, actor.id)
+    }
+    if (parsed.data.priority != null || parsed.data.category != null) {
+      ticket = await correctClassification(id, {
+        category: parsed.data.category ?? ticket.category,
+        priority: parsed.data.priority ?? (ticket.priority as (typeof TICKET_PRIORITIES)[number]),
+        reason: 'עריכה מכרטיס תקלה',
+        actorId: actor.id,
+      })
     }
     if (parsed.data.note) {
       const { appendEvent } = await import('@/modules/tickets/service')

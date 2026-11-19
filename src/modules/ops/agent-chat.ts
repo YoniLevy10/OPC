@@ -399,10 +399,14 @@ export async function replyToAri(input: {
   const locale = input.locale ?? 'he'
   const snapshot = await loadOpsSnapshot(input.actor, locale)
   const spoken = snapshotSpeakable(snapshot)
-  if (locale === 'he' && /^(מה פתוח|מה יש פתוח|סיכום תקלות)\s*\??$/.test(input.message.trim())) {
+  if (
+    (locale === 'he' && /^(מה פתוח|מה יש פתוח|סיכום תקלות)\s*\??$/.test(input.message.trim())) ||
+    (locale === 'fr' && /^(quoi de ouvert|pannes ouvertes|résumé)\s*\??$/i.test(input.message.trim())) ||
+    (locale === 'en' && /^(what(?:'s| is)? open|open faults|summary)\s*\??$/i.test(input.message.trim()))
+  ) {
     return { reply: spoken, links: [] }
   }
-  if (locale === 'he') {
+  {
     const acted = await actForAri({
       message: input.message,
       history: input.history,
@@ -413,6 +417,7 @@ export async function replyToAri(input: {
         displayNumber: fault.displayNumber ?? null,
       })),
       source: input.source ?? 'web_fallback',
+      locale,
     })
     if (acted) {
       return input.voice
@@ -436,7 +441,7 @@ export async function replyToAri(input: {
   )
   if (modeled) return modeled
   // Voice without a model answer stays a short spoken floor summary.
-  if (input.voice && locale === 'he') {
+  if (input.voice) {
     return { reply: spoken, links: [] }
   }
   return { reply: answerFromSnapshot(input.message, snapshot, locale, input.history ?? []), links: [] }
@@ -498,7 +503,7 @@ async function tryModelReply(
     if (!reply && links.length === 0) return null
     return {
       reply: reply || phrase(locale, 'העוזר לא הצליח לענות'),
-      links: harvestOpsLinks(reply, links),
+      links: harvestOpsLinks(reply, links, locale),
     }
   } catch {
     return null
@@ -509,6 +514,7 @@ async function tryModelReply(
 export function harvestOpsLinks(
   reply: string,
   existing: AriLink[] = [],
+  locale: Locale = 'he',
 ): AriLink[] {
   if (existing.length > 0) return existing
   const found: AriLink[] = []
@@ -517,20 +523,23 @@ export function harvestOpsLinks(
     const href = match[0].replace(/[),.;:]+$/g, '')
     if (!href || seen.has(href)) continue
     seen.add(href)
-    found.push({ href, label: labelForOpsHref(href) })
+    found.push({ href, label: labelForOpsHref(href, locale) })
     if (found.length >= 4) break
   }
   return found
 }
 
-function labelForOpsHref(href: string): string {
-  if (href.startsWith('/ops/approvals')) return 'לאישורים'
-  if (href.startsWith('/ops/professionals')) return 'לספר אנשי מקצוע'
-  if (href.startsWith('/ops/documents')) return 'מסמכים'
-  if (href.startsWith('/ops/tasks')) return 'למשימה'
-  if (/^\/ops\/tickets\/[^/?#]+/.test(href)) return 'לתקלה'
-  if (href.startsWith('/ops/tickets')) return 'לתור'
-  return 'למסך'
+export function labelForOpsHref(href: string, locale: Locale = 'he'): string {
+  if (href.startsWith('/ops/dashboard') || href === '/ops' || href.startsWith('/ops/home')) {
+    return phrase(locale, 'הבית')
+  }
+  if (href.startsWith('/ops/approvals')) return phrase(locale, 'לאישורים')
+  if (href.startsWith('/ops/professionals')) return phrase(locale, 'לספר אנשי מקצוע')
+  if (href.startsWith('/ops/documents')) return phrase(locale, 'מסמכים')
+  if (href.startsWith('/ops/tasks')) return phrase(locale, 'למשימה')
+  if (/^\/ops\/tickets\/[^/?#]+/.test(href)) return phrase(locale, 'לתקלה')
+  if (href.startsWith('/ops/tickets')) return phrase(locale, 'לתור')
+  return phrase(locale, 'למסך')
 }
 
 function answerAri(question: string, snapshot: OpsSnapshot, history: ChatTurn[]): string {

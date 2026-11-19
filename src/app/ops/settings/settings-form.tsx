@@ -80,14 +80,14 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
       />
 
       <form onSubmit={saveSection} className="space-y-4">
-        {error ? <ErrorState title="שגיאה" description={error} /> : null}
+        {error ? <ErrorState title={p('שגיאה')} description={error} /> : null}
         {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
 
         <GroupedList>
           {section === 'profile' ? (
-            <GroupedSection title="זהות מותג" footer="שמירה ברמת קטגוריה">
+            <GroupedSection title={p('זהות מותג')} footer={p('שמירה ברמת קטגוריה')}>
               <GroupedRow as="label" className="flex-col items-stretch gap-1.5">
-                <Field label="שם מותג" htmlFor="brand">
+                <Field label={p('שם מותג')} htmlFor="brand">
                   <Input
                     id="brand"
                     value={form.brand_name}
@@ -96,7 +96,7 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
                 </Field>
               </GroupedRow>
               <GroupedRow as="label" className="flex-col items-stretch gap-1.5">
-                <Field label="תווית מדינה" htmlFor="country">
+                <Field label={p('תווית מדינה')} htmlFor="country">
                   <Input
                     id="country"
                     value={form.country_label}
@@ -109,11 +109,11 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
 
           {section === 'notifications' ? (
             <GroupedSection
-              title="ערוץ התראות"
-              footer="הפרות SLA, תקלות ללא שיוך, ודוח חודשי."
+              title={p('ערוץ התראות')}
+              footer={p('הפרות SLA, תקלות ללא שיוך, ודוח חודשי.')}
             >
               <GroupedRow as="label" className="flex-col items-stretch gap-1.5">
-                <Field label="מייל התראות Ops" htmlFor="email">
+                <Field label={p('מייל התראות Ops')} htmlFor="email">
                   <Input
                     id="email"
                     type="email"
@@ -162,7 +162,7 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
             <>
               <GroupedSection title="WhatsApp Business">
                 <GroupedRow as="label" className="flex-col items-stretch gap-1.5">
-                  <Field label="מספר עסקי WhatsApp" htmlFor="wa">
+                  <Field label={p('מספר עסקי WhatsApp')} htmlFor="wa">
                     <Input
                       id="wa"
                       dir="ltr"
@@ -196,12 +196,12 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
 
           {section === 'system' ? (
             <>
-              <GroupedSection title="ערכת נושא">
+              <GroupedSection title={p('ערכת נושא')}>
                 <GroupedRow>
                   <ThemeToggle />
                 </GroupedRow>
               </GroupedSection>
-              <GroupedSection title="שעות תגובה (SLA)">
+              <GroupedSection title={p('שעות תגובה (SLA)')}>
                 <GroupedRow>
                   <p className="t-meta text-ink-2">
                     כשהזמן עובר התקלה מסומנת כחורגת, נשלחת תזכורת, והטיפול עולה למנהל הרשת.
@@ -233,7 +233,7 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
                   </GroupedRow>
                 ))}
               </GroupedSection>
-              <GroupedSection title="שפה">
+              <GroupedSection title={p('שפה')}>
                 <GroupedRow>
                   <p className="t-body text-ink-2">
                     {p('עברית, English ו-Français זמינות בתפריט הצד, ליד ערכת הנושא.')}
@@ -246,7 +246,7 @@ export function SettingsForm({ initial }: { initial: MemSettings }) {
 
         {section !== 'permissions' ? (
           <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? 'שומר…' : 'שמירת קטגוריה'}
+            {busy ? p('שומר…') : p('שמירת קטגוריה')}
           </Button>
         ) : null}
       </form>

@@ -37,8 +37,8 @@ type UserRow = {
 const IL_COUNTRY = '22222222-2222-2222-2222-222222222222'
 const FR_COUNTRY = '33333333-3333-3333-3333-333333333333'
 
-function formatLastLogin(iso?: string | null) {
-  if (!iso) return 'טרם התחבר'
+function formatLastLogin(iso: string | null | undefined, p: (text: string) => string) {
+  if (!iso) return p('טרם התחבר')
   try {
     return new Date(iso).toLocaleString('he-IL', {
       day: '2-digit',
@@ -97,14 +97,14 @@ export function UsersAdmin({
     try {
       const res = await fetch('/api/users')
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'טעינה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('טעינה נכשלה'))
       setUsers(json.users ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'טעינה נכשלה')
+      setError(err instanceof Error ? err.message : p('טעינה נכשלה'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [p])
 
   useEffect(() => {
     void load()
@@ -132,13 +132,13 @@ export function UsersAdmin({
     setError(null)
     try {
       if (role === 'store_employee' && !storeId) {
-        throw new Error('עובד חנות חייב להיות משויך לסניף')
+        throw new Error(p('עובד חנות חייב להיות משויך לסניף'))
       }
       if (role === 'internal_technician' && !phone.trim()) {
-        throw new Error('לטכנאי חובה להזין מספר טלפון להודעות שיוך')
+        throw new Error(p('לטכנאי חובה להזין מספר טלפון להודעות שיוך'))
       }
       if (!password.trim() || password.trim().length < 6) {
-        throw new Error('יש להגדיר סיסמה (לפחות 6 תווים) להתחברות')
+        throw new Error(p('יש להגדיר סיסמה (לפחות 6 תווים) להתחברות'))
       }
       const res = await fetch('/api/users', {
         method: 'POST',
@@ -154,7 +154,7 @@ export function UsersAdmin({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'יצירה נכשלה')
+      if (!res.ok) throw new Error(json.error || p('יצירה נכשלה'))
       setName('')
       setEmail('')
       setPhone('')
@@ -164,12 +164,12 @@ export function UsersAdmin({
       setCreateOpen(false)
       setNotice(
         role === 'internal_technician' && phone.trim()
-          ? 'המשתמש נוסף — הודעות שיוך יישלחו למספר שהוגדר'
-          : 'המשתמש נוסף — יכול להתחבר עם המייל והסיסמה שסופקו',
+          ? p('המשתמש נוסף — הודעות שיוך יישלחו למספר שהוגדר')
+          : p('המשתמש נוסף — יכול להתחבר עם המייל והסיסמה שסופקו'),
       )
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'יצירה נכשלה')
+      setError(err instanceof Error ? err.message : p('יצירה נכשלה'))
     } finally {
       setBusy(false)
     }
@@ -188,12 +188,12 @@ export function UsersAdmin({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'עדכון נכשל')
-      setNotice('התפקיד עודכן')
+      if (!res.ok) throw new Error(json.error || p('עדכון נכשל'))
+      setNotice(p('התפקיד עודכן'))
       setEditUser(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'עדכון נכשל')
+      setError(err instanceof Error ? err.message : p('עדכון נכשל'))
     } finally {
       setBusy(false)
       setConfirmRole(null)
@@ -216,10 +216,10 @@ export function UsersAdmin({
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'עדכון נכשל')
+      if (!res.ok) throw new Error(json.error || p('עדכון נכשל'))
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'עדכון נכשל')
+      setError(err instanceof Error ? err.message : p('עדכון נכשל'))
     } finally {
       setBusy(false)
     }
@@ -232,13 +232,13 @@ export function UsersAdmin({
     try {
       const res = await fetch(`/api/users/${user.id}`, { method: 'DELETE' })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || 'מחיקה נכשלה')
-      setNotice('המשתמש נמחק')
+      if (!res.ok) throw new Error(json.error || p('מחיקה נכשלה'))
+      setNotice(p('המשתמש נמחק'))
       setConfirmDelete(null)
       setEditUser(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'מחיקה נכשלה')
+      setError(err instanceof Error ? err.message : p('מחיקה נכשלה'))
       setConfirmDelete(null)
     } finally {
       setBusy(false)
@@ -268,7 +268,7 @@ export function UsersAdmin({
           body: JSON.stringify({ phone: editPhone.trim() || null }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error || 'עדכון טלפון נכשל')
+        if (!res.ok) throw new Error(json.error || p('עדכון טלפון נכשל'))
       }
       const m = editUser.memberships[0]
       const storeChanged = m && (editStoreId || null) !== (m.store_id || null)
@@ -282,7 +282,7 @@ export function UsersAdmin({
           }),
         })
         const json = await res.json()
-        if (!res.ok) throw new Error(json.error || 'עדכון סניף נכשל')
+        if (!res.ok) throw new Error(json.error || p('עדכון סניף נכשל'))
       }
       const roleChanged = m && editRole !== m.role
       if (roleChanged) {
@@ -290,11 +290,11 @@ export function UsersAdmin({
         setBusy(false)
         return
       }
-      setNotice('הכרטיס עודכן')
+      setNotice(p('הכרטיס עודכן'))
       setEditUser(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'עדכון נכשל')
+      setError(err instanceof Error ? err.message : p('עדכון נכשל'))
     } finally {
       setBusy(false)
     }
@@ -308,23 +308,23 @@ export function UsersAdmin({
 
   return (
     <div className="flex w-full max-w-full flex-col gap-4 overflow-x-clip">
-      {error ? <ErrorState title="שגיאה" description={error} /> : null}
+      {error ? <ErrorState title={p('שגיאה')} description={error} /> : null}
       {notice ? <SuccessNotice>{notice}</SuccessNotice> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <SearchField
           value={q}
           onValueChange={setQ}
-          placeholder="חיפוש לפי שם, אימייל או טלפון…"
+          placeholder={p('חיפוש לפי שם, אימייל או טלפון…')}
           className="min-w-0 flex-1"
         />
         <Select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          aria-label="סינון לפי תפקיד"
+          aria-label={p('סינון לפי תפקיד')}
           className="w-40"
         >
-          <option value="">כל התפקידים</option>
+          <option value="">{p('כל התפקידים')}</option>
           {roleOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -336,29 +336,29 @@ export function UsersAdmin({
           onChange={(e) =>
             setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')
           }
-          aria-label="סינון לפי סטטוס"
+          aria-label={p('סינון לפי סטטוס')}
           className="w-32"
         >
-          <option value="all">כל הסטטוסים</option>
+          <option value="all">{p('כל הסטטוסים')}</option>
           <option value="active">{p('פעיל')}</option>
           <option value="inactive">{p('לא פעיל')}</option>
         </Select>
         <Button type="button" variant="primary" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" aria-hidden />
-          משתמש חדש
+          {p('משתמש חדש')}
         </Button>
       </div>
 
       <Panel flush elevated className="overflow-hidden">
         {loading ? (
-          <p className="t-body px-4 py-8 text-ink-3">טוען…</p>
+          <p className="t-body px-4 py-8 text-ink-3">{p('טוען…')}</p>
         ) : filtered.length === 0 ? (
           <EmptyState
-            title="אין משתמשים להצגה"
-            description="נסו לשנות את הסינון או להוסיף משתמש חדש."
+            title={p('אין משתמשים להצגה')}
+            description={p('נסו לשנות את הסינון או להוסיף משתמש חדש.')}
             action={
               <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
-                משתמש חדש
+                {p('משתמש חדש')}
               </Button>
             }
           />
@@ -409,10 +409,10 @@ export function UsersAdmin({
                           {u.phone}
                         </bdi>
                       ) : (
-                        'ללא טלפון'
+                        p('ללא טלפון')
                       )}
                       {' · '}
-                      {formatLastLogin(u.last_login_at)}
+                      {formatLastLogin(u.last_login_at, p)}
                     </span>
                   </button>
                   <Button
@@ -420,7 +420,9 @@ export function UsersAdmin({
                     variant="secondary"
                     size="sm"
                     className="min-h-[44px] self-start sm:self-center"
-                    aria-label={`עריכת ${u.full_name || u.email || 'משתמש'}`}
+                    aria-label={p('עריכת {name}', {
+                      name: u.full_name || u.email || p('משתמש'),
+                    })}
                     onClick={() => openEdit(u)}
                   >
                     {p('עריכה')}
@@ -438,23 +440,23 @@ export function UsersAdmin({
           setCreateOpen(open)
           if (open) setError(null)
         }}
-        title="משתמש חדש"
-        description="מייל + סיסמה להתחברות, ותפקיד אחד."
+        title={p('משתמש חדש')}
+        description={p('מייל + סיסמה להתחברות, ותפקיד אחד.')}
       >
         <form onSubmit={onCreate} className="space-y-3">
           {error ? (
-            <ErrorState title="לא ניתן ליצור משתמש" description={error} />
+            <ErrorState title={p('לא ניתן ליצור משתמש')} description={error} />
           ) : null}
-          <Field label="שם" htmlFor="user-name">
+          <Field label={p('שם')} htmlFor="user-name">
             <Input
               id="user-name"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="שם מלא"
+              placeholder={p('שם מלא')}
             />
           </Field>
-          <Field label="אימייל (Gmail או מייל ארגוני)" htmlFor="user-email">
+          <Field label={p('אימייל (Gmail או מייל ארגוני)')} htmlFor="user-email">
             <Input
               id="user-email"
               type="email"
@@ -466,12 +468,14 @@ export function UsersAdmin({
             />
           </Field>
           <Field
-            label="טלפון נייד"
+            label={p('טלפון נייד')}
             htmlFor="user-phone"
             hint={
               role === 'internal_technician'
-                ? 'חובה לטכנאי — לכאן יישלחו הודעות שיוך תקלה (WhatsApp למספר).'
-                : 'אופציונלי. לטכנאים משמש לשליחת הודעת שיוך.'
+                ? p(
+                    'חובה לטכנאי — לכאן יישלחו הודעות שיוך תקלה (WhatsApp למספר).',
+                  )
+                : p('אופציונלי. לטכנאים משמש לשליחת הודעת שיוך.')
             }
           >
             <Input
@@ -480,14 +484,14 @@ export function UsersAdmin({
               inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="05… או 9725…"
+              placeholder={p('05… או 9725…')}
               required={role === 'internal_technician'}
             />
           </Field>
           <Field
-            label="סיסמה ראשונית"
+            label={p('סיסמה ראשונית')}
             htmlFor="user-password"
-            hint="המשתמש יתחבר עם המייל והסיסמה האלה (או Google אם המייל מאושר)."
+            hint={p('המשתמש יתחבר עם המייל והסיסמה האלה (או Google אם המייל מאושר).')}
           >
             <Input
               id="user-password"
@@ -498,10 +502,10 @@ export function UsersAdmin({
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="לפחות 6 תווים"
+              placeholder={p('לפחות 6 תווים')}
             />
           </Field>
-          <Field label="תפקיד" htmlFor="user-role">
+          <Field label={p('תפקיד')} htmlFor="user-role">
             <Select
               id="user-role"
               value={role}
@@ -519,24 +523,24 @@ export function UsersAdmin({
               </p>
             ) : null}
           </Field>
-          <Field label="מדינה" htmlFor="user-country">
+          <Field label={p('מדינה')} htmlFor="user-country">
             <Select
               id="user-country"
               value={countryId}
               onChange={(e) => setCountryId(e.target.value)}
             >
-              <option value={IL_COUNTRY}>ישראל</option>
-              <option value={FR_COUNTRY}>צרפת</option>
-              <option value="">ללא (כל הרשת)</option>
+              <option value={IL_COUNTRY}>{p('ישראל')}</option>
+              <option value={FR_COUNTRY}>{p('צרפת')}</option>
+              <option value="">{p('ללא (כל הרשת)')}</option>
             </Select>
           </Field>
-          <Field label="סניף (אופציונלי)" htmlFor="user-store">
+          <Field label={p('סניף (אופציונלי)')} htmlFor="user-store">
             <Select
               id="user-store"
               value={storeId}
               onChange={(e) => setStoreId(e.target.value)}
             >
-              <option value="">כל הסניפים בהיקף</option>
+              <option value="">{p('כל הסניפים בהיקף')}</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code} · {s.name}
@@ -550,7 +554,7 @@ export function UsersAdmin({
               variant="secondary"
               onClick={() => setCreateOpen(false)}
             >
-              ביטול
+              {p('ביטול')}
             </Button>
             <Button
               type="submit"
@@ -563,7 +567,7 @@ export function UsersAdmin({
                 (role === 'internal_technician' && !phone.trim())
               }
             >
-              {busy ? 'שומר…' : 'יצירה'}
+              {busy ? p('שומר…') : p('יצירה')}
             </Button>
           </div>
         </form>
@@ -574,12 +578,12 @@ export function UsersAdmin({
         onOpenChange={(open) => {
           if (!open) setEditUser(null)
         }}
-        title={editUser?.full_name || 'כרטיס משתמש'}
+        title={editUser?.full_name || p('כרטיס משתמש')}
         description={editUser?.email || undefined}
       >
         {editUser ? (
           <div className="space-y-3">
-            <Field label="טלפון להודעות שיוך" htmlFor="edit-phone">
+            <Field label={p('טלפון להודעות שיוך')} htmlFor="edit-phone">
               <Input
                 id="edit-phone"
                 dir="ltr"
@@ -591,7 +595,7 @@ export function UsersAdmin({
                 onChange={(e) => setEditPhone(e.target.value)}
               />
             </Field>
-            <Field label="תפקיד" htmlFor="edit-role">
+            <Field label={p('תפקיד')} htmlFor="edit-role">
               <Select
                 id="edit-role"
                 value={editRole}
@@ -610,14 +614,14 @@ export function UsersAdmin({
                 </p>
               ) : null}
             </Field>
-            <Field label="סניף" htmlFor="edit-store">
+            <Field label={p('סניף')} htmlFor="edit-store">
               <Select
                 id="edit-store"
                 value={editStoreId}
                 disabled={busy}
                 onChange={(e) => setEditStoreId(e.target.value)}
               >
-                <option value="">כל הסניפים בהיקף</option>
+                <option value="">{p('כל הסניפים בהיקף')}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.code} · {s.name}
@@ -626,9 +630,9 @@ export function UsersAdmin({
               </Select>
             </Field>
             <div className="rounded-[var(--radius-md)] border border-border bg-surface-sunken/40 px-3 py-2">
-              <p className="t-caption text-ink-3">התחברות אחרונה</p>
+              <p className="t-caption text-ink-3">{p('התחברות אחרונה')}</p>
               <p className="t-body text-ink">
-                {formatLastLogin(editUser.last_login_at)}
+                {formatLastLogin(editUser.last_login_at, p)}
               </p>
             </div>
             <TechFieldLinkCopy
@@ -643,7 +647,7 @@ export function UsersAdmin({
                   disabled={busy}
                   onClick={() => setConfirmDelete(editUser)}
                 >
-                  מחיקה
+                  {p('מחיקה')}
                 </Button>
               ) : (
                 <span />
@@ -654,7 +658,7 @@ export function UsersAdmin({
                   variant="secondary"
                   onClick={() => setEditUser(null)}
                 >
-                  ביטול
+                  {p('ביטול')}
                 </Button>
                 <Button
                   type="button"
@@ -662,7 +666,7 @@ export function UsersAdmin({
                   disabled={busy}
                   onClick={() => void saveEditCard()}
                 >
-                  {busy ? 'שומר…' : 'שמירה'}
+                  {busy ? p('שומר…') : p('שמירה')}
                 </Button>
               </div>
             </div>
@@ -675,17 +679,18 @@ export function UsersAdmin({
         onOpenChange={(open) => {
           if (!open) setConfirmDelete(null)
         }}
-        title="מחיקת משתמש"
-        description="הוא לא יוכל להתחבר יותר."
+        title={p('מחיקת משתמש')}
+        description={p('הוא לא יוכל להתחבר יותר.')}
       >
         {confirmDelete ? (
           <div className="space-y-4">
             <Notice tone="warning">
-              למחוק את{' '}
-              <strong>
-                {confirmDelete.full_name || confirmDelete.email || 'המשתמש'}
-              </strong>
-              ?
+              {p('למחוק את {name}?', {
+                name:
+                  confirmDelete.full_name ||
+                  confirmDelete.email ||
+                  p('משתמש'),
+              })}
             </Notice>
             <div className="flex justify-end gap-2">
               <Button
@@ -693,7 +698,7 @@ export function UsersAdmin({
                 variant="secondary"
                 onClick={() => setConfirmDelete(null)}
               >
-                ביטול
+                {p('ביטול')}
               </Button>
               <Button
                 type="button"
@@ -701,7 +706,7 @@ export function UsersAdmin({
                 disabled={busy}
                 onClick={() => void removeUser(confirmDelete)}
               >
-                {busy ? 'מוחק…' : 'מחיקה'}
+                {busy ? p('מוחק…') : p('מחיקה')}
               </Button>
             </div>
           </div>
@@ -713,19 +718,21 @@ export function UsersAdmin({
         onOpenChange={(open) => {
           if (!open) setConfirmRole(null)
         }}
-        title="אישור שינוי תפקיד"
-        description="פעולה רגישה — משנה את הרשאות המשתמש."
+        title={p('אישור שינוי תפקיד')}
+        description={p('פעולה רגישה — משנה את הרשאות המשתמש.')}
       >
         {confirmRole ? (
           <div className="space-y-4">
             <Notice tone="warning">
-              לשנות את התפקיד של{' '}
-              <strong>{confirmRole.user.full_name || confirmRole.user.email}</strong>{' '}
-              ל־
-              <strong>
-                {roleOptions.find((o) => o.value === confirmRole.nextRole)?.label}
-              </strong>
-              ?
+              {p('לשנות את התפקיד של {name} ל־{role}?', {
+                name:
+                  confirmRole.user.full_name ||
+                  confirmRole.user.email ||
+                  p('משתמש'),
+                role:
+                  roleOptions.find((o) => o.value === confirmRole.nextRole)
+                    ?.label ?? confirmRole.nextRole,
+              })}
             </Notice>
             <div className="flex justify-end gap-2">
               <Button
@@ -733,7 +740,7 @@ export function UsersAdmin({
                 variant="secondary"
                 onClick={() => setConfirmRole(null)}
               >
-                ביטול
+                {p('ביטול')}
               </Button>
               <Button
                 type="button"
@@ -743,7 +750,7 @@ export function UsersAdmin({
                   void applyRoleChange(confirmRole.user, confirmRole.nextRole)
                 }
               >
-                אישור שינוי
+                {p('אישור שינוי')}
               </Button>
             </div>
           </div>

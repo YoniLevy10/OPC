@@ -15,9 +15,11 @@ import {
   CheckCheck,
   ExternalLink,
   MessageCirclePlus,
+  Mic,
   Paperclip,
   Search,
   SendHorizontal,
+  Square,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,6 +41,7 @@ import {
 import { LiveAge } from '@/components/ui/time'
 import { PhoneStack } from '@/components/mobile'
 import { cn } from '@/lib/utils'
+import { normalizePhoneDigits } from '@/lib/phone'
 import { useLocale, usePhrase } from '@/components/i18n/locale-provider'
 import { intakeStateLabel } from '@/modules/inbox/display-labels'
 import { TICKET_PRIORITY_LABELS_HE } from '@/modules/tickets/constants'
@@ -249,6 +252,9 @@ export function InboxClient() {
   const [forwardBusy, setForwardBusy] = useState(false)
   const [forwardOpen, setForwardOpen] = useState(false)
   const [forwardTicketId, setForwardTicketId] = useState<string | null>(null)
+  const [forwardTab, setForwardTab] = useState<'book' | 'external'>('book')
+  const [externalPhone, setExternalPhone] = useState('')
+  const [externalName, setExternalName] = useState('')
   const [proSuggestions, setProSuggestions] = useState<
     Array<{
       id: string
@@ -262,6 +268,9 @@ export function InboxClient() {
   const [proSuggestBusy, setProSuggestBusy] = useState(false)
   const [proSuggestError, setProSuggestError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [recording, setRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
   /** When true, keep the thread pinned to the latest message. */
@@ -286,7 +295,7 @@ export function InboxClient() {
         setSelected(json.sessions[0].wa_id as string)
       }
     } catch (err) {
-      setError(safeClientError(err, 'טעינה נכשלה', p))
+      setError(safeClientError(err, p('טעינה נכשלה'), p))
     }
   }, [p])
 
@@ -304,7 +313,7 @@ export function InboxClient() {
       setContext(json.context ?? null)
     } catch (err) {
       if (seq !== threadLoadSeq.current) return
-      setError(safeClientError(err, 'טעינת שיחה נכשלה', p))
+      setError(safeClientError(err, p('טעינת שיחה נכשלה'), p))
     } finally {
       if (seq === threadLoadSeq.current) setThreadLoading(false)
     }
@@ -378,15 +387,72 @@ export function InboxClient() {
     setNotice(null)
   }
 
+  const startPhoneDigits = useMemo(
+    () => normalizePhoneDigits(startQuery),
+    [startQuery],
+  )
+
   const storesForStart = useMemo(() => {
     const q = startQuery.trim().toLowerCase()
     const withPhone = stores.filter((s) => Boolean(s.manager_phone?.trim()))
     if (!q) return withPhone
+    // Phone-shaped query: still show store hits if any, else empty list under CTA.
+    if (startPhoneDigits && startPhoneDigits.length >= 9) {
+      return withPhone.filter((s) => {
+        const hay = `${s.code} ${s.name} ${s.manager_name ?? ''} ${s.manager_phone ?? ''}`.toLowerCase()
+        return hay.includes(q) || hay.includes(startPhoneDigits)
+      })
+    }
     return withPhone.filter((s) => {
       const hay = `${s.code} ${s.name} ${s.manager_name ?? ''}`.toLowerCase()
       return hay.includes(q)
     })
-  }, [stores, startQuery])
+  }, [stores, startQuery, startPhoneDigits])
+
+  function resetStartModal() {
+    setStartQuery('')
+  }
+
+  async function afterStartChatSuccess(
+    json: {
+      session?: { wa_id?: string }
+      created?: boolean
+      dryRunOnly?: boolean
+      templateRequired?: boolean
+    },
+    kind: 'store' | 'phone',
+  ) {
+    const waId = json.session?.wa_id
+    if (!waId) throw new Error(p('פתיחת השיחה נכשלה'))
+    setStartOpen(false)
+    resetStartModal()
+    await loadSessions()
+    openConversation(waId)
+    const parts: string[] = []
+    if (kind === 'store') {
+      parts.push(
+        json.created
+          ? p('נוצרה שיחה חדשה עם מנהל הסניף')
+          : p('נפתחה שיחה קיימת עם מנהל הסניף'),
+      )
+    } else {
+      parts.push(
+        json.created
+          ? p('נוצרה שיחה חדשה עם המספר')
+          : p('נפתחה שיחה קיימת עם המספר'),
+      )
+      setThreadFilter('pros')
+    }
+    if (json.dryRunOnly) {
+      parts.push(p('מצב הדגמה — אין שליחה לטלפון אמיתי'))
+    }
+    if (json.templateRequired) {
+      parts.push(
+        p('חלון 24 השעות סגור — לשליחה חיה תידרש תבנית מאושרת'),
+      )
+    }
+    setNotice(parts.join(' · '))
+  }
 
   async function startChatWithStore(storeId: string) {
     setStartBusy(true)
@@ -400,26 +466,31 @@ export function InboxClient() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || p('פתיחת השיחה נכשלה'))
-      const waId = json.session?.wa_id as string | undefined
-      if (!waId) throw new Error(p('פתיחת השיחה נכשלה'))
-      setStartOpen(false)
-      setStartQuery('')
-      await loadSessions()
-      openConversation(waId)
-      const parts: string[] = []
-      if (json.created) parts.push(p('נוצרה שיחה חדשה עם מנהל הסניף'))
-      else parts.push(p('נפתחה שיחה קיימת עם מנהל הסניף'))
-      if (json.dryRunOnly) {
-        parts.push(p('מצב הדגמה — אין שליחה לטלפון אמיתי'))
-      }
-      if (json.templateRequired) {
-        parts.push(
-          p('חלון 24 השעות סגור — לשליחה חיה תידרש תבנית מאושרת'),
-        )
-      }
-      setNotice(parts.join(' · '))
+      await afterStartChatSuccess(json, 'store')
     } catch (err) {
-      setError(safeClientError(err, 'פתיחת השיחה נכשלה', p))
+      setError(safeClientError(err, p('פתיחת השיחה נכשלה'), p))
+    } finally {
+      setStartBusy(false)
+    }
+  }
+
+  async function startChatWithPhone(phone: string) {
+    const digits = normalizePhoneDigits(phone)
+    if (!digits || digits.length < 9) return
+    setStartBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/inbox/sessions/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: digits }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || p('פתיחת השיחה נכשלה'))
+      await afterStartChatSuccess(json, 'phone')
+    } catch (err) {
+      setError(safeClientError(err, p('פתיחת השיחה נכשלה'), p))
     } finally {
       setStartBusy(false)
     }
@@ -428,6 +499,9 @@ export function InboxClient() {
   async function openForwardPicker(ticketId: string) {
     setForwardTicketId(ticketId)
     setForwardOpen(true)
+    setForwardTab('book')
+    setExternalPhone('')
+    setExternalName('')
     setProSuggestions([])
     setProSuggestError(null)
     setProSuggestBusy(true)
@@ -439,9 +513,38 @@ export function InboxClient() {
       if (!res.ok) throw new Error(json.error || p('טעינת מקצוענים נכשלה'))
       setProSuggestions(json.suggestions ?? [])
     } catch (err) {
-      setProSuggestError(safeClientError(err, 'טעינת מקצוענים נכשלה', p))
+      setProSuggestError(safeClientError(err, p('טעינת מקצוענים נכשלה'), p))
     } finally {
       setProSuggestBusy(false)
+    }
+  }
+
+  async function afterForwardSuccess(json: {
+    dryRun?: boolean
+    engagementLocked?: boolean
+    sessionWaId?: string
+  }) {
+    setForwardOpen(false)
+    setForwardTicketId(null)
+    setProSuggestions([])
+    setExternalPhone('')
+    setExternalName('')
+    setThreadFilter('pros')
+    const parts: string[] = []
+    if (json.dryRun) {
+      parts.push(
+        p('חבילת תקלה נשמרה לשיחת מקצוען במצב הדגמה (ללא שליחה חיה)'),
+      )
+    } else {
+      parts.push(p('חבילת תקלה נשלחה למקצוען'))
+    }
+    if (json.engagementLocked) {
+      parts.push(p('התקלה סומנה כמשובצת'))
+    }
+    setNotice(parts.join(' · '))
+    if (json.sessionWaId) {
+      await loadSessions()
+      openConversation(String(json.sessionWaId))
     }
   }
 
@@ -461,28 +564,34 @@ export function InboxClient() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || p('שיתוף נכשל'))
-      setForwardOpen(false)
-      setForwardTicketId(null)
-      setProSuggestions([])
-      setThreadFilter('pros')
-      const parts: string[] = []
-      if (json.dryRun) {
-        parts.push(
-          p('חבילת תקלה נשמרה לשיחת מקצוען במצב הדגמה (ללא שליחה חיה)'),
-        )
-      } else {
-        parts.push(p('חבילת תקלה נשלחה למקצוען'))
-      }
-      if (json.engagementLocked) {
-        parts.push(p('התקלה סומנה כמשובצת'))
-      }
-      setNotice(parts.join(' · '))
-      if (json.sessionWaId) {
-        await loadSessions()
-        openConversation(String(json.sessionWaId))
-      }
+      await afterForwardSuccess(json)
     } catch (err) {
-      setError(safeClientError(err, 'שיתוף נכשל', p))
+      setError(safeClientError(err, p('שיתוף נכשל'), p))
+    } finally {
+      setForwardBusy(false)
+    }
+  }
+
+  async function forwardToExternalPhone() {
+    if (!forwardTicketId || !externalPhone.trim()) return
+    setForwardBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/inbox/forward-external', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: forwardTicketId,
+          phone: externalPhone.trim(),
+          name: externalName.trim() || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || p('שיתוף נכשל'))
+      await afterForwardSuccess(json)
+    } catch (err) {
+      setError(safeClientError(err, p('שיתוף נכשל'), p))
     } finally {
       setForwardBusy(false)
     }
@@ -512,7 +621,7 @@ export function InboxClient() {
       await loadSessions()
       if (selected) await loadThread(selected)
     } catch (err) {
-      setError(safeClientError(err, 'עדכון נכשל', p))
+      setError(safeClientError(err, p('עדכון נכשל'), p))
     } finally {
       setBusy(false)
     }
@@ -572,7 +681,7 @@ export function InboxClient() {
       await Promise.all([loadThread(selected), loadSessions()])
       composerRef.current?.focus()
     } catch (err) {
-      setError(safeClientError(err, 'שליחה נכשלה', p))
+      setError(safeClientError(err, p('שליחה נכשלה'), p))
     } finally {
       setBusy(false)
     }
@@ -605,7 +714,7 @@ export function InboxClient() {
       setNotice(p('השיחה הוסרה מהתיבה'))
       await loadSessions()
     } catch (err) {
-      setError(safeClientError(err, 'מחיקה נכשלה', p))
+      setError(safeClientError(err, p('מחיקה נכשלה'), p))
     } finally {
       setBusy(false)
     }
@@ -653,7 +762,7 @@ export function InboxClient() {
       setNotice(p('פרטי הלקוח והסניף נשמרו'))
       await Promise.all([loadSessions(), loadThread(active.wa_id)])
     } catch (err) {
-      setError(safeClientError(err, 'שמירה נכשלה', p))
+      setError(safeClientError(err, p('שמירה נכשלה'), p))
     } finally {
       setBusy(false)
     }
@@ -783,7 +892,7 @@ export function InboxClient() {
       <button
         type="button"
         onClick={() => setStartOpen(true)}
-        aria-label={p('התחל שיחה עם סניף')}
+        aria-label={p('התחל שיחה')}
         className="wa-start-chat-fab absolute bottom-4 end-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--wa-send,#128C7E)] text-white shadow-[var(--shadow-2)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
       >
         <MessageCirclePlus className="h-6 w-6" aria-hidden />
@@ -1177,7 +1286,7 @@ export function InboxClient() {
                     await Promise.all([loadThread(selected), loadSessions()])
                   })
                   .catch((err) =>
-                    setError(safeClientError(err, 'שליחת מדיה נכשלה', p)),
+                    setError(safeClientError(err, p('שליחת מדיה נכשלה'), p)),
                   )
                   .finally(() => setBusy(false))
               }}
@@ -1196,6 +1305,102 @@ export function InboxClient() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-[22px] w-[22px]" aria-hidden />
+              </button>
+              <button
+                type="button"
+                disabled={busy || !selected}
+                aria-label={
+                  recording ? p('עצור הקלטה ושלח') : p('הקלטת קול')
+                }
+                aria-pressed={recording}
+                className={cn(
+                  'mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors',
+                  recording
+                    ? 'bg-[var(--signal-critical)]/15 text-[var(--signal-critical)]'
+                    : 'text-ink-2 hover:bg-black/5 hover:text-ink',
+                  'disabled:opacity-40',
+                )}
+                onClick={() => {
+                  if (!selected) return
+                  if (recording && mediaRecorderRef.current) {
+                    mediaRecorderRef.current.stop()
+                    return
+                  }
+                  void (async () => {
+                    try {
+                      const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                      })
+                      const mime = MediaRecorder.isTypeSupported(
+                        'audio/webm;codecs=opus',
+                      )
+                        ? 'audio/webm;codecs=opus'
+                        : 'audio/webm'
+                      const recorder = new MediaRecorder(stream, {
+                        mimeType: mime,
+                      })
+                      audioChunksRef.current = []
+                      recorder.ondataavailable = (ev) => {
+                        if (ev.data.size > 0) audioChunksRef.current.push(ev.data)
+                      }
+                      recorder.onstop = () => {
+                        stream.getTracks().forEach((t) => t.stop())
+                        setRecording(false)
+                        mediaRecorderRef.current = null
+                        const blob = new Blob(audioChunksRef.current, {
+                          type: mime,
+                        })
+                        audioChunksRef.current = []
+                        if (!blob.size || !selected) return
+                        const file = new File([blob], 'voice.webm', {
+                          type: mime,
+                        })
+                        setBusy(true)
+                        setError(null)
+                        const form = new FormData()
+                        form.append('file', file)
+                        void fetch(
+                          `/api/inbox/sessions/${encodeURIComponent(selected)}/media`,
+                          { method: 'POST', body: form },
+                        )
+                          .then(async (res) => {
+                            const json = await res.json()
+                            if (!res.ok) {
+                              throw new Error(
+                                json.error || p('שליחת הקלטה נכשלה'),
+                              )
+                            }
+                            setNotice(
+                              json.send?.dryRun || json.safeDryRun
+                                ? p('הקלטה נשמרה בתיבה במצב הדגמה')
+                                : p('הקלטה נשלחה'),
+                            )
+                            await Promise.all([
+                              loadThread(selected),
+                              loadSessions(),
+                            ])
+                          })
+                          .catch((err) =>
+                            setError(
+                              safeClientError(err, p('שליחת הקלטה נכשלה'), p),
+                            ),
+                          )
+                          .finally(() => setBusy(false))
+                      }
+                      mediaRecorderRef.current = recorder
+                      recorder.start()
+                      setRecording(true)
+                    } catch {
+                      setError(p('אין גישה למיקרופון'))
+                    }
+                  })()
+                }}
+              >
+                {recording ? (
+                  <Square className="h-4 w-4 fill-current" aria-hidden />
+                ) : (
+                  <Mic className="h-[22px] w-[22px]" aria-hidden />
+                )}
               </button>
               <label className="sr-only" htmlFor="inbox-reply">
                 {p('הודעה ללקוח')}
@@ -1245,45 +1450,121 @@ export function InboxClient() {
             setForwardTicketId(null)
             setProSuggestions([])
             setProSuggestError(null)
+            setExternalPhone('')
+            setExternalName('')
           }
         }}
-        title="שתף תקלה עם מקצוען"
-        description="בחרו איש מקצוע מותאם — תיפתח שיחת תיאום (מצב הדגמה כברירת מחדל)."
+        title={p('שתף תקלה עם מקצוען')}
+        description={p(
+          'ספר קשרים או מספר חיצוני — תיפתח שיחת תיאום (מצב הדגמה כברירת מחדל).',
+        )}
       >
         <div className="space-y-3">
-          {proSuggestBusy ? (
-            <p className="t-caption text-ink-2">{p('טוען הצעות…')}</p>
-          ) : null}
-          {proSuggestError ? (
-            <ErrorState title={p('שגיאה')} description={proSuggestError} />
-          ) : null}
-          {!proSuggestBusy && !proSuggestError && proSuggestions.length === 0 ? (
-            <EmptyState
-              title={p('אין מקצוענים מתאימים')}
-              description={p('הוסיפו אנשי מקצוע עם טלפון ומקצוע בספר הקשרים')}
-            />
-          ) : null}
-          {proSuggestions.length > 0 ? (
-            <ul className="max-h-[min(50dvh,360px)] divide-y divide-border overflow-y-auto rounded-[var(--radius-md)] border border-border">
-              {proSuggestions.map((pro) => (
-                <li key={pro.id}>
-                  <button
-                    type="button"
-                    disabled={forwardBusy}
-                    onClick={() => void forwardToProfessional(pro.id)}
-                    className="flex w-full flex-col gap-0.5 px-3 py-3 text-start transition-colors hover:bg-surface-sunken/50 disabled:opacity-50"
-                  >
-                    <span className="t-body-strong text-ink">{pro.full_name}</span>
-                    <span className="t-caption text-ink-2">
-                      {pro.trade || p('מקצוע כללי')}
-                      {pro.phone_masked ? ` · ${pro.phone_masked}` : ''}
-                    </span>
-                    <span className="t-caption text-ink-3">{pro.reason}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <div className="flex gap-1 rounded-[var(--radius-md)] border border-border p-1">
+            <button
+              type="button"
+              className={cn(
+                'flex-1 rounded-[var(--radius-sm)] px-2 py-1.5 text-[12px]',
+                forwardTab === 'book'
+                  ? 'bg-[var(--wa-send,#128C7E)] text-white'
+                  : 'text-ink-2',
+              )}
+              onClick={() => setForwardTab('book')}
+            >
+              {p('ספר קשרים')}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'flex-1 rounded-[var(--radius-sm)] px-2 py-1.5 text-[12px]',
+                forwardTab === 'external'
+                  ? 'bg-[var(--wa-send,#128C7E)] text-white'
+                  : 'text-ink-2',
+              )}
+              onClick={() => setForwardTab('external')}
+            >
+              {p('מספר חיצוני')}
+            </button>
+          </div>
+
+          {forwardTab === 'book' ? (
+            <>
+              {proSuggestBusy ? (
+                <p className="t-caption text-ink-2">{p('טוען הצעות…')}</p>
+              ) : null}
+              {proSuggestError ? (
+                <ErrorState title={p('שגיאה')} description={proSuggestError} />
+              ) : null}
+              {!proSuggestBusy &&
+              !proSuggestError &&
+              proSuggestions.length === 0 ? (
+                <EmptyState
+                  title={p('אין מקצוענים מתאימים')}
+                  description={p(
+                    'הוסיפו אנשי מקצוע עם טלפון ומקצוע בספר הקשרים',
+                  )}
+                />
+              ) : null}
+              {proSuggestions.length > 0 ? (
+                <ul className="max-h-[min(50dvh,360px)] divide-y divide-border overflow-y-auto rounded-[var(--radius-md)] border border-border">
+                  {proSuggestions.map((pro) => (
+                    <li key={pro.id}>
+                      <button
+                        type="button"
+                        disabled={forwardBusy}
+                        onClick={() => void forwardToProfessional(pro.id)}
+                        className="flex w-full flex-col gap-0.5 px-3 py-3 text-start transition-colors hover:bg-surface-sunken/50 disabled:opacity-50"
+                      >
+                        <span className="t-body-strong text-ink">
+                          {pro.full_name}
+                        </span>
+                        <span className="t-caption text-ink-2">
+                          {pro.trade || p('מקצוע כללי')}
+                          {pro.phone_masked ? ` · ${pro.phone_masked}` : ''}
+                        </span>
+                        <span className="t-caption text-ink-3">{pro.reason}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : (
+            <div className="grid gap-3">
+              <label className="grid gap-1">
+                <span className="t-caption text-ink-2">{p('טלפון')}</span>
+                <Input
+                  dir="ltr"
+                  value={externalPhone}
+                  onChange={(e) => setExternalPhone(e.target.value)}
+                  placeholder="050…"
+                  disabled={forwardBusy}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="t-caption text-ink-2">
+                  {p('שם (רשות)')}
+                </span>
+                <Input
+                  value={externalName}
+                  onChange={(e) => setExternalName(e.target.value)}
+                  disabled={forwardBusy}
+                />
+              </label>
+              <p className="t-caption text-ink-3">
+                {p(
+                  'נשלחת חבילת תקלה עם מדיה לשיחת תיאום — בלי נעילת מחיר אוטומטית.',
+                )}
+              </p>
+              <Button
+                type="button"
+                disabled={forwardBusy || !externalPhone.trim()}
+                onClick={() => void forwardToExternalPhone()}
+              >
+                {forwardBusy ? p('שולח…') : p('שתף למספר')}
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -1291,14 +1572,16 @@ export function InboxClient() {
         open={startOpen}
         onOpenChange={(open) => {
           setStartOpen(open)
-          if (!open) setStartQuery('')
+          if (!open) resetStartModal()
         }}
-        title="התחל שיחה עם סניף"
-        description="בחרו סניף — תיפתח שיחה עם מנהל החנות. במצב הדגמה לא נשלח לטלפון אמיתי."
+        title={p('התחל שיחה')}
+        description={p(
+          'חפשו סניף או הזינו מספר טלפון. שם אפשר לעדכן אחרי הפתיחה בעמודת ההקשר. במצב הדגמה לא נשלח לטלפון אמיתי.',
+        )}
       >
         <div className="space-y-3">
           <label className="relative block">
-            <span className="sr-only">{p('חיפוש סניף')}</span>
+            <span className="sr-only">{p('חיפוש סניף או מספר')}</span>
             <Search
               className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
               aria-hidden
@@ -1306,18 +1589,55 @@ export function InboxClient() {
             <Input
               value={startQuery}
               onChange={(e) => setStartQuery(e.target.value)}
-              placeholder={p('חיפוש לפי קוד, שם סניף או מנהל…')}
+              placeholder={p('קוד / שם סניף / מנהל / מספר טלפון…')}
               className="ps-9"
               disabled={startBusy}
               autoFocus
+              onKeyDown={(e) => {
+                if (
+                  e.key === 'Enter' &&
+                  startPhoneDigits &&
+                  startPhoneDigits.length >= 9 &&
+                  storesForStart.length === 0
+                ) {
+                  e.preventDefault()
+                  void startChatWithPhone(startQuery)
+                }
+              }}
             />
           </label>
-          {storesForStart.length === 0 ? (
+
+          {startPhoneDigits && startPhoneDigits.length >= 9 ? (
+            <button
+              type="button"
+              disabled={startBusy}
+              onClick={() => void startChatWithPhone(startQuery)}
+              className="flex w-full flex-col gap-0.5 rounded-[var(--radius-md)] border border-[var(--wa-send,#128C7E)]/40 bg-[var(--wa-send,#128C7E)]/8 px-3 py-3 text-start transition-colors hover:bg-[var(--wa-send,#128C7E)]/14 disabled:opacity-50"
+            >
+              <span className="t-body-strong text-ink">
+                {startBusy ? p('פותח…') : p('התחל שיחה עם המספר')}
+              </span>
+              <span className="t-caption text-ink-2" dir="ltr">
+                {startPhoneDigits}
+              </span>
+            </button>
+          ) : null}
+
+          {storesForStart.length === 0 &&
+          !(startPhoneDigits && startPhoneDigits.length >= 9) ? (
             <EmptyState
-              title={p('אין סניפים עם טלפון מנהל')}
-              description={p('עדכנו טלפון מנהל בכרטיס הסניף')}
+              title={
+                startQuery.trim()
+                  ? p('אין התאמה')
+                  : p('אין סניפים עם טלפון מנהל')
+              }
+              description={
+                startQuery.trim()
+                  ? p('נסו קוד סניף, שם, או הזינו מספר טלפון מלא')
+                  : p('עדכנו טלפון מנהל בכרטיס הסניף')
+              }
             />
-          ) : (
+          ) : storesForStart.length > 0 ? (
             <ul className="max-h-[min(50dvh,360px)] divide-y divide-border overflow-y-auto rounded-[var(--radius-md)] border border-border">
               {storesForStart.map((store) => (
                 <li key={store.id}>
@@ -1337,7 +1657,7 @@ export function InboxClient() {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </div>
       </Modal>
 

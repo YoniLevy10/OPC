@@ -1,7 +1,8 @@
 import type { Locale } from '@/lib/i18n/locale'
+import { MISSING_PHRASES } from '@/lib/i18n/_generated_missing_phrases'
 
 /** Hebrew source → other locales. Missing keys stay Hebrew. */
-const PHRASES: Record<string, { en: string; fr: string }> = {
+const CURATED_PHRASES: Record<string, { en: string; fr: string }> = {
   חזרה: { en: 'Back', fr: 'Retour' },
   רענון: { en: 'Refresh', fr: 'Actualiser' },
   התנתקות: { en: 'Sign out', fr: 'Déconnexion' },
@@ -842,8 +843,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'פתח את הסוכן': { en: 'Open the agent', fr: "Ouvrir l'agent" },
   'גרור להזזה': { en: 'Drag to move', fr: 'Glisser pour déplacer' },
   'בקשה לא תקינה': { en: 'Invalid request', fr: 'Demande invalide' },
-
-  // בעלי מקצוע
+// בעלי מקצוע
   'בעלי מקצוע': { en: 'Professionals', fr: 'Professionnels' },
   'ספר קשר לתיאום, וספקים לשיגור כשצריך.': {
     en: 'A contact book for coordination, and vendors to dispatch when needed.',
@@ -1000,8 +1000,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Delete {name} from the book?',
     fr: 'Supprimer {name} du carnet ?',
   },
-
-  // ביקור / אישור
+// ביקור / אישור
   'תכנון ביקור': { en: 'Plan a visit', fr: 'Planifier une visite' },
   'תכנן ביקור': { en: 'Plan visit', fr: 'Planifier la visite' },
   'תכנן ביקור ושלח לחנות': {
@@ -1099,8 +1098,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     fr: 'Utilisez la recherche générale ou par métier.',
   },
   טווח: { en: 'range', fr: 'fourchette' },
-
-  // כמה נחסך
+// כמה נחסך
   'כמה נחסך': { en: 'How much saved', fr: 'Combien d’économies' },
   'הכסף שנרשם, והסניף שדורש אותך.': {
     en: 'The money recorded, and the store that needs you.',
@@ -1313,7 +1311,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'No connection to the assistant right now',
     fr: 'Pas de connexion à l’assistant pour le moment',
   },
-  // Agent A — recurring maintenance (tasks.* / repeat.*)
+// Agent A — recurring maintenance (tasks.* / repeat.*)
   'tasks.preventiveTitle': {
     en: 'Preventive maintenance',
     fr: 'Maintenance préventive',
@@ -1362,7 +1360,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'repeat.preset90': { en: 'Every 90 days', fr: 'Tous les 90 jours' },
   'repeat.preset365': { en: 'Yearly (365)', fr: 'Annuel (365)' },
   'repeat.none': { en: 'No repeat', fr: 'Sans répétition' },
-  // Agent B — classify + bundle recommendations (bundle.* / recommend.*)
+// Agent B — classify + bundle recommendations (bundle.* / recommend.*)
   'recommend.whyCombine': {
     en: 'Why combine — one visit for this store',
     fr: 'Pourquoi regrouper — une visite pour ce magasin',
@@ -1379,8 +1377,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Open bundle suggestion',
     fr: 'Ouvrir la suggestion de regroupement',
   },
-
-  // Agent C — Midrag L6 honest fallback (midrag.*)
+// Agent C — Midrag L6 honest fallback (midrag.*)
   'midrag.ok': {
     en: 'Live Midrag list',
     fr: 'Liste Midrag en direct',
@@ -1409,8 +1406,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Open Midrag via the link — the live list is unavailable right now.',
     fr: 'Ouvrez Midrag via le lien — la liste en direct est indisponible.',
   },
-
-  // Agent D — Ari L9 tools / brief (agent.* / ari.*)
+// Agent D — Ari L9 tools / brief (agent.* / ari.*)
   'agent.papersNone': {
     en: 'No document is overdue or due this month.',
     fr: 'Aucun document en retard ou à échéance ce mois-ci.',
@@ -1487,8 +1483,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Facts only — do not invent',
     fr: 'Faits uniquement — n’inventez pas',
   },
-
-  // --- Ops UI i18n wave (cost, roles, reported screens) ---
+// --- Ops UI i18n wave (cost, roles, reported screens) ---
   'אין עדיין מחיר': { en: 'No price yet', fr: 'Pas encore de prix' },
   'תקלות לפי חנות': { en: 'Faults by store', fr: 'Pannes par magasin' },
   'הוספת סניף': { en: 'Add store', fr: 'Ajouter un magasin' },
@@ -1649,8 +1644,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Fault activity log',
     fr: 'Journal d’activité des pannes',
   },
-
-  // --- Ops wave 1: documents, reports export, activity filters ---
+// --- Ops wave 1: documents, reports export, activity filters ---
   מספר: { en: 'Number', fr: 'Numéro' },
   'מה קרה': { en: 'What happened', fr: 'Ce qui s’est passé' },
   נפתחה: { en: 'Opened', fr: 'Ouverte' },
@@ -1736,7 +1730,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'עברו את זמן הטיפול': { en: 'Past due time', fr: 'Hors délai' },
   בזמן: { en: 'On time', fr: 'Dans les temps' },
   'סוגי תקלות': { en: 'Fault types', fr: 'Types de pannes' },
-  // Assets & scan
+// Assets & scan
   'ציוד וחלקים': { en: 'Equipment and parts', fr: 'Équipements et pièces' },
   'למעלה הציוד בסניף. למטה החלקים במחסן.': {
     en: 'Store equipment above; warehouse parts below.',
@@ -1872,7 +1866,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   },
   'ברקוד מוצר': { en: 'Product barcode', fr: 'Code-barres produit' },
   'שם הנכס': { en: 'Asset name', fr: 'Nom de l’actif' },
-  // Inventory parts
+// Inventory parts
   במחסן: { en: 'In warehouse', fr: 'En entrepôt' },
   'כמות של חלקים. סורקים מק״ט במצלמה או מקלידים.': {
     en: 'Part quantities. Scan SKU with the camera or type it.',
@@ -1906,7 +1900,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
     en: 'Point the camera at the barcode on the part.',
     fr: 'Pointez la caméra vers le code sur la pièce.',
   },
-  // Status & lab & simulator
+// Status & lab & simulator
   'הכול עובד': { en: 'All good', fr: 'Tout fonctionne' },
   'המערכת תקינה.': { en: 'System is healthy.', fr: 'Le système est sain.' },
   'מצב חלקי': { en: 'Partial', fr: 'Partiel' },
@@ -1965,7 +1959,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   הצלחה: { en: 'Success', fr: 'Succès' },
   'צפייה בתקלה': { en: 'View fault', fr: 'Voir la panne' },
   כפילות: { en: 'Duplicate', fr: 'Doublon' },
-  // WhatsApp templates chrome
+// WhatsApp templates chrome
   'תבניות Meta Utility לשליחה מחוץ לחלון 24 השעות. שם Meta חייב להתאים לתבנית המאושרת ב־Business Manager.': {
     en: 'Meta Utility templates for sending outside the 24-hour window. Meta name must match the approved template in Business Manager.',
     fr: 'Modèles Meta Utility hors fenêtre 24 h. Le nom Meta doit correspondre au modèle approuvé dans Business Manager.',
@@ -1978,7 +1972,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'גוף ההודעה': { en: 'Message body', fr: 'Corps du message' },
   'תבנית פעילה': { en: 'Active template', fr: 'Modèle actif' },
   'התבנית עודכנה': { en: 'Template updated', fr: 'Modèle mis à jour' },
-  // Approvals & ticket chrome
+// Approvals & ticket chrome
   'תמונה אחת': { en: 'One photo', fr: 'Une photo' },
   '{count} תמונות': { en: '{count} photos', fr: '{count} photos' },
   'תקלה לא דחופה אחת לאותו ביקור': {
@@ -2029,8 +2023,7 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'אישור חנות': { en: 'Store approval', fr: 'Approbation magasin' },
   החלטות: { en: 'Decisions', fr: 'Décisions' },
   '{value} כוכבים': { en: '{value} stars', fr: '{value} étoiles' },
-
-  // Ops stores / tasks / alerts (UI chrome)
+// Ops stores / tasks / alerts (UI chrome)
   'חיפוש חנות...': { en: 'Search stores…', fr: 'Rechercher un magasin…' },
   'פעולות נוספות לסניף': {
     en: 'More store actions',
@@ -2322,6 +2315,452 @@ const PHRASES: Record<string, { en: string; fr: string }> = {
   'ייצוא CSV': { en: 'Export CSV', fr: 'Exporter CSV' },
   'תצוגת היסטוריה': { en: 'History view', fr: 'Vue historique' },
   יומן: { en: 'Journal', fr: 'Journal' },
+  'נשלח לספק': { en: 'Sent to vendor', fr: 'Envoyé au fournisseur' },
+  'סומן לשיבוץ (אין ערוץ חי)': {
+    en: 'Marked for dispatch (no live channel)',
+    fr: 'Marqué pour affectation (pas de canal actif)',
+  },
+  'אושר ע״י ספק': { en: 'Acknowledged by vendor', fr: 'Confirmé par le fournisseur' },
+  'חסום — נדרש אישור': {
+    en: 'Blocked — approval required',
+    fr: 'Bloqué — approbation requise',
+  },
+  בתכנון: { en: 'Planning', fr: 'En planification' },
+  תוכנן: { en: 'Planned', fr: 'Planifié' },
+  שובץ: { en: 'Dispatched', fr: 'Affecté' },
+  '{n} תקלות': { en: '{n} faults', fr: '{n} pannes' },
+  'חפשו במידרג, הזינו שם וטלפון, ושלחו למנהל החנות את איש המקצוע עם רשימת התקלות.': {
+    en: 'Search Midrag, enter name and phone, and send the store manager the professional with the fault list.',
+    fr: 'Cherchez sur Midrag, saisissez nom et téléphone, et envoyez au responsable du magasin le professionnel avec la liste des pannes.',
+  },
+  'אפשר לכלול באותו ביקור': {
+    en: 'Can include on the same visit',
+    fr: 'Peut être inclus dans la même visite',
+  },
+  מהספר: { en: 'From the book', fr: 'Du carnet' },
+  'אחרי השיחה במידרג': {
+    en: 'After the Midrag call',
+    fr: 'Après l’appel Midrag',
+  },
+  'המספר שסיכמתם': {
+    en: 'The number you agreed on',
+    fr: 'Le numéro convenu',
+  },
+  'שעת הגעה, כניסה…': {
+    en: 'Arrival time, entry…',
+    fr: 'Heure d’arrivée, accès…',
+  },
+  ' — חלק מהתקלות לא שוגרו': {
+    en: ' — some faults were not dispatched',
+    fr: ' — certaines pannes n’ont pas été envoyées',
+  },
+  'אשר ושלח': { en: 'Approve and send', fr: 'Approuver et envoyer' },
+  'נסה שוב את הכושלים': {
+    en: 'Retry failed ones',
+    fr: 'Réessayer les échecs',
+  },
+  'נשמר: {label}': { en: 'Saved: {label}', fr: 'Enregistré : {label}' },
+  'בחרו תקלות מחנות אחת בלבד': {
+    en: 'Select faults from one store only',
+    fr: 'Sélectionnez des pannes d’un seul magasin',
+  },
+  'לתקלות האלה חסר מזהה חנות — לא ניתן לתכנן ביקור': {
+    en: 'These faults lack a store id — cannot plan a visit',
+    fr: 'Ces pannes n’ont pas d’identifiant magasin — visite impossible',
+  },
+  'יש לבחור תקלות מחנות אחת': {
+    en: 'Select faults from one store',
+    fr: 'Sélectionnez des pannes d’un magasin',
+  },
+  'ביקור משולב · נבחרו {n}': {
+    en: 'Combined visit · {n} selected',
+    fr: 'Visite groupée · {n} sélectionnée(s)',
+  },
+  'חנות #{code}': { en: 'Store #{code}', fr: 'Magasin #{code}' },
+  יצירה: { en: 'Create', fr: 'Créer' },
+  'ללא טלפון': { en: 'No phone', fr: 'Pas de téléphone' },
+  'עריכת {name}': { en: 'Edit {name}', fr: 'Modifier {name}' },
+  משתמש: { en: 'User', fr: 'Utilisateur' },
+  'כרטיס משתמש': { en: 'User card', fr: 'Fiche utilisateur' },
+  'חובה לטכנאי — לכאן יישלחו הודעות שיוך תקלה (WhatsApp למספר).': {
+    en: 'Required for technicians — assignment WhatsApp messages go to this number.',
+    fr: 'Obligatoire pour les techniciens — les messages d’affectation WhatsApp partent vers ce numéro.',
+  },
+  'אופציונלי. לטכנאים משמש לשליחת הודעת שיוך.': {
+    en: 'Optional. For technicians, used for assignment messages.',
+    fr: 'Optionnel. Pour les techniciens, sert aux messages d’affectation.',
+  },
+  'עובד חנות חייב להיות משויך לסניף': {
+    en: 'Store staff must be linked to a branch',
+    fr: 'Le personnel magasin doit être rattaché à une succursale',
+  },
+  'לטכנאי חובה להזין מספר טלפון להודעות שיוך': {
+    en: 'Technicians must enter a phone number for assignment messages',
+    fr: 'Le technicien doit saisir un mobile pour les messages d’affectation',
+  },
+  'יש להגדיר סיסמה (לפחות 6 תווים) להתחברות': {
+    en: 'Set a password (at least 6 characters) for sign-in',
+    fr: 'Définissez un mot de passe (6 caractères minimum) pour la connexion',
+  },
+  'המשתמש נוסף — הודעות שיוך יישלחו למספר שהוגדר': {
+    en: 'User added — assignment messages will go to the number provided',
+    fr: 'Utilisateur ajouté — les messages d’affectation iront au numéro indiqué',
+  },
+  'המשתמש נוסף — יכול להתחבר עם המייל והסיסמה שסופקו': {
+    en: 'User added — they can sign in with the email and password provided',
+    fr: 'Utilisateur ajouté — connexion possible avec l’e-mail et le mot de passe fournis',
+  },
+  'התפקיד עודכן': { en: 'Role updated', fr: 'Rôle mis à jour' },
+  'המשתמש נמחק': { en: 'User deleted', fr: 'Utilisateur supprimé' },
+  'עדכון טלפון נכשל': { en: 'Phone update failed', fr: 'Échec de mise à jour du téléphone' },
+  'עדכון סניף נכשל': { en: 'Branch update failed', fr: 'Échec de mise à jour de la succursale' },
+  'הכרטיס עודכן': { en: 'Card updated', fr: 'Fiche mise à jour' },
+  'למחוק את {name}?': { en: 'Delete {name}?', fr: 'Supprimer {name} ?' },
+  'לשנות את התפקיד של {name} ל־{role}?': {
+    en: 'Change {name}’s role to {role}?',
+    fr: 'Changer le rôle de {name} en {role} ?',
+  },
+  'אישור שינוי': { en: 'Confirm change', fr: 'Confirmer le changement' },
+  'פרטי הספק נשמרו': { en: 'Vendor details saved', fr: 'Détails du fournisseur enregistrés' },
+  'הדירוג וההערה נשמרו': { en: 'Rating and note saved', fr: 'Note et évaluation enregistrées' },
+  'הספק נמחק': { en: 'Vendor deleted', fr: 'Fournisseur supprimé' },
+  'הספק נוסף': { en: 'Vendor added', fr: 'Fournisseur ajouté' },
+  'שיגור לספק בוצע · סטטוס {status}': {
+    en: 'Dispatched to vendor · status {status}',
+    fr: 'Envoi au fournisseur · statut {status}',
+  },
+  'וואטסאפ אל {name}': { en: 'WhatsApp {name}', fr: 'WhatsApp {name}' },
+  'התקשר אל {name}': { en: 'Call {name}', fr: 'Appeler {name}' },
+  '{n} ספקים': { en: '{n} vendors', fr: '{n} fournisseurs' },
+  'כלי מתקדם · שיגור תקלה לספק חיצוני': {
+    en: 'Advanced · dispatch fault to external vendor',
+    fr: 'Avancé · envoi de panne à un fournisseur externe',
+  },
+  שיגור: { en: 'Dispatch', fr: 'Envoyer' },
+  '{n} כוכבים': { en: '{n} stars', fr: '{n} étoiles' },
+  'נסו לשנות את הסינון.': {
+    en: 'Try changing the filter.',
+    fr: 'Essayez de modifier le filtre.',
+  },
+  'הוסיפו ספק חיצוני לשיגור תקלות.': {
+    en: 'Add an external vendor for fault dispatch.',
+    fr: 'Ajoutez un fournisseur externe pour l’envoi des pannes.',
+  },
+  מועדף: { en: 'Preferred', fr: 'Préféré' },
+  'בלי כיסוי': { en: 'No coverage', fr: 'Sans couverture' },
+  'דירוג ספק {name}': { en: 'Rate vendor {name}', fr: 'Noter le fournisseur {name}' },
+  'הערה אישית על {name}': {
+    en: 'Personal note on {name}',
+    fr: 'Note personnelle sur {name}',
+  },
+  'שמירת דירוג והערה': { en: 'Save rating and note', fr: 'Enregistrer note et évaluation' },
+  מוגדר: { en: 'Configured', fr: 'Configuré' },
+  '+{n} יעד': { en: '+{n} SLA', fr: '+{n} SLA' },
+  'QR → וואטסאפ': { en: 'QR → WhatsApp', fr: 'QR → WhatsApp' },
+  'NFC → וואטסאפ': { en: 'NFC → WhatsApp', fr: 'NFC → WhatsApp' },
+  'טופס web': { en: 'Web form', fr: 'Formulaire web' },
+  דמו: { en: 'Demo', fr: 'Démo' },
+  'חריגת יעד ({kind}) · עלה ל־{to}': {
+    en: 'SLA breach ({kind}) · escalated to {to}',
+    fr: 'Dépassement SLA ({kind}) · escalé à {to}',
+  },
+  'חריגת יעד · {kind}': {
+    en: 'SLA breach · {kind}',
+    fr: 'Dépassement SLA · {kind}',
+  },
+  'חריגת יעד טיפול': { en: 'Response SLA breach', fr: 'Dépassement SLA de traitement' },
+  'שוגר לספק · {name}': {
+    en: 'Dispatched to vendor · {name}',
+    fr: 'Envoyé au fournisseur · {name}',
+  },
+  'שוגר לספק חיצוני': { en: 'Dispatched to external vendor', fr: 'Envoyé à un fournisseur externe' },
+  'אושר איש מקצוע · {name} · {phone}': {
+    en: 'Professional confirmed · {name} · {phone}',
+    fr: 'Professionnel validé · {name} · {phone}',
+  },
+  'אושר איש מקצוע · {name}': {
+    en: 'Professional confirmed · {name}',
+    fr: 'Professionnel validé · {name}',
+  },
+  'אושר איש מקצוע': { en: 'Professional confirmed', fr: 'Professionnel validé' },
+  'בוטל אישור איש מקצוע': {
+    en: 'Professional confirmation cancelled',
+    fr: 'Validation du professionnel annulée',
+  },
+  'WA לחנות — לא נמסר ({line})': {
+    en: 'WA to store — not delivered ({line})',
+    fr: 'WA au magasin — non remis ({line})',
+  },
+  'WA לחנות · {line}': { en: 'WA to store · {line}', fr: 'WA au magasin · {line}' },
+  'נשלח WA למנהל החנות': {
+    en: 'WA sent to store manager',
+    fr: 'WA envoyé au responsable du magasin',
+  },
+  'SMS לאיש מקצוע — לא נשלח ({line})': {
+    en: 'SMS to professional — not sent ({line})',
+    fr: 'SMS au professionnel — non envoyé ({line})',
+  },
+  'נשלח SMS לאיש מקצוע': { en: 'SMS sent to professional', fr: 'SMS envoyé au professionnel' },
+  'החנות אישרה תיקון · {by}': {
+    en: 'Store confirmed repair · {by}',
+    fr: 'Le magasin a confirmé la réparation · {by}',
+  },
+  'החנות אישרה תיקון': { en: 'Store confirmed repair', fr: 'Le magasin a confirmé la réparation' },
+  'החנות דיווחה שהתקלה לא נפתרה': {
+    en: 'Store reported the fault is not resolved',
+    fr: 'Le magasin signale que la panne n’est pas résolue',
+  },
+  'סומן כדחוף': { en: 'Marked urgent', fr: 'Marqué urgent' },
+  'סומן כלא דחוף': { en: 'Marked not urgent', fr: 'Marqué non urgent' },
+  'הערת מוקד · {note}': { en: 'HQ note · {note}', fr: 'Note siège · {note}' },
+  'נוספה הערת מוקד': { en: 'HQ note added', fr: 'Note siège ajoutée' },
+  'הערת טכנאי · {note}': { en: 'Technician note · {note}', fr: 'Note technicien · {note}' },
+  'נוספה הערת טכנאי': { en: 'Technician note added', fr: 'Note technicien ajoutée' },
+  'נוספה תמונה / תיעוד': { en: 'Photo / record added', fr: 'Photo / document ajouté' },
+  'תוכנן ביקור שירות': { en: 'Service visit planned', fr: 'Visite de service planifiée' },
+  'סגירה ידנית על ידי ארי': { en: 'Manual close by Ari', fr: 'Clôture manuelle par Ari' },
+  'סגירה ללא הוכחה (חריגה)': {
+    en: 'Closed without proof (exception)',
+    fr: 'Clôture sans preuve (dérogation)',
+  },
+  'סגירה לפני תום החזקת איכות': {
+    en: 'Closed before quality hold ended',
+    fr: 'Clôture avant fin du délai qualité',
+  },
+  'עודכן מועד הגעה משוער': { en: 'ETA updated', fr: 'Heure d’arrivée estimée mise à jour' },
+  'תוקן סיווג התקלה': { en: 'Fault classification corrected', fr: 'Classification de panne corrigée' },
+  'נשלחה תזכורת מחזור לחנות': {
+    en: 'Lifecycle reminder sent to store',
+    fr: 'Rappel de cycle envoyé au magasin',
+  },
+  'תזכורת · תקלה בלי שיוך': {
+    en: 'Reminder · unassigned fault',
+    fr: 'Rappel · panne non affectée',
+  },
+  'לא סונכרן': { en: 'Not synced', fr: 'Non synchronisé' },
+  'סונכרן לאחרונה {when} · {pulled} מהדרייב · {pushed} לדרייב{error}': {
+    en: 'Last synced {when} · {pulled} from Drive · {pushed} to Drive{error}',
+    fr: 'Dernière synchro {when} · {pulled} depuis Drive · {pushed} vers Drive{error}',
+  },
+  ' · שגיאה: {msg}': { en: ' · error: {msg}', fr: ' · erreur : {msg}' },
+  'ארי ממשיך לעבוד בתיקיות. קובץ חדש או עדכון אצלו נכנס לכאן, ומסמך שנשמר כאן נכתב לתיקיית הסניף. עריכה שלו גוברת, וקובץ שלו לא נמחק ולא נדרס. מה שלא ברור נשאר לבדיקה.':
+    {
+      en: 'Ari keeps working in folders. A new or updated file there appears here, and a document saved here is written to the branch folder. His edits win; his files are not deleted or overwritten. Anything unclear stays for review.',
+      fr: 'Ari continue dans les dossiers. Un fichier nouveau ou mis à jour y apparaît ici ; un document enregistré ici est écrit dans le dossier de la succursale. Ses modifications priment ; ses fichiers ne sont ni supprimés ni écrasés. Le doute reste à vérifier.',
+    },
+  ' · כיול שמיעה': { en: ' · hearing calibration', fr: ' · étalonnage auditif' },
+  'כיולי שמיעה: טימפנומטר ואודיומטר כל שנה, תא אקוסטי כל שנתיים. אישור שמכסה כמה כיולים נשמר בנפרד לכל כיול. תזכורת חודש לפני תוקף.':
+    {
+      en: 'Hearing calibrations: tympanometer and audiometer yearly, acoustic booth every two years. A certificate covering several calibrations is stored separately for each. Reminder one month before expiry.',
+      fr: 'Étalonnages auditifs : tympanomètre et audiomètre chaque année, cabine acoustique tous les deux ans. Un certificat couvrant plusieurs étalonnages est stocké séparément pour chacun. Rappel un mois avant expiration.',
+    },
+  'העלאת PDF': { en: 'Upload PDF', fr: 'Téléverser un PDF' },
+  'אפשר לבחור או לגרור PDF, או להדביק קישור למסמך המעודכן.': {
+    en: 'You can choose or drag a PDF, or paste a link to the updated document.',
+    fr: 'Choisissez ou glissez un PDF, ou collez un lien vers le document à jour.',
+  },
+  'חידוש ושמירה בתיקיית המסמכים': {
+    en: 'Renew and save in the document folder',
+    fr: 'Renouveler et enregistrer dans le dossier documents',
+  },
+  '{count} תקלות': { en: '{count} faults', fr: '{count} pannes' },
+  '{n} שעות עד פתרון': { en: '{n} hours to resolution', fr: '{n} heures jusqu’à résolution' },
+  'אין מספיק תקלות סגורות לחישוב': {
+    en: 'Not enough closed faults to calculate',
+    fr: 'Pas assez de pannes fermées pour calculer',
+  },
+  '{n} פתוחות בחריגה כעת': {
+    en: '{n} open and breached now',
+    fr: '{n} ouvertes en dépassement',
+  },
+  'אין פתוחות בחריגה כעת': {
+    en: 'No open breaches now',
+    fr: 'Aucune ouverte en dépassement',
+  },
+  ' · {n} נפתרו אחרי חריגה': {
+    en: ' · {n} resolved after breach',
+    fr: ' · {n} résolues après dépassement',
+  },
+  ' · {pct}% בתוך SLA': { en: ' · {pct}% within SLA', fr: ' · {pct}% dans le SLA' },
+  '{total} סה״כ · {pct}% · {open} פתוחות · {breached} חריגות': {
+    en: '{total} total · {pct}% · {open} open · {breached} breaches',
+    fr: '{total} au total · {pct}% · {open} ouvertes · {breached} dépassements',
+  },
+  '{n} סניפים': { en: '{n} branches', fr: '{n} succursales' },
+  '{n} בארכיון': { en: '{n} in archive', fr: '{n} en archive' },
+  'פתוחות {open} · נפתרו {resolved} · SLA {sla}%': {
+    en: 'Open {open} · resolved {resolved} · SLA {sla}%',
+    fr: 'Ouvertes {open} · résolues {resolved} · SLA {sla}%',
+  },
+  'תקופה: {from} — {to}': { en: 'Period: {from} — {to}', fr: 'Période : {from} — {to}' },
+  'פתוחות: {open} · נפתרו: {resolved}': {
+    en: 'Open: {open} · resolved: {resolved}',
+    fr: 'Ouvertes : {open} · résolues : {resolved}',
+  },
+  '% בתוך SLA: {pct}%': {
+    en: '% within SLA: {pct}%',
+    fr: '% dans le SLA : {pct}%',
+  },
+  'שליחה אוטומטית ב־1 לחודש (06:00 UTC) למייל ההתראות בהגדרות — כולל שמירת snapshot ו־PDF.':
+    {
+      en: 'Automatic send on the 1st each month (06:00 UTC) to the alerts email in Settings — includes snapshot and PDF.',
+      fr: 'Envoi automatique le 1er de chaque mois (06:00 UTC) vers l’e-mail d’alertes dans Réglages — snapshot et PDF inclus.',
+    },
+  שלום: { en: 'Hello', fr: 'Bonjour' },
+  'שם המסמך {title}': { en: 'Document name {title}', fr: 'Nom du document {title}' },
+  'שמור שם {title}': { en: 'Save name {title}', fr: 'Enregistrer le nom {title}' },
+  'שמור תוקף {title}': { en: 'Save expiry {title}', fr: 'Enregistrer l’expiration {title}' },
+  'שמור תזכורות {title}': {
+    en: 'Save reminders {title}',
+    fr: 'Enregistrer les rappels {title}',
+  },
+
+  // Ari WA desk decisions + actForAri
+  'אין תקלה דחופה שמחכה לאישור.': {
+    en: 'No urgent fault is waiting for approval.',
+    fr: 'Aucune panne urgente n’attend d’approbation.',
+  },
+  הסניף: { en: 'the store', fr: 'le magasin' },
+  'התקלה ב{place} נשארת אצלך. לא ננעל מחיר.': {
+    en: 'The fault at {place} stays with you. No price was locked.',
+    fr: 'La panne à {place} reste chez vous. Aucun prix n’a été verrouillé.',
+  },
+  'על {place} חסר טלפון. כתוב: אשר 0501234567 שם (מחיר אופציונלי).': {
+    en: 'For {place}, phone is missing. Write: approve 0501234567 name (optional price).',
+    fr: 'Pour {place}, le téléphone manque. Écrivez : approuver 0501234567 nom (prix optionnel).',
+  },
+  'על {place} חסר {missing}. כתוב: אשר 0501234567 שם (מחיר אופציונלי).': {
+    en: 'For {place}, {missing} is missing. Write: approve 0501234567 name (optional price).',
+    fr: 'Pour {place}, il manque {missing}. Écrivez : approuver 0501234567 nom (prix optionnel).',
+  },
+  'איש מקצוע': { en: 'Professional', fr: 'Professionnel' },
+  'אישרתי את {name}. {line}.': {
+    en: 'I approved {name}. {line}.',
+    fr: 'J’ai approuvé {name}. {line}.',
+  },
+  'ההודעה למנהל החנות לא יצאה.': {
+    en: 'The message to the store manager was not sent.',
+    fr: 'Le message au responsable du magasin n’est pas parti.',
+  },
+  'לא הצלחתי לנעול את המחיר.': {
+    en: 'I could not lock the price.',
+    fr: 'Je n’ai pas pu verrouiller le prix.',
+  },
+  'הנה הבית — לוח הבקרה שלך.': {
+    en: 'Here is home — your control board.',
+    fr: 'Voici l’accueil — votre tableau de bord.',
+  },
+  הבית: { en: 'Home', fr: 'Accueil' },
+  'הנה תור התקלות.': {
+    en: 'Here is the fault queue.',
+    fr: 'Voici la file des pannes.',
+  },
+  'תור תקלות': { en: 'Fault queue', fr: 'File des pannes' },
+  'הנה מסך האישורים.': {
+    en: 'Here is the approvals screen.',
+    fr: 'Voici l’écran des approbations.',
+  },
+  'הנה המסמכים והתוקף.': {
+    en: 'Here are documents and expiry.',
+    fr: 'Voici les documents et les échéances.',
+  },
+  'באיזה סניף? יש {names}.': {
+    en: 'Which store? Options: {names}.',
+    fr: 'Quel magasin ? Options : {names}.',
+  },
+  'חידוש אישור': { en: 'Renew permit', fr: 'Renouveler l’autorisation' },
+  'באיזה סניף האישור?': {
+    en: 'Which store is the permit for?',
+    fr: 'Pour quel magasin est l’autorisation ?',
+  },
+  'רשמתי משימה לחידוש אישור. חסר סניף.': {
+    en: 'I logged a renew-permit task. Store is missing.',
+    fr: 'J’ai enregistré une tâche de renouvellement. Magasin manquant.',
+  },
+  'תאריך התוקף לא ברור': {
+    en: 'Expiry date is unclear',
+    fr: 'La date d’échéance n’est pas claire',
+  },
+  'אישור חשמל': { en: 'electrical permit', fr: 'autorisation électrique' },
+  'אישור כיבוי אש': { en: 'fire permit', fr: 'autorisation incendie' },
+  'רשמתי {kind} בסניף {store}.': {
+    en: 'I logged {kind} at {store}.',
+    fr: 'J’ai enregistré {kind} au magasin {store}.',
+  },
+  'רשמתי אישור לסניף {store}. חסר תאריך תוקף.': {
+    en: 'I logged a permit for {store}. Expiry date is missing.',
+    fr: 'J’ai enregistré une autorisation pour {store}. Date d’échéance manquante.',
+  },
+  'מה לרשום במשימה?': {
+    en: 'What should I put on the task?',
+    fr: 'Que faut-il noter sur la tâche ?',
+  },
+  'המשימה כבר רשומה: {title}.': {
+    en: 'That task is already logged: {title}.',
+    fr: 'Cette tâche est déjà enregistrée : {title}.',
+  },
+  'לתאריך {date}.': { en: 'Due {date}.', fr: 'Pour le {date}.' },
+  'חוזר כל {days} ימים.': {
+    en: 'Repeats every {days} days.',
+    fr: 'Se répète tous les {days} jours.',
+  },
+  'באיזה סניף לפתוח את «{body}»?': {
+    en: 'Which store should I open «{body}» at?',
+    fr: 'Dans quel magasin ouvrir «{body}» ?',
+  },
+  'מה התקלה, ובאיזה סניף?': {
+    en: 'What is the fault, and at which store?',
+    fr: 'Quelle est la panne, et dans quel magasin ?',
+  },
+  'מה התקלה ב{store}?': {
+    en: 'What is the fault at {store}?',
+    fr: 'Quelle est la panne à {store} ?',
+  },
+  'התקלה כבר פתוחה ב{store}. {number}{summary}.': {
+    en: 'That fault is already open at {store}. {number}{summary}.',
+    fr: 'Cette panne est déjà ouverte à {store}. {number}{summary}.',
+  },
+  'הצעד הוא לאשר איש מקצוע ומחיר.': {
+    en: 'Next step: approve a professional and a price.',
+    fr: 'Prochaine étape : approuver un professionnel et un prix.',
+  },
+  'היא נשארת בתור לשילוב ביקור.': {
+    en: 'It stays in the queue to combine into a visit.',
+    fr: 'Elle reste en file pour regrouper une visite.',
+  },
+  'פתחתי תקלה ב{store}: {description}. {label}{next} {range}': {
+    en: 'I opened a fault at {store}: {description}. {label}{next} {range}',
+    fr: 'J’ai ouvert une panne à {store} : {description}. {label}{next} {range}',
+  },
+  למסך: { en: 'Open screen', fr: 'Ouvrir l’écran' },
+  לאישורים: { en: 'Approvals', fr: 'Approbations' },
+  'לספר אנשי מקצוע': { en: 'Professionals', fr: 'Professionnels' },
+  לתור: { en: 'Queue', fr: 'File' },
+  'אין מענה קולי. התשובה בהודעה הזו.': {
+    en: 'No voice reply. The answer is in this message.',
+    fr: 'Pas de réponse vocale. La réponse est dans ce message.',
+  },
+  'אין טקסט להקראה': { en: 'Nothing to speak', fr: 'Rien à lire' },
+  'אין ספק דיבור מוגדר': {
+    en: 'No speech provider configured',
+    fr: 'Aucun fournisseur vocal configuré',
+  },
+  'ההקראה נכשלה': { en: 'Speech failed', fr: 'Échec de la synthèse' },
+  'ההקראה יצאה ריקה': { en: 'Speech came back empty', fr: 'Synthèse vide' },
+  'אין פעולה לכרטיס': {
+    en: 'No action for this card',
+    fr: 'Aucune action pour cette carte',
+  },
+  'אשר הזמנה': { en: 'Approve booking', fr: 'Approuver la réservation' },
+  'דורשות תשומת לב': { en: 'Need attention', fr: 'Demandent attention' },
+  תקועות: { en: 'Stuck', fr: 'Bloquées' },
+
+}
+
+/** Generated gaps first; curated wins on overlap (no duplicate-literal TS errors). */
+const PHRASES: Record<string, { en: string; fr: string }> = {
+  ...MISSING_PHRASES,
+  ...CURATED_PHRASES,
 }
 
 export function phrase(

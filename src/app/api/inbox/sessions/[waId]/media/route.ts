@@ -7,6 +7,7 @@ import {
 import { AuthError } from '@/lib/auth/types'
 import {
   classifyInboxOutboundFile,
+  replyAudioToSession,
   replyMediaToSession,
   uploadInboxMediaFile,
 } from '@/modules/inbox/reply-media'
@@ -41,6 +42,19 @@ export async function POST(
       }
       const captionRaw = String(form.get('caption') || '').trim()
       const ticketRaw = String(form.get('ticketId') || '').trim()
+
+      if (check.kind === 'audio') {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        const result = await replyAudioToSession({
+          actor,
+          waId,
+          audio: bytes,
+          mime: file.type || 'audio/webm',
+          ticketId: ticketRaw || null,
+        })
+        return NextResponse.json(result)
+      }
+
       const link = await uploadInboxMediaFile(waId, file, check.kind)
       const result = await replyMediaToSession({
         actor,

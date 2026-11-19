@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { usePhrase } from '@/components/i18n/locale-provider'
+import { TM } from '@/lib/toast-messages'
 
 export function ProfessionalsManualAdd() {
   const p = usePhrase()
@@ -44,7 +45,7 @@ export function ProfessionalsManualAdd() {
       setName('')
       setPhone('')
       setTrade('')
-      toast.push({ title: p('איש המקצוע נשמר'), tone: 'success' })
+      toast.push({ title: TM.professionalSaved, tone: 'success' })
       startTransition(() => router.refresh())
     } catch {
       toast.push({

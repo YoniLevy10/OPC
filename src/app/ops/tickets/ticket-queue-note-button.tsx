@@ -67,7 +67,7 @@ export function TicketQueueNoteButton({
       <Modal
         open={open}
         onOpenChange={setOpen}
-        title="הערה על התקלה"
+        title={p('הערה על התקלה')}
         description={ticketTitle}
       >
         <form onSubmit={(e) => void onSave(e)} className="space-y-3">

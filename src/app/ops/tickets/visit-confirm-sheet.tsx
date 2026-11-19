@@ -7,6 +7,7 @@ import { BottomSheet } from '@/components/ui/overlay'
 import { buildMidragSearchUrl } from '@/modules/vendors/external-search'
 import { visitPlaceLabel } from '@/modules/vendors/visit-pick'
 import type { VisitPoolVendor } from '@/modules/vendors/visit-pick'
+import { usePhrase } from '@/components/i18n/locale-provider'
 
 export type VisitConfirmTicket = {
   id: string
@@ -40,26 +41,29 @@ export type VisitBookPerson = {
   trade: string | null
 }
 
-function statusLabel(status: string): string {
+function statusLabel(
+  status: string,
+  p: (text: string, vars?: Record<string, string | number>) => string,
+): string {
   switch (status) {
     case 'sent':
-      return 'נשלח לספק'
+      return p('נשלח לספק')
     case 'labeled':
-      return 'סומן לשיבוץ (אין ערוץ חי)'
+      return p('סומן לשיבוץ (אין ערוץ חי)')
     case 'ack':
-      return 'אושר ע״י ספק'
+      return p('אושר ע״י ספק')
     case 'failed':
-      return 'נכשל'
+      return p('נכשל')
     case 'blocked':
-      return 'חסום — נדרש אישור'
+      return p('חסום — נדרש אישור')
     case 'queued':
-      return 'בתכנון'
+      return p('בתכנון')
     case 'planned':
-      return 'תוכנן'
+      return p('תוכנן')
     case 'partial':
-      return 'חלקי'
+      return p('חלקי')
     case 'dispatched':
-      return 'שובץ'
+      return p('שובץ')
     default:
       return status
   }
@@ -137,6 +141,7 @@ export function VisitConfirmSheet({
   /** @deprecated Always uses the handoff form when onLock is set. */
   directLock?: boolean
 }) {
+  const p = usePhrase()
   const placeName = visitPlaceLabel({ city, region })
   const midragUrl = buildMidragSearchUrl({ category: category || 'other', city })
   const [proName, setProName] = useState('')
@@ -172,8 +177,8 @@ export function VisitConfirmSheet({
       title={title}
       description={
         result
-          ? `תוצאה · ${statusLabel(result.status)}`
-          : `${storeLabel} · ${tickets.length + includedCount} תקלות`
+          ? p('תוצאה') + ' · ' + statusLabel(result.status, p)
+          : `${storeLabel} · ${p('{n} תקלות', { n: tickets.length + includedCount })}`
       }
     >
       <div className="flex flex-col gap-4">
@@ -195,17 +200,16 @@ export function VisitConfirmSheet({
             }}
           >
             <p className="t-body text-ink">
-              חפשו במידרג, הזינו שם וטלפון, ושלחו למנהל החנות את איש המקצוע עם
-              רשימת התקלות.
+              {p('חפשו במידרג, הזינו שם וטלפון, ושלחו למנהל החנות את איש המקצוע עם רשימת התקלות.')}
             </p>
 
             <dl className="t-caption grid gap-2 text-ink-2">
               <div className="flex justify-between gap-3">
-                <dt>חנות</dt>
+                <dt>{p('חנות')}</dt>
                 <dd className="font-semibold text-ink">{storeLabel}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt>מספר תקלות</dt>
+                <dt>{p('מספר תקלות')}</dt>
                 <dd className="t-num font-semibold text-ink">
                   {tickets.length + includedCount}
                 </dd>
@@ -232,7 +236,7 @@ export function VisitConfirmSheet({
             {suggestions.length > 0 ? (
               <fieldset className="grid gap-2">
                 <legend className="t-caption text-ink-2">
-                  אפשר לכלול באותו ביקור
+                  {p('אפשר לכלול באותו ביקור')}
                 </legend>
                 {suggestions.map((row) => {
                   const checked = includedSuggestionIds.includes(row.id)
@@ -269,7 +273,7 @@ export function VisitConfirmSheet({
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="secondary" size="sm" className="min-w-0 flex-1">
                 <a href={midragUrl} target="_blank" rel="noreferrer">
-                  חיפוש במידרג{placeName ? ` · ${placeName}` : ''}
+                  {p('חיפוש במידרג')}{placeName ? ` · ${placeName}` : ''}
                 </a>
               </Button>
               {professionals.length > 0 ? (
@@ -282,7 +286,7 @@ export function VisitConfirmSheet({
                   aria-expanded={bookOpen}
                   onClick={() => setBookOpen((v) => !v)}
                 >
-                  מהספר ({professionals.length})
+                  {p('מהספר')} ({professionals.length})
                   <ChevronDown
                     className={`h-3.5 w-3.5 transition-transform ${bookOpen ? 'rotate-180' : ''}`}
                     aria-hidden
@@ -318,7 +322,7 @@ export function VisitConfirmSheet({
                           </span>
                         ) : null}
                       </span>
-                      <span className="t-caption shrink-0 text-ink-2">בחר</span>
+                      <span className="t-caption shrink-0 text-ink-2">{p('בחר')}</span>
                     </button>
                   </li>
                 ))}
@@ -327,18 +331,19 @@ export function VisitConfirmSheet({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5">
-                <span className="t-caption text-ink-2">שם איש המקצוע</span>
+                <span className="t-caption text-ink-2">{p('שם איש המקצוע')}</span>
                 <input
                   required
                   value={proName}
                   onChange={(e) => setProName(e.target.value)}
                   disabled={busy}
                   className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
-                  placeholder="אחרי השיחה במידרג"
+                  placeholder={p('אחרי השיחה במידרג')}
+
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="t-caption text-ink-2">טלפון</span>
+                <span className="t-caption text-ink-2">{p('טלפון')}</span>
                 <input
                   required
                   inputMode="tel"
@@ -346,21 +351,23 @@ export function VisitConfirmSheet({
                   onChange={(e) => setProPhone(e.target.value)}
                   disabled={busy}
                   className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
-                  placeholder="המספר שסיכמתם"
+                  placeholder={p('המספר שסיכמתם')}
+
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="t-caption text-ink-2">העבודה שסוכמה</span>
+                <span className="t-caption text-ink-2">{p('העבודה שסוכמה')}</span>
                 <input
                   value={proScope}
                   onChange={(e) => setProScope(e.target.value)}
                   disabled={busy}
                   className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
-                  placeholder="מה בעל המקצוע יעשה"
+                  placeholder={p('מה בעל המקצוע יעשה')}
+
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="t-caption text-ink-2">מחיר שסוכם (אופציונלי)</span>
+                <span className="t-caption text-ink-2">{p('מחיר שסוכם (אופציונלי)')}</span>
                 <input
                   inputMode="decimal"
                   value={proPrice}
@@ -371,7 +378,7 @@ export function VisitConfirmSheet({
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="t-caption text-ink-2">מועד מתוכנן (אופציונלי)</span>
+                <span className="t-caption text-ink-2">{p('מועד מתוכנן (אופציונלי)')}</span>
                 <input
                   type="datetime-local"
                   className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
@@ -381,13 +388,14 @@ export function VisitConfirmSheet({
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="t-caption text-ink-2">הערה לחנות (אופציונלי)</span>
+                <span className="t-caption text-ink-2">{p('הערה לחנות (אופציונלי)')}</span>
                 <input
                   className="t-control min-h-[var(--tap)] rounded-[var(--radius-md)] border border-border bg-surface px-3 text-ink"
                   value={notes}
                   onChange={(e) => onNotesChange(e.target.value)}
                   disabled={busy}
-                  placeholder="שעת הגעה, כניסה…"
+                  placeholder={p('שעת הגעה, כניסה…')}
+
                 />
               </label>
             </div>
@@ -401,7 +409,7 @@ export function VisitConfirmSheet({
               className="w-full"
               disabled={busy || !canSubmit}
             >
-              {busy ? 'שולח…' : 'תכנן ביקור ושלח לחנות'}
+              {busy ? p('שולח…') : p('תכנן ביקור ושלח לחנות')}
             </Button>
           </form>
         ) : result ? (
@@ -414,8 +422,8 @@ export function VisitConfirmSheet({
               </p>
             ) : null}
             <p className={`t-body font-semibold ${statusTone(result.status)}`}>
-              {statusLabel(result.status)}
-              {result.status === 'partial' ? ' — חלק מהתקלות לא שוגרו' : null}
+              {statusLabel(result.status, p)}
+              {result.status === 'partial' ? p(' — חלק מהתקלות לא שוגרו') : null}
             </p>
             <ul className="divide-y divide-border rounded-[var(--radius-md)] border border-border">
               {result.items.map((item) => (
@@ -428,7 +436,7 @@ export function VisitConfirmSheet({
                       {item.display_number || item.ticket_id.slice(0, 8)}
                     </p>
                     <p className={`t-caption ${statusTone(item.status)}`}>
-                      {statusLabel(item.status)}
+                      {statusLabel(item.status, p)}
                     </p>
                     {item.error ? (
                       <p className="t-caption text-[var(--signal-critical)]">
@@ -444,7 +452,7 @@ export function VisitConfirmSheet({
                       disabled={busy}
                       onClick={() => onApprove([item.ticket_id])}
                     >
-                      אשר
+                      {p('אשר')}
                     </Button>
                   ) : item.can_retry ? (
                     <Button
@@ -454,7 +462,7 @@ export function VisitConfirmSheet({
                       disabled={busy}
                       onClick={() => onRetryTicket(item.ticket_id)}
                     >
-                      נסה שוב
+                      {p('נסה שוב')}
                     </Button>
                   ) : null}
                 </li>
@@ -471,7 +479,7 @@ export function VisitConfirmSheet({
                   onApprove(awaitingApproval.map((item) => item.ticket_id))
                 }
               >
-                אשר ושלח ({awaitingApproval.length})
+                {p('אשר ושלח')} ({awaitingApproval.length})
               </Button>
             ) : null}
             {failed.length > 0 ? (
@@ -483,7 +491,7 @@ export function VisitConfirmSheet({
                 disabled={busy}
                 onClick={onRetryFailed}
               >
-                נסה שוב את הכושלים ({failed.length})
+                {p('נסה שוב את הכושלים')} ({failed.length})
               </Button>
             ) : awaitingApproval.length > 0 ? null : (
               <Button
@@ -493,12 +501,12 @@ export function VisitConfirmSheet({
                 className="w-full"
                 onClick={() => onOpenChange(false)}
               >
-                סגור
+                {p('סגור')}
               </Button>
             )}
           </>
         ) : (
-          <p className="t-body text-ink-2">אין פעולת שליחה מוגדרת.</p>
+          <p className="t-body text-ink-2">{p('אין פעולת שליחה מוגדרת.')}</p>
         )}
       </div>
     </BottomSheet>

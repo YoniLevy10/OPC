@@ -24,14 +24,14 @@ import {
 import { PhoneFold, PhoneFoldStack } from '@/components/layout/phone-fold'
 import { PhoneList, PhoneRow } from '@/components/mobile'
 
-const BUCKETS: { key: AlertBucket | 'open'; label: string }[] = [
-  { key: 'open', label: 'פעולות פתוחות' },
-  { key: 'urgent_overdue', label: 'דחוף / באיחור' },
-  { key: 'needs_decision', label: 'דורש החלטה' },
-  { key: 'waiting', label: 'ממתין למישהו' },
+const BUCKET_KEYS: { key: AlertBucket | 'open'; he: string }[] = [
+  { key: 'open', he: 'פעולות פתוחות' },
+  { key: 'urgent_overdue', he: 'דחוף / באיחור' },
+  { key: 'needs_decision', he: 'דורש החלטה' },
+  { key: 'waiting', he: 'ממתין למישהו' },
 ]
 
-const SOURCE_LABEL: Record<AlertSource, string> = {
+const SOURCE_LABEL_HE: Record<AlertSource, string> = {
   ticket: 'תקלה',
   spend: 'הוצאה',
   document: 'מסמך',
@@ -195,7 +195,7 @@ export function AlertsClient({
         aria-label={p('פעולות פתוחות')}
         className="grid w-full grid-cols-2 gap-1 rounded-[var(--radius-md)] border border-border bg-[var(--surface-sunken)]/50 p-1"
       >
-        {BUCKETS.map((tab) => {
+        {BUCKET_KEYS.map((tab) => {
           const selected = bucket === tab.key
           const count =
             tab.key === 'open'
@@ -215,7 +215,7 @@ export function AlertsClient({
               )}
               onClick={() => setBucket(tab.key)}
             >
-              {p(tab.label)}
+              {p(tab.he)}
               <span className="ms-1 t-num text-ink-3">{count}</span>
             </button>
           )
@@ -257,9 +257,9 @@ export function AlertsClient({
             className="rounded-[var(--radius-md)] border border-border bg-surface px-3 py-2 t-body"
           >
             <option value="all">{p('כל המקורות')}</option>
-            {(Object.keys(SOURCE_LABEL) as AlertSource[]).map((key) => (
+            {(Object.keys(SOURCE_LABEL_HE) as AlertSource[]).map((key) => (
               <option key={key} value={key}>
-                {p(SOURCE_LABEL[key])}
+                {p(SOURCE_LABEL_HE[key])}
               </option>
             ))}
           </select>
