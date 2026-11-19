@@ -26,6 +26,13 @@ Manual verification for items marked **טופל / דורש אימות** and bot/
 4. Spend / money request — lands as pending; requires Ari `לאשר` before execute.
 5. `draft_engagement` / book pro — requires explicit Ari confirmation path; no silent financial commitment.
 
+## J — צרפתית (UI + WhatsApp)
+
+1. In `/ops`, set language to **FR** (sidebar switcher). Confirm dashboard, tickets, approvals, alerts, inbox chrome has **no Hebrew** labels/buttons/empty states.
+2. From Ari’s WhatsApp, write in French (e.g. `Quelles pannes sont ouvertes ?` / `ouvrir accueil`) — reply is French; links still open `/ops`.
+3. French desk decisions: `approuver` / `refuser` / `demander infos` behave like `לאשר` / `לדחות` / `לבקש מידע`.
+4. Switch back to Hebrew in the UI; WA Hebrew messages still get Hebrew replies (per-message detection).
+
 ## Payment SMS (wave 1)
 
 1. Lock a professional, complete work, store confirms close.

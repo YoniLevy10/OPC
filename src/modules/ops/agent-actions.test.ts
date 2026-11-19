@@ -32,9 +32,21 @@ describe('actForAri', () => {
     expect(reply?.links[0]).toEqual({ href: '/ops/dashboard', label: 'הבית' })
   })
 
+  it('opens home in French', async () => {
+    const reply = await actForAri({ message: 'ouvrir accueil', locale: 'fr' })
+    expect(reply?.reply).toMatch(/accueil|tableau/i)
+    expect(reply?.links[0]).toEqual({ href: '/ops/dashboard', label: 'Accueil' })
+  })
+
   it('opens the tickets queue from Hebrew', async () => {
     const reply = await actForAri({ message: 'תפתח לי את התור' })
     expect(reply?.links[0]?.href).toBe('/ops/tickets')
+  })
+
+  it('opens the tickets queue from French', async () => {
+    const reply = await actForAri({ message: 'ouvrir la file', locale: 'fr' })
+    expect(reply?.links[0]?.href).toBe('/ops/tickets')
+    expect(reply?.reply).toMatch(/file|pannes/i)
   })
 
   it('bakes absolute ops links into WhatsApp-ready text', () => {

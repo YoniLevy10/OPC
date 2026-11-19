@@ -29,18 +29,18 @@ export type OpenFaultHint = {
 }
 
 const CREATE_TASK =
-  /(?:פתח|תפתח|צור|תיצור|תוסיף|הוסף|רשום|תרשום)\s+(?:לי\s+)?(?:על\s+(?:זה\s+)?)?משימה|תזכיר לי|(?:create|open|add|make)\s+(?:a\s+)?task|(?:créer|ouvre[rz]?|ajoute[rz]?)\s+(?:une\s+)?tâche/i
+  /(?:פתח|תפתח|צור|תיצור|תוסיף|הוסף|רשום|תרשום)\s+(?:לי\s+)?(?:על\s+(?:זה\s+)?)?משימה|תזכיר לי|(?:create|open|add|make)\s+(?:a\s+)?task|(?:créer|ouvrir|ouvre|ajoute[rz]?)\s+(?:une\s+)?tâche/i
 const CREATE_TICKET =
-  /(?:פתח|תפתח|צור|תיצור|תוסיף|הוסף|רשום|תרשום|דווח)\s+(?:לי\s+)?(?:על\s+(?:זה\s+)?)?(?:תקלה|קריאה)(?!\s+ה)|(?:create|open|report)\s+(?:a\s+)?(?:fault|ticket)|(?:créer|ouvre[rz]?|signale[rz]?)\s+(?:une\s+)?panne/i
+  /(?:פתח|תפתח|צור|תיצור|תוסיף|הוסף|רשום|תרשום|דווח)\s+(?:לי\s+)?(?:על\s+(?:זה\s+)?)?(?:תקלה|קריאה)(?!\s+ה)|(?:create|open|report)\s+(?:a\s+)?(?:fault|ticket)|(?:créer|ouvrir|ouvre|signale[rz]?)\s+(?:une\s+)?panne/i
 /** Open Ari's ops home / dashboard — must run before CREATE_TASK/TICKET. */
 const OPEN_HOME =
-  /(?:פתח|תפתח|תראה|הראה|שלח|תן)\s+(?:לי\s+)?(?:את\s+)?(?:הבית|לוח(?:\s+הבקרה)?|הדשבורד|dashboard)|^(?:הבית|לוח הבקרה)\s*\??$|(?:open|show|send)\s+(?:the\s+)?(?:home|dashboard)|(?:ouvre[rz]?|montre[rz]?|envoie[rz]?)\s+(?:l['’])?(?:accueil|tableau de bord|dashboard)|^accueil\s*\??$/i
+  /(?:פתח|תפתח|תראה|הראה|שלח|תן)\s+(?:לי\s+)?(?:את\s+)?(?:הבית|לוח(?:\s+הבקרה)?|הדשבורד|dashboard)|^(?:הבית|לוח הבקרה)\s*\??$|(?:open|show|send)\s+(?:the\s+)?(?:home|dashboard)|(?:ouvrir|ouvre|montre[rz]?|envoie[rz]?)\s+(?:l['’])?(?:accueil|tableau de bord|dashboard)|^accueil\s*\??$/i
 const OPEN_QUEUE =
-  /(?:פתח|תפתח|תראה|הראה|שלח)\s+(?:לי\s+)?(?:את\s+)?(?:התור|תור התקלות|רשימת התקלות|התקלות(?:\s+הפתוחות)?)|(?:open|show)\s+(?:the\s+)?(?:queue|faults?|tickets?)|(?:ouvre[rz]?|montre[rz]?)\s+(?:la\s+)?(?:file|pannes?)/i
+  /(?:פתח|תפתח|תראה|הראה|שלח)\s+(?:לי\s+)?(?:את\s+)?(?:התור|תור התקלות|רשימת התקלות|התקלות(?:\s+הפתוחות)?)|(?:open|show)\s+(?:the\s+)?(?:queue|faults?|tickets?)|(?:ouvrir|ouvre|montre[rz]?)\s+(?:la\s+)?(?:file|pannes?)/i
 const OPEN_APPROVALS =
-  /(?:פתח|תפתח|תראה|הראה|שלח)\s+(?:לי\s+)?(?:את\s+)?(?:האישורים|מסך האישורים|הוצאות(?:\s+ממתינות)?)|(?:open|show)\s+(?:the\s+)?approvals?|(?:ouvre[rz]?|montre[rz]?)\s+(?:les\s+)?approbations?/i
+  /(?:פתח|תפתח|תראה|הראה|שלח)\s+(?:לי\s+)?(?:את\s+)?(?:האישורים|מסך האישורים|הוצאות(?:\s+ממתינות)?)|(?:open|show)\s+(?:the\s+)?approvals?|(?:ouvrir|ouvre|montre[rz]?)\s+(?:les\s+)?approbations?/i
 const OPEN_DOCS =
-  /(?:פתח|תפתח|תראה|הראה|שלח)\s+(?:לי\s+)?(?:את\s+)?(?:המסמכים|מסמכים ותוקף|התקינה)|(open|show)\s+(?:the\s+)?documents?|(?:ouvre[rz]?|montre[rz]?)\s+(?:les\s+)?documents?/i
+  /(?:פתח|תפתח|תראה|הראה|שלח)\s+(?:לי\s+)?(?:את\s+)?(?:המסמכים|מסמכים ותוקף|התקינה)|(open|show)\s+(?:the\s+)?documents?|(?:ouvrir|ouvre|montre[rz]?)\s+(?:les\s+)?documents?/i
 
 /** Turn a relative /ops path into a public URL WhatsApp can open. */
 export function absoluteOpsHref(href: string): string {

@@ -7,6 +7,7 @@ import {
   duePapersFrom,
   harvestOpsLinks,
   repeatGearFrom,
+  replyToAri,
   shouldShortCircuitPapersGear,
   type GearAsset,
   type GearTicket,
@@ -143,6 +144,16 @@ describe('answerFromSnapshot', () => {
     expect(reply).toContain('fuites')
     expect(reply).toContain('אנדי')
     expect(reply).toContain('visite')
+  })
+
+  it('runs deterministic French open-home via replyToAri', async () => {
+    const answered = await replyToAri({
+      message: 'ouvrir accueil',
+      actor: null,
+      locale: 'fr',
+    })
+    expect(answered.reply).toMatch(/accueil|tableau/i)
+    expect(answered.links[0]?.href).toBe('/ops/dashboard')
   })
 
   it('names an overdue document even when nothing is open', () => {
