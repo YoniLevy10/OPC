@@ -6,6 +6,23 @@ export const DEMO_TECH_ID = DEMO_ACTORS.techA
 export const OTHER_TECH_ID = DEMO_ACTORS.techB
 export const HQ_ADMIN_ID = DEMO_ACTORS.globalAdmin
 
+/** Proof media required by WhatsApp / public-report intake (image or video). */
+export const DEMO_PROOF_MEDIA_URL = 'https://example.com/e2e-proof.jpg'
+
+/** Tiny PNG for Playwright `setInputFiles` on the public report form. */
+export const DEMO_PROOF_PNG: {
+  name: string
+  mimeType: string
+  buffer: Buffer
+} = {
+  name: 'e2e-proof.png',
+  mimeType: 'image/png',
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+}
+
 export function authHeaders(profileId: string) {
   return {
     Authorization: `Bearer ${signTestBearer(profileId)}`,
@@ -96,10 +113,11 @@ export async function getTechTicket(
 
 export async function createStore172Ticket(
   request: APIRequestContext,
-  opts?: { wa_id?: string; text?: string },
+  opts?: { wa_id?: string; text?: string; media_url?: string },
 ) {
   const wa_id = opts?.wa_id ?? uniqueWaId()
   const text = opts?.text ?? 'המזגן הראשי לא עובד'
+  const media_url = opts?.media_url ?? DEMO_PROOF_MEDIA_URL
   const step1 = await demoWhatsApp(request, {
     wa_id,
     text: 'STORE_172',
@@ -110,6 +128,7 @@ export async function createStore172Ticket(
   const step2 = await demoWhatsApp(request, {
     wa_id,
     text,
+    media_url,
     source: 'whatsapp',
   })
   expect(step2.ok).toBeTruthy()
