@@ -243,6 +243,39 @@ function isMissingColumnError(error: { message?: string } | null, col: string) {
   return Boolean(error?.message && error.message.includes(col))
 }
 
+/** Prod may lag OC-22 / media / draft columns — fall back to legacy select/writes. */
+function isIntakeSessionSchemaGap(error: { message?: string } | null) {
+  return (
+    isMissingColumnError(error, 'clarification_count') ||
+    isMissingColumnError(error, 'draft_payload') ||
+    isMissingColumnError(error, 'active_ticket_id') ||
+    isMissingColumnError(error, 'human_takeover_until') ||
+    isMissingColumnError(error, 'pending_media_url') ||
+    isMissingColumnError(error, 'pending_media_kind') ||
+    isMissingColumnError(error, 'thread_kind') ||
+    isMissingColumnError(error, 'bot_mode') ||
+    isMissingColumnError(error, 'linked_professional_id') ||
+    isMissingColumnError(error, 'linked_ticket_id') ||
+    isMissingColumnError(error, 'customer_name') ||
+    isMissingColumnError(error, 'last_inbound')
+  )
+}
+
+function stripIntakeSessionSchemaGapCols(row: Record<string, unknown>) {
+  delete row.clarification_count
+  delete row.draft_payload
+  delete row.active_ticket_id
+  delete row.human_takeover_until
+  delete row.pending_media_url
+  delete row.pending_media_kind
+  delete row.thread_kind
+  delete row.bot_mode
+  delete row.linked_professional_id
+  delete row.linked_ticket_id
+  delete row.customer_name
+  delete row.last_inbound
+}
+
 async function selectSession(
   supabase: SupabaseClient,
   countryId: string,
@@ -254,20 +287,7 @@ async function selectSession(
     .eq('country_id', countryId)
     .eq('wa_id', waId)
     .maybeSingle()
-  if (
-    error &&
-    (isMissingColumnError(error, 'clarification_count') ||
-      isMissingColumnError(error, 'draft_payload') ||
-      isMissingColumnError(error, 'active_ticket_id') ||
-      isMissingColumnError(error, 'human_takeover_until') ||
-      isMissingColumnError(error, 'pending_media_url') ||
-      isMissingColumnError(error, 'pending_media_kind') ||
-      isMissingColumnError(error, 'thread_kind') ||
-      isMissingColumnError(error, 'bot_mode') ||
-      isMissingColumnError(error, 'linked_professional_id') ||
-      isMissingColumnError(error, 'linked_ticket_id') ||
-      isMissingColumnError(error, 'customer_name'))
-  ) {
+  if (error && isIntakeSessionSchemaGap(error)) {
     ;({ data, error } = await supabase
       .from('intake_sessions')
       .select(SESSION_SELECT_LEGACY)
@@ -835,18 +855,8 @@ async function getOrCreateSession(
       .eq('id', existing.id)
       .select(SESSION_SELECT)
       .single()
-    if (
-      error &&
-      (isMissingColumnError(error, 'clarification_count') ||
-        isMissingColumnError(error, 'draft_payload') ||
-        isMissingColumnError(error, 'pending_media_url') ||
-        isMissingColumnError(error, 'pending_media_kind'))
-    ) {
-      delete resetPatch.clarification_count
-      delete resetPatch.draft_payload
-      delete resetPatch.active_ticket_id
-      delete resetPatch.pending_media_url
-      delete resetPatch.pending_media_kind
+    if (error && isIntakeSessionSchemaGap(error)) {
+      stripIntakeSessionSchemaGapCols(resetPatch)
       ;({ data: updated, error } = await supabase
         .from('intake_sessions')
         .update(resetPatch)
@@ -871,8 +881,10 @@ async function getOrCreateSession(
     .insert(insertRow)
     .select(SESSION_SELECT)
     .single()
-  if (error && isMissingColumnError(error, 'clarification_count')) {
-    delete insertRow.clarification_count
+  // Insert payload is lean; failure is almost always `.select(SESSION_SELECT)`
+  // when OC-22 / draft columns are missing on prod.
+  if (error && isIntakeSessionSchemaGap(error)) {
+    stripIntakeSessionSchemaGapCols(insertRow)
     ;({ data: created, error } = await supabase
       .from('intake_sessions')
       .insert(insertRow)
@@ -977,14 +989,13 @@ async function updateSession(
     .from('intake_sessions')
     .update(dbPatch)
     .eq('id', session.id)
-  if (
-    error &&
-    (isMissingColumnError(error, 'pending_media_url') ||
-      isMissingColumnError(error, 'pending_media_kind'))
-  ) {
-    delete dbPatch.pending_media_url
-    delete dbPatch.pending_media_kind
-    await supabase.from('intake_sessions').update(dbPatch).eq('id', session.id)
+  if (error && isIntakeSessionSchemaGap(error)) {
+    stripIntakeSessionSchemaGapCols(dbPatch)
+    const { error: retryError } = await supabase
+      .from('intake_sessions')
+      .update(dbPatch)
+      .eq('id', session.id)
+    if (retryError) throw new Error(retryError.message)
   }
 }
 
